@@ -124,7 +124,7 @@ sub atmsort_init
     init_match_subs();
     init_matchignores();
 
-	_process_init_files();
+    _process_init_files();
 }
 
 sub _process_init_files
