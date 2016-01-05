@@ -584,6 +584,8 @@ bool		gp_plpgsql_clear_cache_always = false;
  */
 char	   *gp_default_storage_options = NULL;
 
+int			writable_external_table_bufsize = 64;
+
 struct config_bool ConfigureNamesBool_gp[] =
 {
 	{
@@ -3426,6 +3428,16 @@ struct config_int ConfigureNamesInt_gp[] =
 		},
 		&readable_external_table_timeout,
 		0, 0, INT_MAX, NULL, NULL
+	},
+
+	{
+		{"writable_external_table_bufsize", PGC_USERSET, EXTERNAL_TABLES,
+			gettext_noop("Buffer size in kilo bytes for writable external table before writing data to gpfdist."),
+			gettext_noop("Valid value is between 32K and 128M: [32, 131072]."),
+			GUC_UNIT_KB | GUC_NOT_IN_SAMPLE
+		},
+		&writable_external_table_bufsize,
+		64, 32, 131072, NULL, NULL
 	},
 
 	{
