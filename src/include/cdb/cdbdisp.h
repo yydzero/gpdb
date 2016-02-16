@@ -18,9 +18,9 @@
 
 #define CDB_MOTION_LOST_CONTACT_STRING "Interconnect error master lost contact with segment."
 
+extern PGresult;                   	/* #include "gp-libpq-fe.h" */
 struct CdbDispatchResult;           /* #include "cdb/cdbdispatchresult.h" */
 struct CdbDispatchResults;          /* #include "cdb/cdbdispatchresult.h" */
-struct pg_result;                   /* #include "gp-libpq-fe.h" */
 struct Gang;                        /* #include "cdb/cdbgang.h" */
 struct Node;                        /* #include "nodes/nodes.h" */
 struct QueryDesc;                   /* #include "executor/execdesc.h" */
@@ -254,7 +254,7 @@ CdbCheckDispatchResult(struct CdbDispatcherState *ds, DispatchWaitMode waitMode)
 
 /*--------------------------------------------------------------------*/
 
-struct pg_result **
+PGresult **
 cdbdisp_returnResults(struct CdbDispatchResults *primaryResults,
 						StringInfo errmsgbuf,
 						int *numresults);
@@ -270,7 +270,7 @@ cdbdisp_returnResults(struct CdbDispatchResults *primaryResults,
  * PGresult objects - are appended to a StringInfo buffer provided
  * by the caller.
  */
-struct pg_result **             /* returns ptr to array of PGresult ptrs */
+PGresult **             /* returns ptr to array of PGresult ptrs */
 cdbdisp_dispatchRMCommand(const char   *strCommand,
 						  bool			withSnapshot,
                           StringInfo    errmsgbuf,
@@ -291,7 +291,7 @@ cdbdisp_dispatchRMCommand(const char   *strCommand,
  * PGresult objects - are appended to a StringInfo buffer provided
  * by the caller.
  */
-struct pg_result **             /* returns ptr to array of PGresult ptrs */
+PGresult **             /* returns ptr to array of PGresult ptrs */
 cdbdisp_dispatchDtxProtocolCommand(DtxProtocolCommand		dtxProtocolCommand,
 								   int						flags,
 								   char						*dtxProtocolCommandLoggingStr,

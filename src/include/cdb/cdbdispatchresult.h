@@ -225,7 +225,7 @@ typedef struct CdbDispatchResults
 	/* MPP-6253: during dispatch, it is important to check to see that
 	 * the writer gang isn't already doing something -- this is an
 	 * important, missing sanity check */
-	struct Gang *writer_gang;
+	struct Gang 		*writer_gang;
 } CdbDispatchResults;
 
 
