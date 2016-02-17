@@ -29,6 +29,7 @@
 #include "cdb/cdbvars.h"
 #include "cdb/cdbsrlz.h"
 #include "cdb/cdbdisp.h"
+#include "cdb/cdbdispmgr.h"
 #include "cdb/cdbtm.h"
 #include "cdb/ml_ipc.h"
 #include "lib/stringinfo.h"
@@ -1298,7 +1299,7 @@ ExecSetParamPlan(SubPlanState *node, ExprContext *econtext,
             if (planstate->instrument)
             {
                 /* Wait for all gangs to finish. */
-				CdbCheckDispatchResult(queryDesc->estate->dispatcherState,
+				GetDispatcherMgr().CdbCheckDispatchResult(queryDesc->estate->dispatcherState,
 									   DISPATCH_WAIT_NONE);
 
                 /* Jam stats into subplan's Instrumentation nodes. */
@@ -1314,7 +1315,7 @@ ExecSetParamPlan(SubPlanState *node, ExprContext *econtext,
              * If the dispatcher or any QE had an error, report it and
              * exit to our error handler (below) via PG_THROW.
              */
-            cdbdisp_finishCommand(queryDesc->estate->dispatcherState, NULL, NULL);
+            GetDispatcherMgr().finishCommand(queryDesc->estate->dispatcherState, NULL, NULL);
         }
 
 		/* teardown the sequence server */
@@ -1344,7 +1345,7 @@ ExecSetParamPlan(SubPlanState *node, ExprContext *econtext,
 				Assert(queryDesc != NULL &&
 					   queryDesc->estate != NULL);
                 /* Wait for all gangs to finish.  Cancel slowpokes. */
-				CdbCheckDispatchResult(queryDesc->estate->dispatcherState,
+				GetDispatcherMgr().CdbCheckDispatchResult(queryDesc->estate->dispatcherState,
 									   DISPATCH_WAIT_CANCEL);
 
                 cdbexplain_recvExecStats(planstate,
@@ -1363,7 +1364,7 @@ ExecSetParamPlan(SubPlanState *node, ExprContext *econtext,
          * Replace current error info with QE error info if more interesting.
 		 */
         if (shouldDispatch && queryDesc && queryDesc->estate && queryDesc->estate->dispatcherState && queryDesc->estate->dispatcherState->primaryResults)
-			cdbdisp_handleError(queryDesc->estate->dispatcherState);
+        	GetDispatcherMgr().cdbdisp_handleError(queryDesc->estate->dispatcherState);
 		
 		/* teardown the sequence server */
 		TeardownSequenceServer();

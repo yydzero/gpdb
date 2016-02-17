@@ -23,6 +23,7 @@
 #include "cdb/cdbvars.h"
 #include "cdb/cdbsreh.h"
 #include "cdb/cdbdispatchresult.h"  /* me */
+#include "cdb/cdbgangmgr.h"
 #include "commands/tablecmds.h"
 
 
@@ -30,6 +31,21 @@
  * iFirstError and errcode fields of CdbDispatchResults objects.
  */
 static pthread_mutex_t  setErrcodeMutex = PTHREAD_MUTEX_INITIALIZER;
+
+/* Remove all of the PGresult ptrs from a CdbDispatchResult object
+ * and place them into an array provided by the caller.  The caller
+ * becomes responsible for PQclear()ing them.  Returns the number of
+ * PGresult ptrs placed in the array.
+ */
+static int cdbdisp_snatchPGresults(CdbDispatchResult  *dispatchResult,
+                        	struct pg_result  **pgresultptrs,
+							int                 maxresults);
+/* Format a CdbDispatchResult into a StringInfo buffer provided by caller.
+ * If verbose = true, reports all results; else reports at most one error.
+ */
+static void cdbdisp_dumpDispatchResult(CdbDispatchResult       *dispatchResult,
+                           	   	   	   bool                     verbose,
+									   struct StringInfoData   *buf);
 
 
 /*--------------------------------------------------------------------*/
@@ -265,8 +281,7 @@ cdbdisp_mergeConnectionErrors(CdbDispatchResult                *dispatchResult,
 {
     if (!segdbDesc)
         return false;
-    if (segdbDesc->errcode == 0 &&
-        segdbDesc->error_message.len == 0)
+    if (segdbDesc->errcode == 0 && segdbDesc->error_message.len == 0)
         return false;
 
     /* Error code should always be accompanied by text and vice-versa. */
@@ -405,7 +420,7 @@ cdbdisp_numPGresult(CdbDispatchResult  *dispatchResult)
  * becomes responsible for PQclear()ing them.  Returns the number of
  * PGresult ptrs placed in the array.
  */
-int
+static int
 cdbdisp_snatchPGresults(CdbDispatchResult  *dispatchResult,
                         struct pg_result  **pgresultptrs,
                         int                 maxresults)
@@ -544,22 +559,19 @@ cdbdisp_debugDispatchResult(CdbDispatchResult  *dispatchResult,
  * Format a CdbDispatchResult into a StringInfo buffer provided by caller.
  * If verbose = true, reports all info; else reports at most one error.
  */
-void
+static void
 cdbdisp_dumpDispatchResult(CdbDispatchResult       *dispatchResult,
                            bool                     verbose,
                            struct StringInfoData   *buf)
 {
     SegmentDatabaseDescriptor  *segdbDesc = dispatchResult->segdbDesc;
-    int     ires;
-    int     nres;
 
-    if (!dispatchResult ||
-        !buf)
+    if (!dispatchResult || !buf)
         return;
 
     /* Format PGresult messages */
-    nres = cdbdisp_numPGresult(dispatchResult);
-    for (ires = 0; ires < nres; ++ires)
+    int nres = cdbdisp_numPGresult(dispatchResult);
+    for (int ires = 0; ires < nres; ++ires)
     {                           /* for each PGresult */
         PGresult       *pgresult = cdbdisp_getPGresult(dispatchResult, ires);
         ExecStatusType  resultStatus = PQresultStatus(pgresult);
@@ -632,8 +644,7 @@ cdbdisp_dumpDispatchResult(CdbDispatchResult       *dispatchResult,
         cdbdisp_mergeConnectionErrors(dispatchResult, segdbDesc);
 
     /* Error found on our side of the libpq interface? */
-    if (dispatchResult->error_message &&
-        dispatchResult->error_message->len > 0)
+    if (dispatchResult->error_message && dispatchResult->error_message->len > 0)
     {
         oneTrailingNewline(buf);
         appendStringInfoString(buf, dispatchResult->error_message->data);
@@ -644,6 +655,63 @@ cdbdisp_dumpDispatchResult(CdbDispatchResult       *dispatchResult,
 done:
     noTrailingNewline(buf);
 }                               /* cdbdisp_dumpDispatchResult */
+
+/*
+ * Return dispatch result array in form of PGresult.
+ *
+ * cdbdisp_returnResults allocates result set ptr array. Make room for one PGresult ptr per
+ * primary segment db, plus a null terminator slot after the
+ * last entry.
+ *
+ * The caller must PQclear() each PGresult and free() the array.
+ */
+PGresult **
+cdbdisp_returnResults(CdbDispatchResults *gangResults,
+					  StringInfo errmsgbuf,
+					  int *numresults)
+{
+	PGresult  **resultSets = NULL;
+	int			nresults = 0;
+	int			totalResultCount=0;
+
+
+	int nslots = 2 * GetGangMgr().largestGangsize() + 1;
+	resultSets = (PGresult **)calloc(nslots, sizeof(*resultSets));
+
+	if (!resultSets)
+		ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY),
+						errmsg("cdbdisp_returnResults failed: out of memory")));
+
+	/* Collect results from primary gang. */
+	if (gangResults)
+	{
+		totalResultCount = gangResults->resultCount;
+
+		for (int i = 0; i < gangResults->resultCount; ++i)
+		{
+			CdbDispatchResult *dispatchResult = &gangResults->resultArray[i];
+
+			/* Append error messages to caller's buffer. */
+			cdbdisp_dumpDispatchResult(dispatchResult, false, errmsgbuf);
+
+			/* Take ownership of this QE's PGresult object(s). */
+			nresults += cdbdisp_snatchPGresults(dispatchResult,
+												resultSets + nresults,
+												nslots - nresults - 1);
+		}
+		cdbdisp_destroyDispatchResults(gangResults);
+	}
+
+	/* Put a stopper at the end of the array. */
+	Assert(nresults < nslots);
+	resultSets[nresults] = NULL;
+
+	/* If our caller is interested, tell them how many sets we're returning. */
+	if (numresults != NULL)
+		*numresults = totalResultCount;
+
+	return resultSets;
+}
 
 
 /*--------------------------------------------------------------------*/

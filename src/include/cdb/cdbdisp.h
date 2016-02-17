@@ -16,9 +16,7 @@
 #include "cdb/cdbtm.h"
 #include <pthread.h>
 
-#define CDB_MOTION_LOST_CONTACT_STRING "Interconnect error master lost contact with segment."
-
-extern PGresult;                   	/* #include "gp-libpq-fe.h" */
+struct pg_result;					/* #include "gp-libpq-int.h" */
 struct CdbDispatchResult;           /* #include "cdb/cdbdispatchresult.h" */
 struct CdbDispatchResults;          /* #include "cdb/cdbdispatchresult.h" */
 struct Gang;                        /* #include "cdb/cdbgang.h" */
@@ -26,6 +24,10 @@ struct Node;                        /* #include "nodes/nodes.h" */
 struct QueryDesc;                   /* #include "executor/execdesc.h" */
 struct SegmentDatabaseDescriptor;   /* #include "cdb/cdbconn.h" */
 struct pollfd;
+
+#define CDB_MOTION_LOST_CONTACT_STRING "Interconnect error master lost contact with segment."
+#define DISPATCH_WAIT_TIMEOUT_SEC 2
+
 
 typedef enum
 {
@@ -89,98 +91,7 @@ typedef struct DispatchCommandDtxProtocolParms
 	int argumentLength;
 } DispatchCommandDtxProtocolParms;
 
-/*
- * Types of message to QE when we wait for it.
- */
-typedef enum DispatchWaitMode
-{
-	DISPATCH_WAIT_NONE = 0,			/* wait until QE fully completes */
-	DISPATCH_WAIT_FINISH,			/* send query finish */
-	DISPATCH_WAIT_CANCEL			/* send query cancel */
-} DispatchWaitMode;
 
-/*
- * Parameter structure for the DispatchCommand threads
- */
-typedef struct DispatchCommandParms
-{
-	GpDispatchCommandType			mppDispatchCommandType;
-	DispatchCommandQueryParms		queryParms;
-	DispatchCommandDtxProtocolParms	dtxProtocolParms;
-	
-	char		*query_text;
-	int			query_text_len;
-	
-	int			localSlice;
-	
-	/*
-	 * options for controlling certain behavior
-	 * on the remote backend before query processing. Like
-	 * explicitly opening a transaction.
-	 */
-	int			txnOptions;
-	
-	/*
-	 * store the command here, so that we make sure that every
-	 * thread gets the same command-id
-	 */
-	int			cmdID;
-	
-	/*
-	 * db_count: The number of segdbs that this thread is responsible
-	 * for dispatching the command to.
-	 * Equals the count of segdbDescPtrArray below.
-	 */
-	int			db_count;
-	
-	
-	/*
-	 * Session auth info
-	 */
-	Oid			sessUserId;
-	Oid			outerUserId;
-	Oid			currUserId;
-	bool		sessUserId_is_super;
-	bool		outerUserId_is_super;
-
-	/*
-	 * dispatchResultPtrArray: Array[0..db_count-1] of CdbDispatchResult*
-	 * Each CdbDispatchResult object points to a SegmentDatabaseDescriptor
-	 * that this thread is responsible for dispatching the command to.
-	 */
-	struct CdbDispatchResult **dispatchResultPtrArray;
-
-	/*
-	 * Depending on this mode, we may send query cancel or query finish
-	 * message to QE while we are waiting it to complete.  NONE means
-	 * we expect QE to complete without any instruction.
-	 */
-	volatile DispatchWaitMode waitMode;
-
-	/*
-	 * pollfd supports for libpq
-	 */
-	int				nfds;
-	struct pollfd	*fds;
-	
-	/*
-	 * The pthread_t thread handle.
-	 */
-	pthread_t	thread;
-	bool		thread_valid;
-	
-}	DispatchCommandParms;
-
-/*
- * Keeps state of all the dispatch command threads.
- */
-typedef struct CdbDispatchCmdThreads
-{
-	struct DispatchCommandParms *dispatchCommandParmsAr;
-	int	dispatchCommandParmsArSize;
-	int	threadCount;
-	
-}   CdbDispatchCmdThreads;
 
 typedef struct CdbDispatchDirectDesc
 {
@@ -201,175 +112,24 @@ typedef struct CdbDispatcherState
 /*--------------------------------------------------------------------*/
 
 /*
- * cdbdisp_dispatchToGang:
- * Send the strCommand SQL statement to the subset of all segdbs in the cluster
- * specified by the gang parameter.  cancelOnError indicates whether an error
- * occurring on one of the qExec segdbs should cause all still-executing commands to cancel
- * on other qExecs. Normally this would be true.  The commands are sent over the libpq
- * connections that were established during cdblink_setup.	They are run inside of threads.
- * The number of segdbs handled by any one thread is determined by the
- * guc variable gp_connections_per_thread.
- *
- * The caller must also provide a serialized Snapshot string to be used to
- * set the distributed snapshot for the dispatched statement.
- *
- * The caller must provide a CdbDispatchResults object having available
- * resultArray slots sufficient for the number of QEs to be dispatched:
- * i.e., resultCapacity - resultCount >= gp->size.  This function will
- * assign one resultArray slot per QE of the Gang, paralleling the Gang's
- * db_descriptors array.  Success or failure of each QE will be noted in
- * the QE's CdbDispatchResult entry; but before examining the results, the
- * caller must wait for execution to end by calling CdbCheckDispatchResult().
- *
- * The CdbDispatchResults object owns some malloc'ed storage, so the caller
- * must make certain to free it by calling cdbdisp_destroyDispatchResults().
- *
- * When dispatchResults->cancelOnError is false, strCommand is to be
- * dispatched to every connected gang member if possible, despite any
- * cancellation requests, QE errors, connection failures, etc.
- *
- * NB: This function should return normally even if there is an error.
- * It should not longjmp out via elog(ERROR, ...), ereport(ERROR, ...),
- * PG_THROW, CHECK_FOR_INTERRUPTS, etc.
- */
-void
-cdbdisp_dispatchToGang(struct CdbDispatcherState *ds,
-					   GpDispatchCommandType		mppDispatchCommandType,
-					   void							*commandTypeParms,
-                       struct Gang					*gp,
-                       int							sliceIndex,
-                       unsigned int					maxSlices,
-                       CdbDispatchDirectDesc		*direct);
-
-/*
- * CdbCheckDispatchResult:
- *
- * Waits for completion of threads launched by cdbdisp_dispatchToGang().
- *
- * QEs that were dispatched with 'cancelOnError' true and are not yet idle
- * will be canceled/finished according to waitMode.
- */
-void
-CdbCheckDispatchResult(struct CdbDispatcherState *ds, DispatchWaitMode waitMode);
-
-/*--------------------------------------------------------------------*/
-
-PGresult **
-cdbdisp_returnResults(struct CdbDispatchResults *primaryResults,
-						StringInfo errmsgbuf,
-						int *numresults);
-/*
  * cdbdisp_dispatchRMCommand:
  * Sends a non-cancelable command to all segment dbs, primary
  *
- * Returns a malloc'ed array containing the PGresult objects thus
+ * Returns a malloc'ed array containing the struct pg_result objects thus
  * produced; the caller must PQclear() them and free() the array.
  * A NULL entry follows the last used entry in the array.
  *
  * Any error messages - whether or not they are associated with
- * PGresult objects - are appended to a StringInfo buffer provided
+ * struct pg_result objects - are appended to a StringInfo buffer provided
  * by the caller.
  */
-PGresult **             /* returns ptr to array of PGresult ptrs */
+struct pg_result **             /* returns ptr to array of struct pg_result ptrs */
 cdbdisp_dispatchRMCommand(const char   *strCommand,
 						  bool			withSnapshot,
                           StringInfo    errmsgbuf,
                           int			*numresults);
 
 
-/*--------------------------------------------------------------------*/
-
-/*
- * cdbdisp_dispatchDtxProtocolCommand:
- * Sends a non-cancelable command to all segment dbs, primary
- *
- * Returns a malloc'ed array containing the PGresult objects thus
- * produced; the caller must PQclear() them and free() the array.
- * A NULL entry follows the last used entry in the array.
- *
- * Any error messages - whether or not they are associated with
- * PGresult objects - are appended to a StringInfo buffer provided
- * by the caller.
- */
-PGresult **             /* returns ptr to array of PGresult ptrs */
-cdbdisp_dispatchDtxProtocolCommand(DtxProtocolCommand		dtxProtocolCommand,
-								   int						flags,
-								   char						*dtxProtocolCommandLoggingStr,
-								   char						*gid,
-								   DistributedTransactionId	gxid,
-								   StringInfo    			errmsgbuf,
-								   int						*numresults,
-								   bool 					*badGangs,
-								   CdbDispatchDirectDesc *direct,
-								   char *argument, int argumentLength );
-
-
-/*--------------------------------------------------------------------*/
-
-/*
- * cdbdisp_dispatchCommand:
- * Send ths strCommand SQL statement to all segdbs in the cluster
- * cancelOnError indicates whether an error
- * occurring on one of the qExec segdbs should cause all still-executing commands to cancel
- * on other qExecs. Normally this would be true.  The commands are sent over the libpq
- * connections that were established during gang creation.	They are run inside of threads.
- * The number of segdbs handled by any one thread is determined by the
- * guc variable gp_connections_per_thread.
- *
- * The needTwoPhase flag is used to express intent on whether the command to
- * be dispatched should be done inside of a global transaction or not.
- *
- * The CdbDispatchResults objects allocated for the command
- * are returned in *pPrimaryResults
- * The caller, after calling CdbCheckDispatchResult(), can
- * examine the CdbDispatchResults objects, can keep them as
- * long as needed, and ultimately must free them with
- * cdbdisp_destroyDispatchResults() prior to deallocation
- * of the memory context from which they were allocated.
- *
- * NB: Callers should use PG_TRY()/PG_CATCH() if needed to make
- * certain that the CdbDispatchResults objects are destroyed by
- * cdbdisp_destroyDispatchResults() in case of error.
- * To wait for completion, check for errors, and clean up, it is
- * suggested that the caller use cdbdisp_finishCommand().
- */
-void
-cdbdisp_dispatchCommand(const char                 *strCommand,
-						char				   	   *serializedQuerytree,
-						int							serializedQuerytreelen,
-                        bool                        cancelOnError,
-                        bool						needTwoPhase,
-                        bool						withSnapshot,
-						struct CdbDispatcherState *ds); /* OUT */
-
-/* Wait for all QEs to finish, then report any errors from the given
- * CdbDispatchResults objects and free them.  If not all QEs in the
- * associated gang(s) executed the command successfully, throws an
- * error and does not return.  No-op if both CdbDispatchResults ptrs are NULL.
- * This is a convenience function; callers with unusual requirements may
- * instead call CdbCheckDispatchResult(), etc., directly.
- */
-void
-cdbdisp_finishCommand(struct CdbDispatcherState *ds,
-					  void (*handle_results_callback)(struct CdbDispatchResults *primaryResults, void *ctx),
-					  void *ctx);
-
-/*
- * cdbdisp_handleError
- *
- * When caller catches an error, the PG_CATCH handler can use this
- * function instead of cdbdisp_finishCommand to wait for all QEs
- * to finish, clean up, and report QE errors if appropriate.
- * This function should be called only from PG_CATCH handlers.
- *
- * This function destroys and frees the given CdbDispatchResults objects.
- * It is a no-op if both CdbDispatchResults ptrs are NULL.
- *
- * On return, the caller is expected to finish its own cleanup and
- * exit via PG_RE_THROW().
- */
-void
-cdbdisp_handleError(struct CdbDispatcherState *ds);
 
 /*
  * CdbDoCommand:
@@ -391,14 +151,6 @@ CdbDoCommand(const char *strCommand, bool cancelOnError, bool needTwoPhase);
 void
 CdbSetGucOnAllGangs(const char *strCommand, bool cancelOnError, bool needTwoPhase);
 
-/*--------------------------------------------------------------------*/
-struct SliceTable;
-
-void
-cdbdisp_dispatchX(DispatchCommandQueryParms *pQueryParms,
-				  bool cancelOnError,
-				  struct SliceTable *sliceTbl,
-				  struct CdbDispatcherState *ds); /* OUT: fields filled in */
 
 /* Compose and dispatch the MPPEXEC commands corresponding to a plan tree
  * within a complete parallel plan.
@@ -457,41 +209,16 @@ CdbDispatchUtilityStatement(struct Node *stmt, char* debugCaller __attribute__((
 void
 CdbDispatchUtilityStatement_NoTwoPhase(struct Node *stmt, char* debugCaller __attribute__((unused)) );
 
-/*
- * create a CdbDispatchCmdThreads object that holds the dispatch
- * threads state, and an array of dispatch command params. 
- */
-CdbDispatchCmdThreads *
-cdbdisp_makeDispatchThreads(int paramCount);
-
-/*
- * free all memory allocated for a CdbDispatchCmdThreads object.
- */
-void
-cdbdisp_destroyDispatchThreads(CdbDispatchCmdThreads *dThreads);
-
-/* used to take the current Transaction Snapshot and serialized a version of it
- * into the static variable serializedDtxContextInfo */
-char *
-qdSerializeDtxContextInfo(int * size, bool wantSnapshot, bool inCursor, int txnOptions, char *debugCaller);
-
-
 struct EState;
 struct PlannedStmt;
 struct PlannerInfo;
-
-/* used in the interconnect on the dispatcher to avoid error-cleanup deadlocks. */
-bool
-cdbdisp_check_estate_for_cancel(struct EState *estate);
 
 /* 
  * make a plan constant, if possible. Call must say if we're doing single row
  * inserts.
  */
-extern Node *exec_make_plan_constant(struct PlannedStmt *stmt, bool is_SRI);
-extern Node *planner_make_plan_constant(struct PlannerInfo *root, Node *n, bool is_SRI);
+Node *planner_make_plan_constant(struct PlannerInfo *root, Node *n, bool is_SRI);
 
-void cdbdisp_waitThreads(void);
 /*--------------------------------------------------------------------*/
 
 #endif   /* CDBDISP_H */

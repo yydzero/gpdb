@@ -34,7 +34,7 @@
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"             /* AllocSetContextCreate() */
 #include "utils/resscheduler.h"
-#include "cdb/cdbdisp.h"                /* CheckDispatchResult() */
+#include "cdb/cdbdispmgr.h"             /* CheckDispatchResult() */
 #include "cdb/cdbexplain.h"             /* cdbexplain_recvExecStats */
 #include "cdb/cdbpartition.h"
 #include "cdb/cdbpullup.h"              /* cdbpullup_targetlist() */
@@ -525,8 +525,7 @@ ExplainOnePlan_internal(PlannedStmt *plannedstmt,
         {
             if (estate->dispatcherState && estate->dispatcherState->primaryResults)
 			{
-				CdbCheckDispatchResult(estate->dispatcherState,
-									   DISPATCH_WAIT_NONE);
+				GetDispatcherMgr().CdbCheckDispatchResult(estate->dispatcherState, DISPATCH_WAIT_NONE);
 			}
         }
         PG_CATCH();

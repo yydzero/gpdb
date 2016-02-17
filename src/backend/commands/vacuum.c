@@ -45,6 +45,7 @@
 #include "commands/tablecmds.h"
 #include "commands/vacuum.h"
 #include "cdb/cdbdisp.h"
+#include "cdb/cdbdispmgr.h"
 #include "cdb/cdbpartition.h"
 #include "cdb/cdbvars.h"
 #include "cdb/cdbsrlz.h"
@@ -4897,7 +4898,7 @@ dispatchVacuum(VacuumStmt *vacstmt, VacuumStatsContext *ctx)
 		dtmPreCommand("cdbdisp_dispatchCommand", "(none)", NULL,
 				true /* needs two-phase */, true /* withSnapshot */, false /* inCursor */);
 
-		cdbdisp_dispatchCommand( "vacuum" , pszVacuum, pszVacuum_len,
+		GetDispatcherMgr().dispatchCommand( "vacuum" , pszVacuum, pszVacuum_len,
 								 true /* cancelOnError */, true /* needTwoPhase */,
 								 true /* withSnapshot */,
 								 (struct CdbDispatcherState *)&ds);
@@ -4909,14 +4910,14 @@ dispatchVacuum(VacuumStmt *vacstmt, VacuumStatsContext *ctx)
 		 * NOTE: this has the side-effect of calling pfree() on
 		 * pszVacuum! (we re-serialize for our mirrors below).
 		 */
-		cdbdisp_finishCommand((struct CdbDispatcherState *)&ds, vacuum_combine_stats, ctx);
+		GetDispatcherMgr().finishCommand((struct CdbDispatcherState *)&ds, vacuum_combine_stats, ctx);
 	}
 	PG_CATCH();
 	{
 		/*
 		 * Handle errors/cancels
 		 */
-		cdbdisp_handleError((struct CdbDispatcherState *)&ds);
+		GetDispatcherMgr().cdbdisp_handleError((struct CdbDispatcherState *)&ds);
 
 		PG_RE_THROW();
 	}

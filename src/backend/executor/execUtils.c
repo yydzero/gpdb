@@ -64,6 +64,7 @@
 #include "cdb/cdbslicetable.h"
 #include "cdb/cdbvars.h"
 #include "cdb/cdbdisp.h"
+#include "cdb/cdbdispmgr.h"
 #include "cdb/cdbdispatchresult.h"
 #include "cdb/ml_ipc.h"
 #include "cdb/cdbmotion.h"
@@ -2186,7 +2187,7 @@ void mppExecutorFinishup(QueryDesc *queryDesc)
 		 */
 		if (estate->cancelUnfinished)
 			waitMode = DISPATCH_WAIT_FINISH;
-		CdbCheckDispatchResult(estate->dispatcherState, waitMode);
+		GetDispatcherMgr().CdbCheckDispatchResult(estate->dispatcherState, waitMode);
 
 		/* If top slice was delegated to QEs, get num of rows processed. */
 		if (sliceRunsOnQE(currentSlice))
@@ -2259,7 +2260,7 @@ void mppExecutorFinishup(QueryDesc *queryDesc)
 		 * error, report it and exit to our error handler via PG_THROW.
 		 * NB: This call doesn't wait, because we already waited above.
 		 */
-		cdbdisp_finishCommand(estate->dispatcherState, NULL, NULL);
+		GetDispatcherMgr().finishCommand(estate->dispatcherState, NULL, NULL);
 	}
 
 	/* Teardown the Interconnect */
@@ -2334,7 +2335,7 @@ void mppExecutorCleanup(QueryDesc *queryDesc)
 		if (estate->es_interconnect_is_setup && !estate->es_got_eos)
 			ExecSquelchNode(queryDesc->planstate);
 
-		cdbdisp_handleError(estate->dispatcherState);
+		GetDispatcherMgr().cdbdisp_handleError(estate->dispatcherState);
 	}
 
 	/* Clean up the interconnect. */

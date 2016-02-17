@@ -60,6 +60,7 @@
 #include "utils/faultinjector.h"
 
 #include "cdb/cdbdisp.h"
+#include "cdb/cdbdispmgr.h"
 #include "cdb/cdbdispatchresult.h"
 #include "cdb/cdbsrlz.h"
 #include "cdb/cdbvars.h"
@@ -689,13 +690,13 @@ DefineIndex(RangeVar *heapRelation,
 												 (struct CdbDispatcherState *)&ds,
 												 "DefineIndex");
 				/* Wait for all QEs to finish.	Throw up if error. */
-				cdbdisp_finishCommand((struct CdbDispatcherState *)&ds, NULL, NULL);
+				GetDispatcherMgr().finishCommand((struct CdbDispatcherState *)&ds, NULL, NULL);
 			}
 			PG_CATCH();
 			{
 				/* If dispatched, stop QEs and clean up after them. */
 				if (ds.primaryResults)
-					cdbdisp_handleError((struct CdbDispatcherState *)&ds);
+					GetDispatcherMgr().cdbdisp_handleError((struct CdbDispatcherState *)&ds);
 
 				PG_RE_THROW();
 				/* not reached */

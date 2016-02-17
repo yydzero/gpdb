@@ -13,11 +13,12 @@
 #define CDBDISPMGR_H
 
 #include "lib/stringinfo.h"         /* StringInfo */
-
 #include "cdb/cdbtm.h"
+#include "cdb/cdbdisp.h"
+#include "cdb/cdbdisp_threadeddispatcher.h"
+#include "cdb/cdbdispatchresult.h"
 
-PGresult;
-
+struct pg_result;
 
 /*
  * DispatcherMgrMethods encapsulate how dispatcher works under lower level.
@@ -40,19 +41,19 @@ typedef struct DispatcherMgrMethods
 	/*
 	 * Sends a non-cancelable command to all segment dbs, primary
 	 *
-	 * Returns a malloc'ed array containing the PGresult objects thus
+	 * Returns a malloc'ed array containing the struct pg_result objects thus
 	 * produced; the caller must PQclear() them and free() the array.
 	 * A NULL entry follows the last used entry in the array.
 	 *
 	 * Any error messages - whether or not they are associated with
-	 * PGresult objects - are appended to a StringInfo buffer provided
+	 * struct pg_result objects - are appended to a StringInfo buffer provided
 	 * by the caller.
 	 *
-	 * returns ptr to array of PGresult ptrs.
+	 * returns ptr to array of struct pg_result ptrs.
 	 *
 	 * Used only by cdbtm.c#doDispatchDtxProtocolCommand() function.
 	 */
-	PGresult ** (*dispatchDtxProtocolCommand) (DtxProtocolCommand		 dtxProtocolCommand,
+	struct pg_result ** (*dispatchDtxProtocolCommand) (DtxProtocolCommand		 dtxProtocolCommand,
 									   	   	   int						 flags,
 											   char						*dtxProtocolCommandLoggingStr,
 											   char						*gid,
@@ -169,6 +170,8 @@ typedef struct DispatcherMgrMethods
 
 	/* used in the interconnect on the dispatcher to avoid error-cleanup deadlocks. */
 	bool (*cdbdisp_check_estate_for_cancel) (struct EState *estate);
+
+	int (*generateTxnOptions) (bool needTwoPhase);
 
 	bool (*cleanup)(CdbDispatcherState *ds);
 } DispatcherMgrMethods;

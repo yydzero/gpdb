@@ -12,10 +12,11 @@
 #define CDBDISPATCHRESULT_H
 
 #include "cdb/cdbdisp.h"
+#include "cdb/cdbdisp_threadeddispatcher.h"
 #include "commands/tablecmds.h"
 #include "utils/hsearch.h"
 
-struct pg_result;                   /* PGresult ... #include "gp-libpq-fe.h" */
+struct pg_result;                   /* #include "gp-libpq-fe.h" */
 struct SegmentDatabaseDescriptor;   /* #include "cdb/cdbconn.h" */
 struct StringInfoData;              /* #include "lib/stringinfo.h" */
 struct PQExpBufferData;             /* #include "libpq-int.h" */
@@ -51,8 +52,10 @@ typedef struct CdbDispatchResult
                                          * successfully); or -1.
                                          * Pass to cdbconn_getResult().
                                          */
-    struct PQExpBufferData *resultbuf;      /* -> array of ptr to PGresult */
-    struct PQExpBufferData *error_message;  /* -> string of messages; or NULL */
+    struct PQExpBufferData 	*resultbuf;      /* -> array of ptr to PGresult,
+    									  * resultbuf.data contains all PGresult pointers
+    									  */
+    struct PQExpBufferData 	*error_message;  /* -> string of messages; or NULL */
 
     bool                hasDispatched;  /* true => PQsendCommand done */
     bool                stillRunning;   /* true => busy in dispatch thread */
@@ -138,15 +141,6 @@ cdbdisp_getPGresult(CdbDispatchResult *dispatchResult, int i);
 int
 cdbdisp_numPGresult(CdbDispatchResult  *dispatchResult);
 
-/* Remove all of the PGresult ptrs from a CdbDispatchResult object
- * and place them into an array provided by the caller.  The caller
- * becomes responsible for PQclear()ing them.  Returns the number of
- * PGresult ptrs placed in the array.
- */
-int
-cdbdisp_snatchPGresults(CdbDispatchResult  *dispatchResult,
-                        struct pg_result  **pgresultptrs,
-                        int                 maxresults);
 
 /* Display a CdbDispatchResult in the log for debugging.
  * Call only from main thread, during or after cdbdisp_checkDispatchResults.
@@ -156,13 +150,6 @@ cdbdisp_debugDispatchResult(CdbDispatchResult  *dispatchResult,
                             int                 elevel_error,
                             int                 elevel_success);
 
-/* Format a CdbDispatchResult into a StringInfo buffer provided by caller.
- * If verbose = true, reports all results; else reports at most one error.
- */
-void
-cdbdisp_dumpDispatchResult(CdbDispatchResult       *dispatchResult,
-                           bool                     verbose,
-                           struct StringInfoData   *buf);
 
 /*--------------------------------------------------------------------*/
 
@@ -193,6 +180,9 @@ typedef struct CdbDispatchResults
     CdbDispatchResult  *resultArray;    /* -> array [0..resultCapacity-1] of
                                          *      struct CdbDispatchResult
                                          */
+
+    // is resultCount equals nSlices * GangSize?
+    // It is more like a matrix of QEs, so resultArray is more like a matrix?
     int                 resultCount;    /* num of assigned slots (num of QEs)
                                          * 0 <= resultCount <= resultCapacity
                                          */
@@ -248,6 +238,11 @@ int
 cdbdisp_dumpDispatchResults(struct CdbDispatchResults  *gangResults,
                             struct StringInfoData      *buffer,
                             bool                        verbose);
+
+struct pg_result **
+cdbdisp_returnResults(struct CdbDispatchResults *primaryResults,
+						StringInfo errmsgbuf,
+						int *numresults);
 
 /* Return sum of the cmdTuples values from CdbDispatchResult
  * entries that have a successful PGresult.  If sliceIndex >= 0,

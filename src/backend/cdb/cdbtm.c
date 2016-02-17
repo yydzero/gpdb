@@ -22,6 +22,7 @@
 #include "storage/shmem.h"
 #include "storage/ipc.h"
 #include "cdb/cdbdisp.h"
+#include "cdb/cdbdispmgr.h"
 #include "cdb/cdbgangmgr.h"
 #include "cdb/cdbdtxcontextinfo.h"
 
@@ -542,7 +543,7 @@ dtmPreCommand(const char *debugCaller, const char *debugDetail, PlannedStmt *stm
 		int serializedDtxContextInfoLen;
 		bool badGangs, succeeded;
 
-		serializedDtxContextInfo = qdSerializeDtxContextInfo(&serializedDtxContextInfoLen, wantSnapshot, inCursor,
+		serializedDtxContextInfo = GetDispatcherMgr().qdSerializeDtxContextInfo(&serializedDtxContextInfoLen, wantSnapshot, inCursor,
 				mppTxnOptions(true), "promoteTransactionIn_dtmPreCommand");
 
 		succeeded = doDispatchDtxProtocolCommand(DTX_PROTOCOL_COMMAND_STAY_AT_OR_BECOME_IMPLIED_WRITER, /* flags */ 0,
@@ -583,7 +584,7 @@ doDispatchSubtransactionInternalCmd(DtxProtocolCommand cmdType)
 		releaseTmLock();
 	}
 		
-	serializedDtxContextInfo = qdSerializeDtxContextInfo(
+	serializedDtxContextInfo = GetDispatcherMgr().qdSerializeDtxContextInfo(
 					&serializedDtxContextInfoLen, 
 					false /* wantSnapshot */, 
 					false /* inCursor */,
@@ -2230,7 +2231,7 @@ doDispatchDtxProtocolCommand(DtxProtocolCommand dtxProtocolCommand, int flags,
 				 direct->directed_dispatch ? direct->content[0] : -1);
 
 	initStringInfo(&errbuf);
-	results = cdbdisp_dispatchDtxProtocolCommand(dtxProtocolCommand, flags,
+	results = GetDispatcherMgr().dispatchDtxProtocolCommand(dtxProtocolCommand, flags,
 												 dtxProtocolCommandStr,
 												 gid, gxid,
 												 &errbuf, &resultCount, badGangs, direct,

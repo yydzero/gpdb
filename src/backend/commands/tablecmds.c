@@ -108,6 +108,7 @@
 #include "mb/pg_wchar.h"
 
 #include "cdb/cdbdisp.h"
+#include "cdb/cdbdispmgr.h"
 #include "cdb/cdbsrlz.h"
 #include "cdb/cdbvars.h"
 #include "cdb/cdbrelsize.h"
@@ -409,7 +410,7 @@ DefineRelation(CreateStmt *stmt, char relkind, char relstorage)
 	{
         /* If dispatched, stop QEs and clean up after them. */
         if (ds.primaryResults)
-            cdbdisp_handleError((struct CdbDispatcherState *)&ds);
+            GetDispatcherMgr().cdbdisp_handleError((struct CdbDispatcherState *)&ds);
 
         /* Carry on with error handling. */
 		PG_RE_THROW();
@@ -421,7 +422,7 @@ DefineRelation(CreateStmt *stmt, char relkind, char relstorage)
 	 * qExecs, if dispatched.  This waits for them to all finish, and exits
 	 * via ereport(ERROR,...) if unsuccessful.
 	 */
-	cdbdisp_finishCommand((struct CdbDispatcherState *)&ds, NULL, NULL);
+	GetDispatcherMgr().finishCommand((struct CdbDispatcherState *)&ds, NULL, NULL);
 
     return reloid;
 }
@@ -1275,7 +1276,7 @@ DefineExternalRelation(CreateExternalStmt *createExtStmt)
 	{
         /* If dispatched, stop QEs and clean up after them. */
         if (ds.primaryResults)
-            cdbdisp_handleError((struct CdbDispatcherState *)&ds);
+            GetDispatcherMgr().cdbdisp_handleError((struct CdbDispatcherState *)&ds);
 
         /* Carry on with error handling. */
 		PG_RE_THROW();
@@ -1287,7 +1288,7 @@ DefineExternalRelation(CreateExternalStmt *createExtStmt)
 	 * qExecs, if dispatched.  This waits for them to all finish, and exits
 	 * via ereport(ERROR,...) if unsuccessful.
 	 */
-	cdbdisp_finishCommand((struct CdbDispatcherState *)&ds, NULL, NULL);
+	GetDispatcherMgr().finishCommand((struct CdbDispatcherState *)&ds, NULL, NULL);
 	
 	if(customProtName)
 		pfree(customProtName);
@@ -17937,7 +17938,7 @@ static Datum transformFormatOpts(char formattype, List *formatOpts, int numcols,
 	}
     else if (fmttype_is_avro(formattype) || fmttype_is_parquet(formattype))
     {
-        /* avro format, add "formatter 'gphdfs_import’ " directly, user don't
+        /* avro format, add "formatter 'gphdfs_import" directly, user don't
          * need to set this value*/
         char *val = NULL;
         if (iswritable)

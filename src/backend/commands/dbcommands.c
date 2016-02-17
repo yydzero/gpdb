@@ -62,6 +62,7 @@
 #include "utils/syscache.h"
 
 #include "cdb/cdbdisp.h"
+#include "cdb/cdbdispmgr.h"
 #include "cdb/cdbdispatchresult.h"
 #include "cdb/cdbsreh.h"
 #include "cdb/cdbsrlz.h"
@@ -608,13 +609,13 @@ createdb(CreatedbStmt *stmt)
 	PG_TRY();
 	{
 		createdb_int(stmt, (struct CdbDispatcherState *)&ds);
-		cdbdisp_finishCommand((struct CdbDispatcherState *)&ds, NULL, NULL);
+		GetDispatcherMgr().finishCommand((struct CdbDispatcherState *)&ds, NULL, NULL);
 	}
 	PG_CATCH();
 	{
 		/* If dispatched, stop QEs and clean up after them. */
 		if (ds.primaryResults)
-			cdbdisp_handleError((struct CdbDispatcherState *)&ds);
+			GetDispatcherMgr().cdbdisp_handleError((struct CdbDispatcherState *)&ds);
 
 		PG_RE_THROW();
 		/* not reached */
@@ -2489,3 +2490,4 @@ dbase_desc(StringInfo buf, XLogRecPtr beginLoc, XLogRecord *record)
 	else
 		appendStringInfo(buf, "UNKNOWN");
 }
+

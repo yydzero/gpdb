@@ -17,6 +17,7 @@
 #include "cdb/cdbconn.h"
 #include "cdb/cdbcopy.h"
 #include "cdb/cdbdisp.h"
+#include "cdb/cdbdispmgr.h"
 #include "cdb/cdbdispatchresult.h"
 #include "cdb/cdbfts.h"
 #include "cdb/cdbgang.h"
@@ -192,7 +193,7 @@ cdbCopyStart(CdbCopy *c, char *copyCmd)
 			true, /* want snapshot */
 			false /* in cursor */);
 	
-	cdbdisp_dispatchCommand(copyCmd, serializedQuerytree, serializedQuerytree_len, 
+	GetDispatcherMgr().dispatchCommand(copyCmd, serializedQuerytree, serializedQuerytree_len,
 								false 		/* cancelonError */, 
 								c->copy_in 	/* need2phase */, 
 								true 		/* withSnapshot */,
@@ -204,7 +205,7 @@ cdbCopyStart(CdbCopy *c, char *copyCmd)
 	 * Wait for all QEs to finish. If not all of our QEs were successful,
 	 * report the error and throw up.
 	 */
-	cdbdisp_finishCommand(&ds, NULL, NULL);
+	GetDispatcherMgr().finishCommand(&ds, NULL, NULL);
 
 	/* fill in CdbCopy structure */
 	for (seg = 0; seg < c->total_segs; seg++)
