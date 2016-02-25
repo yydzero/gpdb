@@ -358,6 +358,8 @@ _outPlanInfo(StringInfo str, Plan *node)
 	{
 		WRITE_NODE_FIELD(flow);
 		WRITE_ENUM_FIELD(dispatch, DispatchMethod);
+		WRITE_BOOL_FIELD(directDispatch.isDirectDispatch);
+		WRITE_NODE_FIELD(directDispatch.contentIds); /* List of int */
 		WRITE_INT_FIELD(nMotionNodes);
 		WRITE_INT_FIELD(nInitPlans);
 		WRITE_NODE_FIELD(sliceTable);

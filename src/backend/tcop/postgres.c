@@ -1667,6 +1667,73 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 		CHECK_FOR_INTERRUPTS();
 
 		/*
+		 * If this query is suitable for direct dispatch using pooled QD daemon,
+		 * send it to QD daemon.
+		 */
+		if (Gp_role == GP_ROLE_DISPATCH && list_length(plantree_list) == 1)
+		{
+			PlannedStmt *stmt = (PlannedStmt *) linitial(plantree_list);
+
+			/* 	T_PlannedStmt,
+			T_InsertStmt,
+			T_DeleteStmt,
+			T_UpdateStmt,
+			T_SelectStmt,
+
+			 1. Only QD use this path
+			 2. Direct dispatch query
+			 3. Only non-catalog query use this path
+			*/
+			if (stmt->type == T_PlannedStmt && stmt->planTree->directDispatch.isDirectDispatch) {
+				elog_node_display(LOG, "plannedstmt", stmt, Debug_pretty_print);
+				elog(LOG, "query = %s", query_string);
+
+				// 1. send original SQL to PooledQD daemon
+				int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+				if (sockfd <0)
+				{
+					elog(INFO, "failed to create socket");
+				}
+
+				struct sockaddr_in serv_addr;
+				bzero((char *) &serv_addr, sizeof(serv_addr));
+				serv_addr.sin_family = AF_INET;
+				bcopy("127.0.0.1",  (char *)&serv_addr.sin_addr.s_addr, strlen("127.0.0.1"));
+				serv_addr.sin_port = htons(8899);
+
+				if (connect(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) <0)
+				{
+					elog(INFO, "failed to connect to QD Daemon");
+				}
+
+				// Format: <len><string>
+				StringInfo s = makeStringInfo();
+				appendStringInfo(s, "%ld%s", strlen(query_string), query_string);
+				int n = write(sockfd, s->data, s->len);
+				if (n < 0)
+				{
+					elog(INFO, "failed to send query to QD Daemon");
+				}
+
+				char buffer[4096] = {0};
+				n = read(sockfd, buffer, 4096);
+				if (n < 0)
+				{
+					elog(INFO, "failed to read data from QD Daemon");
+				}
+
+				elog(LOG, "get result: %s", buffer);
+
+				close(sockfd);
+
+
+				// 2. waiting for result
+
+				// 3. return result to original client.
+			}
+		}
+
+		/*
 		 * Create unnamed portal to run the query or queries in. If there
 		 * already is one, silently drop it.
 		 */
