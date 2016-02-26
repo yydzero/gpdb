@@ -24,6 +24,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <signal.h>
+#include<arpa/inet.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #ifdef HAVE_SYS_SELECT_H
@@ -1690,15 +1691,19 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 
 				// 1. send original SQL to PooledQD daemon
 				int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-				if (sockfd <0)
+				if (sockfd < 0)
 				{
 					elog(INFO, "failed to create socket");
 				}
 
 				struct sockaddr_in serv_addr;
-				bzero((char *) &serv_addr, sizeof(serv_addr));
+				// bzero((char *) &serv_addr, sizeof(serv_addr));
+				// serv_addr.sin_family = AF_INET;
+				// bcopy("127.0.0.1",  (char *)&serv_addr.sin_addr.s_addr, strlen("127.0.0.1"));
+				// serv_addr.sin_port = htons(8899);
+
+				serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 				serv_addr.sin_family = AF_INET;
-				bcopy("127.0.0.1",  (char *)&serv_addr.sin_addr.s_addr, strlen("127.0.0.1"));
 				serv_addr.sin_port = htons(8899);
 
 				if (connect(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) <0)
