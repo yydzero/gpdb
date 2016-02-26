@@ -1687,7 +1687,6 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 			*/
 			if (stmt->type == T_PlannedStmt && stmt->planTree->directDispatch.isDirectDispatch) {
 				elog_node_display(LOG, "plannedstmt", stmt, Debug_pretty_print);
-				elog(LOG, "query = %s", query_string);
 
 				// 1. send original SQL to PooledQD daemon
 				int sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -1712,13 +1711,21 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 				}
 
 				// Format: <len><string>
-				StringInfo s = makeStringInfo();
-				appendStringInfo(s, "%ld%s", strlen(query_string), query_string);
-				int n = write(sockfd, s->data, s->len);
+//				int size = htonl((uint) strlen(query_string));
+				size_t size = strlen(query_string);
+				// uint32 len = (uint32) size;		// No need to call htonl.
+				uint32 len = htonl((uint32) size);
+				write(sockfd, &len, sizeof(len));
+
+				elog(INFO, "len = %d, sizeof(len) = %ld, query = '%s'", len, sizeof(len), query_string);
+
+				int n = write(sockfd, query_string, size);
 				if (n < 0)
 				{
 					elog(INFO, "failed to send query to QD Daemon");
 				}
+
+				elog(INFO, "written: %d\n", n);
 
 				char buffer[4096] = {0};
 				n = read(sockfd, buffer, 4096);
