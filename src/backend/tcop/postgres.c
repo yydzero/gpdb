@@ -1710,8 +1710,13 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 					elog(INFO, "failed to connect to QD Daemon");
 				}
 
-				// Format: <len><string>
-//				int size = htonl((uint) strlen(query_string));
+				// Format: <contentId><len><string>
+				// TODO: databasename, username, port, sql_parameters
+
+				int contentId = linitial_int(stmt->planTree->directDispatch.contentIds);
+				uint32 id = htonl((uint32) contentId);
+				write(sockfd, &id, sizeof(id));
+
 				size_t size = strlen(query_string);
 				// uint32 len = (uint32) size;		// No need to call htonl.
 				uint32 len = htonl((uint32) size);
