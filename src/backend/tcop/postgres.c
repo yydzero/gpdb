@@ -1688,7 +1688,7 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 			if (stmt->type == T_PlannedStmt && stmt->planTree->directDispatch.isDirectDispatch) {
 				elog_node_display(LOG, "plannedstmt", stmt, Debug_pretty_print);
 
-				// 1. send original SQL to PooledQD daemon
+				// 1. Connect to QDDaemon
 				int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 				if (sockfd < 0)
 				{
@@ -1710,6 +1710,7 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 					elog(INFO, "failed to connect to QD Daemon");
 				}
 
+				// 2. send message including original SQL to PooledQD daemon
 				// Format: <contentId><len><string>
 				// TODO: databasename, username, port, sql_parameters
 
@@ -1732,6 +1733,7 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 
 				elog(INFO, "written: %d\n", n);
 
+				// 3. Read response from socket.
 				char buffer[4096] = {0};
 				n = read(sockfd, buffer, 4096);
 				if (n < 0)
@@ -1739,12 +1741,10 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 					elog(INFO, "failed to read data from QD Daemon");
 				}
 
-				elog(LOG, "get result: %s", buffer);
+				elog(INFO, "get result: len = %d, binary = %s", n, buffer);
 
 				close(sockfd);
 
-
-				// 2. waiting for result
 
 				// 3. return result to original client.
 			}
