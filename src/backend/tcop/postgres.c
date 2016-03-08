@@ -1462,6 +1462,37 @@ CheckDebugDtmActionSqlCommandTag(const char *sqlCommandTag)
 	return result;
 }
 
+/*
+ * Read each message from srcfd, and write to destfd until seeing EOF or 'Z'
+ */
+static bool pipesocket(int srcfd, int destfd)
+{
+
+}
+
+/*
+ * Read at least len data from socket and put them into buffer from start.
+ */
+static void readAtLeast(int sockfd, const char *buf, int start, int len)
+{
+	while (1)
+	{
+		int n = read(sockfd, buffer, BUFSIZE);
+		if (n < 0)
+		{
+			elog(ERROR, "failed to read data from QD Daemon: errno = %d, errmsg = %s", errno, strerror(errno));
+		}
+		else if (n == 0)
+		{
+			close(sockfd);		// EOF
+			break;
+		}
+
+		// Now we have read some data, let us parse it, and handle each message
+
+		elog(INFO, "get result: len = %d", n);
+	}
+}
 
 /*
  * exec_simple_query
@@ -1667,6 +1698,8 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 		/* If we got a cancel signal in analysis or planning, quit */
 		CHECK_FOR_INTERRUPTS();
 
+		bool useDaemon = false;
+
 		/*
 		 * If this query is suitable for direct dispatch using pooled QD daemon,
 		 * send it to QD daemon.
@@ -1687,6 +1720,7 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 			*/
 			if (stmt->type == T_PlannedStmt && stmt->planTree->directDispatch.isDirectDispatch) {
 				elog_node_display(LOG, "plannedstmt", stmt, Debug_pretty_print);
+				useDaemon = true;
 
 				// 1. Connect to QDDaemon
 				int sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -1723,7 +1757,7 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 				uint32 len = htonl((uint32) size);
 				write(sockfd, &len, sizeof(len));
 
-				elog(INFO, "len = %d, sizeof(len) = %ld, query = '%s'", len, sizeof(len), query_string);
+				elog(INFO, "len = %ld, sizeof(len) = %ld, query = '%s'", size, sizeof(len), query_string);
 
 				int n = write(sockfd, query_string, size);
 				if (n < 0)
@@ -1731,23 +1765,54 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 					elog(INFO, "failed to send query to QD Daemon");
 				}
 
-				elog(INFO, "written: %d\n", n);
+				elog(INFO, "have %ld data, written: %d\n", size, n);
 
 				// 3. Read response from socket.
-				char buffer[4096] = {0};
-				n = read(sockfd, buffer, 4096);
-				if (n < 0)
+				char msgtype;
+				int msglen;
+
+				while (1)
 				{
-					elog(INFO, "failed to read data from QD Daemon");
+					int BUFSIZE = 8192;
+					char buffer[BUFSIZE] = {0};
+					n = read(sockfd, buffer, BUFSIZE);
+					if (n < 0)
+					{
+						elog(ERROR, "failed to read data from QD Daemon: errno = %d, errmsg = %s", errno, strerror(errno));
+					}
+					else if (n == 0)
+					{
+						close(sockfd);		// EOF
+						break;
+					}
+
+					// Now we have read some data, let us parse it, and handle each message
+
+					elog(INFO, "get result: len = %d", n);
+
+
+					int rc = write(MyProcPort->sock, buffer, n);
+					if (rc < 0)
+					{
+						elog(ERROR, "failed to send query to QD Daemon: errno = %d, errmsg = %s", errno, strerror(errno));
+					}
+					else if (rc == 0)
+					{
+						elog(ERROR, "failed to send query to QD Daemon: errno = %d, errmsg = %s", errno, strerror(errno));
+					}
+					else
+					{
+						elog(INFO, "write to client: len = %d", rc);
+						// TODO: write all data to client.
+					}
+
 				}
-
-				elog(INFO, "get result: len = %d, binary = %s", n, buffer);
-
-				close(sockfd);
-
-
-				// 3. return result to original client.
 			}
+		}
+
+		if (useDaemon)
+		{
+			continue;
 		}
 
 		/*
