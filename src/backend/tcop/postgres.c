@@ -1462,33 +1462,17 @@ CheckDebugDtmActionSqlCommandTag(const char *sqlCommandTag)
 	return result;
 }
 
+
 /*
- * Read each message from srcfd, and write to destfd until seeing EOF or 'Z'
+ * Write at least len data from socket and put them into buffer from start.
  */
-static bool pipesocket(int srcfd, int destfd)
+static void writeAtLeast(int sockfd, const char *buffer, int len)
 {
-	char buffer[8192] = {0};
-	int remainingBytesFromLastMessage = 0;
+	char *ptr = buffer;
 
-	while (1)
+	while (ptr < buffer + len)
 	{
-		int n = read(srcfd, buffer, sizeof(buffer));
-		if (n < 0)
-		{
-			elog(ERROR, "failed to read data from QD Daemon: errno = %d, errmsg = %s", errno, strerror(errno));
-		}
-		else if (n == 0)
-		{
-			close(srcfd);		// EOF
-			break;
-		}
-
-		// Now we have read some data, let us handle message one by one.
-
-		elog(INFO, "get result: len = %d", n);
-
-
-		int rc = write(destfd, buffer, n);
+		int rc = write(sockfd, ptr, len);
 		if (rc < 0)
 		{
 			elog(ERROR, "failed to send query to QD Daemon: errno = %d, errmsg = %s", errno, strerror(errno));
@@ -1500,32 +1484,98 @@ static bool pipesocket(int srcfd, int destfd)
 		else
 		{
 			elog(INFO, "write to client: len = %d", rc);
-			// TODO: write all data to client.
+			ptr += rc;
 		}
 	}
 }
 
 /*
- * Read at least len data from socket and put them into buffer from start.
+ * Read at least 'atLeast' bytes.
+ * Return 0 if EOF, otherwise return actual read bytes
+ *
+ * len is the buffer len, caller ensure atLeast is less than len.
  */
-static void readAtLeast(int sockfd, const char *buf, int start, int len)
+static int readAtLeast(int sockfd, const char *buffer, int len, int atLeast)
 {
-	while (1)
+	while (atLeast > 0)
 	{
-		int n = read(sockfd, buffer, BUFSIZE);
+		int n = read(sockfd, buffer, len);
 		if (n < 0)
 		{
 			elog(ERROR, "failed to read data from QD Daemon: errno = %d, errmsg = %s", errno, strerror(errno));
 		}
-		else if (n == 0)
+		else if (n == 0 || n >= atLeast)
 		{
-			close(sockfd);		// EOF
+			return n;
+		}
+		else
+		{
+			// Less than atLeast, read more
+			atLeast -= n;
+			buffer += n;
+			len -= n;
+		}
+	}
+}
+
+/*
+ * Read each message from srcfd, and write to destfd until seeing EOF or 'Z'
+ */
+#define BUFFLEN 8192
+#define MSGFIRSTFIVEBYTES 5
+static bool pipesocket(int srcfd, int destfd)
+{
+	char underlyingBuffer[BUFFLEN] = {0};		// underlying buffer to hold data.
+
+	char *buffer = underlyingBuffer;			// The start of buffer, if read partial data, it points to the start of data.
+	int capacity = BUFFLEN;						// How many data could be read to underlying buffer.
+	int len      = 0;							// how many data has been read
+
+	int cursor = 0;
+	uint32 msgLength;
+
+	while (1)
+	{
+		// Everytime we enter into this loop, we will start to read a complete message:
+		//		- either the whole message has not been read yet.
+		//		- or, partial of the message has been read.
+		// Read data from socket, we need at least 5 bytes to decode msg type and length.
+		// If the buffer has no space for 5 bytes, then move to head of underlying buffer.
+		if (buffer + MSGFIRSTFIVEBYTES > underlyingBuffer + BUFFLEN)
+		{
+			memmove(underlyingBuffer, buffer, len);
+			buffer = underlyingBuffer;
+			capacity = BUFFLEN - len;
+		}
+
+		int n = readAtLeast(srcfd, buffer + len, capacity, 5);
+
+		if (n == 0)		// EOF
+		{
+			close(srcfd);
 			break;
 		}
 
-		// Now we have read some data, let us parse it, and handle each message
+		// Now we have read some data, let us handle message one by one.
 
 		elog(INFO, "get result: len = %d", n);
+
+		// Write whatever we get from socket.
+		writeAtLeast(destfd, buffer, n);
+
+		// Now decode the message and determine whether we are done.
+
+		// buffer always points to
+		memcpy(&msgLength, buffer + 1, 4);
+		conn->inCursor += 4;
+		int length = (int) ntohl(msgLength);
+
+		// Determine whether we got ready message.
+		char type = buffer[typeIndex];
+		if (type == 'Z')
+		{
+			break;	// Exhausted all messages, and ready for next query.
+		}
 	}
 }
 
@@ -1539,7 +1589,7 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 {
 	CommandDest dest = whereToSendOutput;
 	MemoryContext oldcontext;
-	List	   *parsetree_list;
+	List	   *parsetree_list;`
 	ListCell   *parsetree_item;
 	bool		save_log_statement_stats = log_statement_stats;
 	bool		was_logged = false;
@@ -1824,22 +1874,6 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 					// Now we have read some data, let us parse it, and handle each message
 
 					elog(INFO, "get result: len = %d", n);
-
-
-					int rc = write(MyProcPort->sock, buffer, n);
-					if (rc < 0)
-					{
-						elog(ERROR, "failed to send query to QD Daemon: errno = %d, errmsg = %s", errno, strerror(errno));
-					}
-					else if (rc == 0)
-					{
-						elog(ERROR, "failed to send query to QD Daemon: errno = %d, errmsg = %s", errno, strerror(errno));
-					}
-					else
-					{
-						elog(INFO, "write to client: len = %d", rc);
-						// TODO: write all data to client.
-					}
 
 				}
 			}
