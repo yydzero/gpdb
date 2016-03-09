@@ -1467,7 +1467,42 @@ CheckDebugDtmActionSqlCommandTag(const char *sqlCommandTag)
  */
 static bool pipesocket(int srcfd, int destfd)
 {
+	char buffer[8192] = {0};
+	int remainingBytesFromLastMessage = 0;
 
+	while (1)
+	{
+		int n = read(srcfd, buffer, sizeof(buffer));
+		if (n < 0)
+		{
+			elog(ERROR, "failed to read data from QD Daemon: errno = %d, errmsg = %s", errno, strerror(errno));
+		}
+		else if (n == 0)
+		{
+			close(srcfd);		// EOF
+			break;
+		}
+
+		// Now we have read some data, let us handle message one by one.
+
+		elog(INFO, "get result: len = %d", n);
+
+
+		int rc = write(destfd, buffer, n);
+		if (rc < 0)
+		{
+			elog(ERROR, "failed to send query to QD Daemon: errno = %d, errmsg = %s", errno, strerror(errno));
+		}
+		else if (rc == 0)
+		{
+			elog(ERROR, "failed to send query to QD Daemon: errno = %d, errmsg = %s", errno, strerror(errno));
+		}
+		else
+		{
+			elog(INFO, "write to client: len = %d", rc);
+			// TODO: write all data to client.
+		}
+	}
 }
 
 /*
