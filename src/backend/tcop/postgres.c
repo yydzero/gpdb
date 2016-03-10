@@ -1484,7 +1484,7 @@ static void writeAtLeast(int sockfd, const char *buffer, int len)
 		}
 		else
 		{
-			elog(INFO, "write to client: len = %d", rc);
+			elog(LOG, "write to client: len = %d", rc);
 			ptr += rc;
 			len -= rc;
 		}
@@ -1636,18 +1636,15 @@ static int getInt32(SocketPair *sp)
  */
 static void pipesocket(int srcfd, int destfd)
 {
-	SocketPair sp;
+	SocketPair sp = {0};
 	sp.srcfd = srcfd;
 	sp.destfd = destfd;
-	sp.cursor = 0;
-	sp.end = 0;
-
 
 	while (1)
 	{
 		char msgType = getByte(&sp);
 		int payloadLen = getInt32(&sp);
-		elog(INFO, "Message type: %c, len : %d", msgType, payloadLen);
+		elog(LOG, "Message type: %c, len : %d", msgType, payloadLen);
 
 		consumeBytes(&sp, payloadLen - 4);
 
@@ -1883,14 +1880,14 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 			 3. Only non-catalog query use this path
 			*/
 			if (stmt->type == T_PlannedStmt && stmt->planTree->directDispatch.isDirectDispatch) {
-				elog_node_display(LOG, "plannedstmt", stmt, Debug_pretty_print);
+				// elog_node_display(LOG, "plannedstmt", stmt, Debug_pretty_print);
 				useDaemon = true;
 
 				// 1. Connect to QDDaemon
 				int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 				if (sockfd < 0)
 				{
-					elog(INFO, "failed to create socket");
+					elog(ERROR, "failed to create socket");
 				}
 
 				struct sockaddr_in serv_addr;
@@ -1905,7 +1902,7 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 
 				if (connect(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) <0)
 				{
-					elog(INFO, "failed to connect to QD Daemon");
+					elog(ERROR, "failed to connect to QD Daemon");
 				}
 
 				// 2. send message including original SQL to PooledQD daemon
@@ -1921,15 +1918,13 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 				uint32 len = htonl((uint32) size);
 				write(sockfd, &len, sizeof(len));
 
-				elog(INFO, "len = %ld, sizeof(len) = %ld, query = '%s'", size, sizeof(len), query_string);
-
 				int n = write(sockfd, query_string, size);
 				if (n < 0)
 				{
-					elog(INFO, "failed to send query to QD Daemon");
+					elog(ERROR, "failed to send query to QD Daemon");
 				}
 
-				elog(INFO, "have %ld data, written: %d\n", size, n);
+				elog(LOG, "Got a SQL from client: len=%ld, written=%d, query='%s'", size, n, query_string);
 
 				// 3. Read response from socket.
 				pipesocket(sockfd, MyProcPort->sock);
