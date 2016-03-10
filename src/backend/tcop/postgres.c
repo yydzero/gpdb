@@ -1468,9 +1468,10 @@ CheckDebugDtmActionSqlCommandTag(const char *sqlCommandTag)
  */
 static void writeAtLeast(int sockfd, const char *buffer, int len)
 {
-	char *ptr = buffer;
+	char *ptr = (char *) buffer;
+	char *end = (char *) buffer + len;
 
-	while (ptr < buffer + len)
+	while (ptr < end)
 	{
 		int rc = write(sockfd, ptr, len);
 		if (rc < 0)
@@ -1485,6 +1486,7 @@ static void writeAtLeast(int sockfd, const char *buffer, int len)
 		{
 			elog(INFO, "write to client: len = %d", rc);
 			ptr += rc;
+			len -= rc;
 		}
 	}
 }
@@ -1497,16 +1499,17 @@ static void writeAtLeast(int sockfd, const char *buffer, int len)
  */
 static int readAtLeast(int sockfd, const char *buffer, int len, int atLeast)
 {
+	int total = 0;
 	while (atLeast > 0)
 	{
-		int n = read(sockfd, buffer, len);
+		int n = read(sockfd,(void *) buffer, len);
 		if (n < 0)
 		{
 			elog(ERROR, "failed to read data from QD Daemon: errno = %d, errmsg = %s", errno, strerror(errno));
 		}
-		else if (n == 0 || n >= atLeast)
+		else if (n == 0)
 		{
-			return n;
+			elog(ERROR, "expect %d bytes, get EOF", atLeast);
 		}
 		else
 		{
@@ -1514,67 +1517,143 @@ static int readAtLeast(int sockfd, const char *buffer, int len, int atLeast)
 			atLeast -= n;
 			buffer += n;
 			len -= n;
+			total += n;
 		}
 	}
+	return total;
+}
+
+#define BUFFLEN 8192
+#define MSGFIRSTFIVEBYTES 5
+
+typedef struct SocketPair {
+	int srcfd;
+	int destfd;
+
+	char underlyingBuffer[BUFFLEN];
+
+	int cursor;		// point to current byte
+	int end;		// last byte read into buffer.
+} SocketPair;
+
+// Ensure we have bytes in the buffer which is read from socket.
+// normally bytes is a small number like 1 for type or 4 for length.
+static void ensureBytes(SocketPair *sp, int bytes)
+{
+	int hold = sp->end - sp->cursor;
+	if (hold >= bytes)
+	{
+		return;
+	}
+
+	// We need to read at least (bytes - hold), at most (BUFFLEN - hold)
+
+	if (sp->cursor != 0)	// move to start of the buffer.
+	{
+		memmove(sp->underlyingBuffer, (char *)sp->underlyingBuffer + sp->cursor, hold);
+		sp->cursor = 0;
+		sp->end = hold;
+	}
+
+	int capacity = BUFFLEN - sp->end;		// how many we could hold
+	int atLeast = bytes - hold;
+	if (capacity <= 0)
+	{
+		elog(ERROR, "try to read %d, while no spaces: cursor = %d, end = %d", bytes, sp->cursor, sp->end);
+	}
+
+	int newRead = readAtLeast(sp->srcfd, (char *) sp->underlyingBuffer + sp->end, capacity, atLeast);
+	writeAtLeast(sp->destfd, (char *) sp->underlyingBuffer + sp->end, newRead);
+
+	sp->end += newRead;
+}
+
+/*
+ * Consume size bytes.
+ *
+ * If all bytes are read already, simply skip it.
+ * Otherwise, read needed bytes from src socket and write to dest socket.
+ */
+static void consumeBytes(SocketPair *sp, int want)
+{
+	int lacking = sp->cursor + want - sp->end;
+	if (lacking <= 0)
+	{
+		sp->cursor += want;
+		return;
+	}
+
+	// Need to read remaining bytes and write to dest socket.
+	// Original data in buffer becomes useless.
+	while (1)
+	{
+		// Every time we read, we will read from socket and store data
+		// in the underlying buffer start from 0
+		if (lacking > BUFFLEN)
+		{
+			(void) readAtLeast(sp->srcfd, sp->underlyingBuffer, BUFFLEN, BUFFLEN);
+			writeAtLeast(sp->destfd, sp->underlyingBuffer, BUFFLEN);
+			lacking -= BUFFLEN;
+		}
+		else if (lacking == BUFFLEN)
+		{
+			(void) readAtLeast(sp->srcfd, sp->underlyingBuffer, BUFFLEN, BUFFLEN);
+			writeAtLeast(sp->destfd, sp->underlyingBuffer, BUFFLEN);
+			sp->cursor = 0;
+			sp->end = 0;
+			break;
+		}
+		else
+		{
+			int got = readAtLeast(sp->srcfd, sp->underlyingBuffer, BUFFLEN, lacking);
+			writeAtLeast(sp->destfd, sp->underlyingBuffer, got);
+			sp->cursor = lacking;
+			sp->end = got;
+			break;
+		}
+	}
+}
+
+static char getByte(SocketPair *sp)
+{
+	ensureBytes(sp, 1);
+	return sp->underlyingBuffer[sp->cursor++];
+}
+
+static int getInt32(SocketPair *sp)
+{
+	uint32 v;
+
+	ensureBytes(sp, 4);
+	memcpy(&v, (char *) sp->underlyingBuffer + sp->cursor, 4);	// next 4 bytes are message length include length itself.
+	sp->cursor += 4;
+
+	return (int) ntohl(v);
 }
 
 /*
  * Read each message from srcfd, and write to destfd until seeing EOF or 'Z'
  */
-#define BUFFLEN 8192
-#define MSGFIRSTFIVEBYTES 5
-static bool pipesocket(int srcfd, int destfd)
+static void pipesocket(int srcfd, int destfd)
 {
-	char underlyingBuffer[BUFFLEN] = {0};		// underlying buffer to hold data.
+	SocketPair sp;
+	sp.srcfd = srcfd;
+	sp.destfd = destfd;
+	sp.cursor = 0;
+	sp.end = 0;
 
-	char *buffer = underlyingBuffer;			// The start of buffer, if read partial data, it points to the start of data.
-	int capacity = BUFFLEN;						// How many data could be read to underlying buffer.
-	int len      = 0;							// how many data has been read
-
-	int cursor = 0;
-	uint32 msgLength;
 
 	while (1)
 	{
-		// Everytime we enter into this loop, we will start to read a complete message:
-		//		- either the whole message has not been read yet.
-		//		- or, partial of the message has been read.
-		// Read data from socket, we need at least 5 bytes to decode msg type and length.
-		// If the buffer has no space for 5 bytes, then move to head of underlying buffer.
-		if (buffer + MSGFIRSTFIVEBYTES > underlyingBuffer + BUFFLEN)
-		{
-			memmove(underlyingBuffer, buffer, len);
-			buffer = underlyingBuffer;
-			capacity = BUFFLEN - len;
-		}
+		char msgType = getByte(&sp);
+		int payloadLen = getInt32(&sp);
+		elog(INFO, "Message type: %c, len : %d", msgType, payloadLen);
 
-		int n = readAtLeast(srcfd, buffer + len, capacity, 5);
+		consumeBytes(&sp, payloadLen - 4);
 
-		if (n == 0)		// EOF
+		if (msgType == 'Z')
 		{
-			close(srcfd);
 			break;
-		}
-
-		// Now we have read some data, let us handle message one by one.
-
-		elog(INFO, "get result: len = %d", n);
-
-		// Write whatever we get from socket.
-		writeAtLeast(destfd, buffer, n);
-
-		// Now decode the message and determine whether we are done.
-
-		// buffer always points to
-		memcpy(&msgLength, buffer + 1, 4);
-		conn->inCursor += 4;
-		int length = (int) ntohl(msgLength);
-
-		// Determine whether we got ready message.
-		char type = buffer[typeIndex];
-		if (type == 'Z')
-		{
-			break;	// Exhausted all messages, and ready for next query.
 		}
 	}
 }
@@ -1589,7 +1668,7 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 {
 	CommandDest dest = whereToSendOutput;
 	MemoryContext oldcontext;
-	List	   *parsetree_list;`
+	List	   *parsetree_list;
 	ListCell   *parsetree_item;
 	bool		save_log_statement_stats = log_statement_stats;
 	bool		was_logged = false;
@@ -1853,29 +1932,7 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 				elog(INFO, "have %ld data, written: %d\n", size, n);
 
 				// 3. Read response from socket.
-				char msgtype;
-				int msglen;
-
-				while (1)
-				{
-					int BUFSIZE = 8192;
-					char buffer[BUFSIZE] = {0};
-					n = read(sockfd, buffer, BUFSIZE);
-					if (n < 0)
-					{
-						elog(ERROR, "failed to read data from QD Daemon: errno = %d, errmsg = %s", errno, strerror(errno));
-					}
-					else if (n == 0)
-					{
-						close(sockfd);		// EOF
-						break;
-					}
-
-					// Now we have read some data, let us parse it, and handle each message
-
-					elog(INFO, "get result: len = %d", n);
-
-				}
+				pipesocket(sockfd, MyProcPort->sock);
 			}
 		}
 
