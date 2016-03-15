@@ -80,9 +80,17 @@ pqParseInput3(PGconn *conn)
 		 */
 		conn->inCursor = conn->inStart;
 		if (pqGetc(&id, conn))
+		{
+			fprintf(stdout, "quit pqParseInput3 due to failure to get type\n");
 			return;
+		}
 		if (pqGetInt(&msgLength, 4, conn))
+		{
+			fprintf(stdout, "quit pqParseInput3 due to failure to get length\n");
 			return;
+		}
+
+		fprintf(stdout, "message: type=%c, len=%d\n", id, msgLength);
 
 		/*
 		 * Try to validate message type/length here.  A length less than 4 is
@@ -126,6 +134,7 @@ pqParseInput3(PGconn *conn)
 				 */
 				handleSyncLoss(conn, id, msgLength);
 			}
+			fprintf(stdout, "quit pqParseInput3 due to avail < msglenth\n");
 			return;
 		}
 
@@ -148,18 +157,27 @@ pqParseInput3(PGconn *conn)
 		if (id == 'A')
 		{
 			if (getNotify(conn))
+			{
+				fprintf(stdout, "quit pqParseInput3 due to getNotify() \n");
 				return;
+			}
 		}
 		else if (id == 'N')
 		{
 			if (pqGetErrorNotice3(conn, false))
+			{
+				fprintf(stdout, "quit pqParseInput3 due to get error notice \n");
 				return;
+			}
 		}
 		else if (conn->asyncStatus != PGASYNC_BUSY)
 		{
 			/* If not IDLE state, just wait ... */
 			if (conn->asyncStatus != PGASYNC_IDLE)
+			{
+				fprintf(stdout, "quit pqParseInput3 due to status is not busy or idle.\n");
 				return;
+			}
 
 			/*
 			 * Unexpected message in IDLE state; need to recover somehow.
@@ -173,12 +191,18 @@ pqParseInput3(PGconn *conn)
 			if (id == 'E')
 			{
 				if (pqGetErrorNotice3(conn, false /* treat as notice */ ))
+				{
+					fprintf(stdout, "quit pqParseInput3 due to E.\n");
 					return;
+				}
 			}
 			else if (id == 'S')
 			{
 				if (getParameterStatus(conn))
+				{
+					fprintf(stdout, "quit pqParseInput3 due to S.\n");
 					return;
+				}
 			}
 			else
 			{
@@ -198,13 +222,19 @@ pqParseInput3(PGconn *conn)
 			{
 				case 'C':		/* command complete */
 					if (pqGets(&conn->workBuffer, conn))
+					{
+						fprintf(stdout, "quit pqParseInput3 due to 'C'.\n");
 						return;
+					}
 					if (conn->result == NULL)
 					{
 						conn->result = PQmakeEmptyPGresult(conn,
 														   PGRES_COMMAND_OK);
 						if (!conn->result)
+						{
+							fprintf(stdout, "quit pqParseInput3 due to oom.\n");
 							return;
+						}
 					}
 					strlcpy(conn->result->cmdStatus, conn->workBuffer.data,
 							CMDSTATUS_LEN);
@@ -212,12 +242,18 @@ pqParseInput3(PGconn *conn)
 					break;
 				case 'E':		/* error return */
 					if (pqGetErrorNotice3(conn, true))
+					{
+						fprintf(stdout, "quit pqParseInput3 due to 'E'.\n");
 						return;
+					}
 					conn->asyncStatus = PGASYNC_READY;
 					break;
 				case 'Z':		/* backend is ready for new query */
 					if (getReadyForQuery(conn))
+					{
+						fprintf(stdout, "quit pqParseInput3 due to 'Z'.\n");
 						return;
+					}
 					conn->asyncStatus = PGASYNC_IDLE;
 					break;
 				case 'I':		/* empty query */
@@ -250,7 +286,10 @@ pqParseInput3(PGconn *conn)
 					break;
 				case 'S':		/* parameter status */
 					if (getParameterStatus(conn))
+					{
+						fprintf(stdout, "quit pqParseInput3 due to 'S'.\n");
 						return;
+					}
 					break;
 				case 'K':		/* secret key data from the backend */
 
@@ -270,7 +309,10 @@ pqParseInput3(PGconn *conn)
 					{
 						/* First 'T' in a query sequence */
 						if (getRowDescriptions(conn, msgLength))
+						{
+							fprintf(stdout, "quit pqParseInput3 due to 'T' as first message.\n");
 							return;
+						}
 						/* getRowDescriptions() moves inStart itself */
 						continue;
 					}
@@ -284,6 +326,7 @@ pqParseInput3(PGconn *conn)
 						 * result.
 						 */
 						conn->asyncStatus = PGASYNC_READY;
+						fprintf(stdout, "quit pqParseInput3 due to 'T' and ready .\n");
 						return;
 					}
 					break;
@@ -313,7 +356,10 @@ pqParseInput3(PGconn *conn)
 					break;
 				case 't':		/* Parameter Description */
 					if (getParamDescriptions(conn))
+					{
+						fprintf(stdout, "quit pqParseInput3 due to 't'.\n");
 						return;
+					}
 					break;
 				case 'D':		/* Data Row */
 					if (conn->result != NULL &&
@@ -321,7 +367,10 @@ pqParseInput3(PGconn *conn)
 					{
 						/* Read another tuple of a normal query response */
 						if (getAnotherTuple(conn, msgLength))
+						{
+							fprintf(stdout, "quit pqParseInput3 due to 'D'.\n");
 							return;
+						}
 						/* getAnotherTuple() moves inStart itself */
 						continue;
 					}
