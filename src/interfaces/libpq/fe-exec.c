@@ -1662,12 +1662,12 @@ PQgetResult(PGconn *conn)
 	if (!conn)
 		return NULL;
 
-	fprintf(stdout, "Enter into PQgetResult ....\n");
+	fprintf(stdout, "1. Enter into PQgetResult, asyncStatus=%d .... \n", conn->asyncStatus);
 
 	/* Parse any available data, if our state permits. */
 	parseInput(conn);
 
-	fprintf(stdout, "PQgetResult, finished parseInput(), enter status look until not busy: %d\n", conn->asyncStatus);
+	fprintf(stdout, "2. PQgetResult, enter loop until status is not busy: asyncStatus=%d\n", conn->asyncStatus);
 
 	/* If not ready to return something, block until we are. */
 	while (conn->asyncStatus == PGASYNC_BUSY)
@@ -1705,7 +1705,7 @@ PQgetResult(PGconn *conn)
 		parseInput(conn);
 	}
 
-	fprintf(stdout, "PQgetResult, after while look, before switch: %d\n", conn->asyncStatus);
+	fprintf(stdout, "3. PQgetResult, Switch. asyncStatus = %d\n", conn->asyncStatus);
 
 	/* Return the appropriate thing. */
 	switch (conn->asyncStatus)
@@ -1744,6 +1744,8 @@ PQgetResult(PGconn *conn)
 			break;
 	}
 
+
+
 	if (res)
 	{
 		int			i;
@@ -1769,7 +1771,8 @@ PQgetResult(PGconn *conn)
 	}
 
 
-	fprintf(stdout, "Leave PQgetResult now ...\n\n\n");
+	fprintf(stdout, "4. Leave PQgetResult now: %s, asyncStatus=%d cursor=%d, end=%d ...\n\n\n",
+			(res == NULL ? "No result" : "has result"), conn->asyncStatus, conn->inCursor, conn->inEnd);
 
 	return res;
 }

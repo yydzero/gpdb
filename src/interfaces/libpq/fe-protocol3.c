@@ -69,6 +69,8 @@ pqParseInput3(PGconn *conn)
 	int			msgLength;
 	int			avail;
 
+	fprintf(stdout, "Entering pqParseInput3: start=%d, cursor=%d, end=%d\n", conn->inStart, conn->inCursor, conn->inEnd);
+
 	/*
 	 * Loop to parse successive complete messages available in the buffer.
 	 */
@@ -90,7 +92,8 @@ pqParseInput3(PGconn *conn)
 			return;
 		}
 
-		fprintf(stdout, "message: type=%c, len=%d\n", id, msgLength);
+		fprintf(stdout, "message: type=%c, len=%d, asyncStatus=%d, start=%d, cursor=%d, end=%d\n", id, msgLength,
+				conn->asyncStatus, conn->inStart, conn->inCursor, conn->inEnd);
 
 		/*
 		 * Try to validate message type/length here.  A length less than 4 is
@@ -175,7 +178,7 @@ pqParseInput3(PGconn *conn)
 			/* If not IDLE state, just wait ... */
 			if (conn->asyncStatus != PGASYNC_IDLE)
 			{
-				fprintf(stdout, "quit pqParseInput3 due to status is not busy or idle.\n");
+				fprintf(stdout, "quit pqParseInput3 due to status is not busy or idle: %d.\n", conn->asyncStatus);
 				return;
 			}
 
@@ -223,7 +226,6 @@ pqParseInput3(PGconn *conn)
 				case 'C':		/* command complete */
 					if (pqGets(&conn->workBuffer, conn))
 					{
-						fprintf(stdout, "quit pqParseInput3 due to 'C'.\n");
 						return;
 					}
 					if (conn->result == NULL)
@@ -232,21 +234,23 @@ pqParseInput3(PGconn *conn)
 														   PGRES_COMMAND_OK);
 						if (!conn->result)
 						{
-							fprintf(stdout, "quit pqParseInput3 due to oom.\n");
 							return;
 						}
 					}
 					strlcpy(conn->result->cmdStatus, conn->workBuffer.data,
 							CMDSTATUS_LEN);
+
 					conn->asyncStatus = PGASYNC_READY;
+					fprintf(stdout, "break pqParseInput3 due to 'C': %d.\n", conn->asyncStatus);
 					break;
 				case 'E':		/* error return */
 					if (pqGetErrorNotice3(conn, true))
 					{
-						fprintf(stdout, "quit pqParseInput3 due to 'E'.\n");
 						return;
 					}
+
 					conn->asyncStatus = PGASYNC_READY;
+					fprintf(stdout, "break pqParseInput3 due to 'E': %d.\n", conn->asyncStatus);
 					break;
 				case 'Z':		/* backend is ready for new query */
 					if (getReadyForQuery(conn))
@@ -255,6 +259,7 @@ pqParseInput3(PGconn *conn)
 						return;
 					}
 					conn->asyncStatus = PGASYNC_IDLE;
+					fprintf(stdout, "break pqParseInput3 due to 'Z': %d, xact: %d.\n", conn->asyncStatus, conn->xactStatus);
 					break;
 				case 'I':		/* empty query */
 					if (conn->result == NULL)
@@ -265,6 +270,7 @@ pqParseInput3(PGconn *conn)
 							return;
 					}
 					conn->asyncStatus = PGASYNC_READY;
+					fprintf(stdout, "break pqParseInput3 due to 'I': %d.\n", conn->asyncStatus);
 					break;
 				case '1':		/* Parse Complete */
 					/* If we're doing PQprepare, we're done; else ignore */
@@ -277,6 +283,7 @@ pqParseInput3(PGconn *conn)
 							if (!conn->result)
 								return;
 						}
+						fprintf(stdout, "break pqParseInput3 due to '1': %d.\n", conn->asyncStatus);
 						conn->asyncStatus = PGASYNC_READY;
 					}
 					break;
@@ -290,6 +297,7 @@ pqParseInput3(PGconn *conn)
 						fprintf(stdout, "quit pqParseInput3 due to 'S'.\n");
 						return;
 					}
+					fprintf(stdout, "break pqParseInput3 due to 'S': %d.\n", conn->asyncStatus);
 					break;
 				case 'K':		/* secret key data from the backend */
 
@@ -302,6 +310,7 @@ pqParseInput3(PGconn *conn)
 						return;
 					if (pqGetInt(&(conn->be_key), 4, conn))
 						return;
+					fprintf(stdout, "break pqParseInput3 due to 'K': %d.\n", conn->asyncStatus);
 					break;
 				case 'T':		/* Row Description */
 					if (conn->result == NULL ||
@@ -329,6 +338,7 @@ pqParseInput3(PGconn *conn)
 						fprintf(stdout, "quit pqParseInput3 due to 'T' and ready .\n");
 						return;
 					}
+					fprintf(stdout, "break pqParseInput3 due to 'T': %d.\n", conn->asyncStatus);
 					break;
 				case 'n':		/* No Data */
 
@@ -353,6 +363,7 @@ pqParseInput3(PGconn *conn)
 						}
 						conn->asyncStatus = PGASYNC_READY;
 					}
+					fprintf(stdout, "break pqParseInput3 due to 'n': %d.\n", conn->asyncStatus);
 					break;
 				case 't':		/* Parameter Description */
 					if (getParamDescriptions(conn))
@@ -360,6 +371,7 @@ pqParseInput3(PGconn *conn)
 						fprintf(stdout, "quit pqParseInput3 due to 't'.\n");
 						return;
 					}
+					fprintf(stdout, "break pqParseInput3 due to 't': %d.\n", conn->asyncStatus);
 					break;
 				case 'D':		/* Data Row */
 					if (conn->result != NULL &&
@@ -392,6 +404,7 @@ pqParseInput3(PGconn *conn)
 						/* Discard the unexpected message */
 						conn->inCursor += msgLength;
 					}
+					fprintf(stdout, "break pqParseInput3 due to 'D': %d.\n", conn->asyncStatus);
 					break;
 				case 'G':		/* Start Copy In */
 					if (getCopyStart(conn, PGRES_COPY_IN))
@@ -439,6 +452,7 @@ pqParseInput3(PGconn *conn)
 					conn->asyncStatus = PGASYNC_READY;
 					/* Discard the unexpected message */
 					conn->inCursor += msgLength;
+					fprintf(stdout, "break pqParseInput3 due to 'default': %d.\n", conn->asyncStatus);
 					break;
 			}					/* switch on protocol character */
 		}
@@ -461,6 +475,8 @@ pqParseInput3(PGconn *conn)
 			conn->inStart += 5 + msgLength;
 		}
 	}
+
+	fprintf(stdout, "Quit pqParseInput3: start=%d, cursor=%d, end=%d\n", conn->inStart, conn->inCursor, conn->inEnd);
 }
 
 /*
