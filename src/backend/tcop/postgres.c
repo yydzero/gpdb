@@ -1640,6 +1640,8 @@ static void pipesocket(int srcfd, int destfd)
 	sp.srcfd = srcfd;
 	sp.destfd = destfd;
 
+	bool gotdata = false;
+
 	while (1)
 	{
 		char msgType = getByte(&sp);
@@ -1648,9 +1650,14 @@ static void pipesocket(int srcfd, int destfd)
 
 		consumeBytes(&sp, payloadLen - 4);
 
-		if (msgType == 'Z')
+		if (msgType == 'Z' && gotdata)
 		{
+			gotdata = false;
 			break;
+		}
+		else
+		{
+			gotdata = true;
 		}
 	}
 }
