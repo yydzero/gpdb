@@ -105,6 +105,8 @@ extern char *optarg;
 extern char *savedSeqServerHost;
 extern int savedSeqServerPort;
 
+static volatile bool qddaemon_ready_for_query_sent = false;
+
 /* ----------------
  *		global variables
  * ----------------
@@ -1653,6 +1655,7 @@ static void pipesocket(int srcfd, int destfd)
 		if (msgType == 'Z' && gotdata)
 		{
 			gotdata = false;
+			qddaemon_ready_for_query_sent = true;
 			break;
 		}
 		else
@@ -1888,6 +1891,7 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 			*/
 			if (stmt->type == T_PlannedStmt && stmt->planTree->directDispatch.isDirectDispatch) {
 				// elog_node_display(LOG, "plannedstmt", stmt, Debug_pretty_print);
+				elog(LOG, "Use qddaemon");
 				useDaemon = true;
 
 				// 1. Connect to QDDaemon
@@ -4806,7 +4810,7 @@ PostgresMain(int argc, char *argv[],
 			{
 				ReadyForQuery_QEWriter(whereToSendOutput);
 			}
-			else
+			else if (! qddaemon_ready_for_query_sent)
 				ReadyForQuery(whereToSendOutput);
 			send_ready_for_query = false;
 		}
@@ -4861,6 +4865,8 @@ PostgresMain(int argc, char *argv[],
 		IdleTracker_DeactivateProcess();
 		firstchar = ReadCommand(&input_message);
 		IdleTracker_ActivateProcess();
+
+		qddaemon_ready_for_query_sent = false;
 
 		if (!IsTransactionOrTransactionBlock()){
 			/* Reset memory accounting */
