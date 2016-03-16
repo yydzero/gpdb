@@ -1872,7 +1872,7 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 		 * If this query is suitable for direct dispatch using pooled QD daemon,
 		 * send it to QD daemon.
 		 */
-		if (Gp_role == GP_ROLE_DISPATCH && list_length(plantree_list) == 1)
+		if (gp_enable_qddaemon && Gp_role == GP_ROLE_DISPATCH && list_length(plantree_list) == 1)
 		{
 			PlannedStmt *stmt = (PlannedStmt *) linitial(plantree_list);
 

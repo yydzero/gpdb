@@ -218,6 +218,7 @@ bool		gp_temporary_files_filespace_repair = false;
 bool		gp_create_table_random_default_distribution = true;
 bool		gp_allow_non_uniform_partitioning_ddl = true;
 bool		gp_enable_exchange_default_partition = false;
+bool		gp_enable_qddaemon = true;
 
 bool		log_dispatch_stats = false;
 
@@ -2694,6 +2695,14 @@ struct config_bool ConfigureNamesBool_gp[] =
 		},
 		&gp_enable_exchange_default_partition,
 		false, NULL, NULL
+	},
+	{
+		{"gp_enable_qddaemon", PGC_USERSET, COMPAT_OPTIONS,
+				gettext_noop("Use qddaemon for direct dispatch."),
+				NULL
+		},
+		&gp_enable_qddaemon,
+		true, NULL, NULL
 	},
 
 	{
