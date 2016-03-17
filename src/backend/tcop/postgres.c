@@ -106,6 +106,7 @@ extern char *savedSeqServerHost;
 extern int savedSeqServerPort;
 
 static volatile bool qddaemon_ready_for_query_sent = false;
+static int 			 qddaemon_sockfd = 0;
 
 /* ----------------
  *		global variables
@@ -1648,7 +1649,7 @@ static void pipesocket(int srcfd, int destfd)
 	{
 		char msgType = getByte(&sp);
 		int payloadLen = getInt32(&sp);
-		elog(LOG, "Message type: %c, len : %d", msgType, payloadLen);
+		elog(DEBUG, "Message type: %c, len : %d", msgType, payloadLen);
 
 		consumeBytes(&sp, payloadLen - 4);
 
@@ -1894,26 +1895,29 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 				elog(LOG, "Use qddaemon");
 				useDaemon = true;
 
-				// 1. Connect to QDDaemon
-				int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-				if (sockfd < 0)
+				if (qddaemon_sockfd == 0)
 				{
-					elog(ERROR, "failed to create socket");
-				}
+					// 1. Connect to QDDaemon
+					qddaemon_sockfd = socket(AF_INET, SOCK_STREAM, 0);
+					if (qddaemon_sockfd < 0)
+					{
+						elog(ERROR, "failed to create socket");
+					}
 
-				struct sockaddr_in serv_addr;
-				// bzero((char *) &serv_addr, sizeof(serv_addr));
-				// serv_addr.sin_family = AF_INET;
-				// bcopy("127.0.0.1",  (char *)&serv_addr.sin_addr.s_addr, strlen("127.0.0.1"));
-				// serv_addr.sin_port = htons(8899);
+					struct sockaddr_in serv_addr;
+					// bzero((char *) &serv_addr, sizeof(serv_addr));
+					// serv_addr.sin_family = AF_INET;
+					// bcopy("127.0.0.1",  (char *)&serv_addr.sin_addr.s_addr, strlen("127.0.0.1"));
+					// serv_addr.sin_port = htons(8899);
 
-				serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-				serv_addr.sin_family = AF_INET;
-				serv_addr.sin_port = htons(8899);
+					serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+					serv_addr.sin_family = AF_INET;
+					serv_addr.sin_port = htons(8899);
 
-				if (connect(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) <0)
-				{
-					elog(ERROR, "failed to connect to QD Daemon");
+					if (connect(qddaemon_sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) <0)
+					{
+						elog(ERROR, "failed to connect to QD Daemon");
+					}
 				}
 
 				// 2. send message including original SQL to PooledQD daemon
@@ -1922,23 +1926,23 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 
 				int contentId = linitial_int(stmt->planTree->directDispatch.contentIds);
 				uint32 id = htonl((uint32) contentId);
-				write(sockfd, &id, sizeof(id));
+				write(qddaemon_sockfd, &id, sizeof(id));
 
 				size_t size = strlen(query_string);
 				// uint32 len = (uint32) size;		// No need to call htonl.
 				uint32 len = htonl((uint32) size);
-				write(sockfd, &len, sizeof(len));
+				write(qddaemon_sockfd, &len, sizeof(len));
 
-				int n = write(sockfd, query_string, size);
+				int n = write(qddaemon_sockfd, query_string, size);
 				if (n < 0)
 				{
 					elog(ERROR, "failed to send query to QD Daemon");
 				}
 
-				elog(LOG, "Got a SQL from client: len=%ld, written=%d, query='%s'", size, n, query_string);
+				elog(DEBUG, "Got a SQL from client: len=%ld, written=%d, query='%s'", size, n, query_string);
 
 				// 3. Read response from socket.
-				pipesocket(sockfd, MyProcPort->sock);
+				pipesocket(qddaemon_sockfd, MyProcPort->sock);
 			}
 		}
 
