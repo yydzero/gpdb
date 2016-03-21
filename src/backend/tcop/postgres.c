@@ -1649,7 +1649,7 @@ static void pipesocket(int srcfd, int destfd)
 	{
 		char msgType = getByte(&sp);
 		int payloadLen = getInt32(&sp);
-		elog(DEBUG, "Message type: %c, len : %d", msgType, payloadLen);
+		elog(DEBUG1, "Message type: %c, len : %d", msgType, payloadLen);
 
 		consumeBytes(&sp, payloadLen - 4);
 
@@ -1939,7 +1939,7 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 					elog(ERROR, "failed to send query to QD Daemon");
 				}
 
-				elog(DEBUG, "Got a SQL from client: len=%ld, written=%d, query='%s'", size, n, query_string);
+				elog(DEBUG1, "Got a SQL from client: len=%ld, written=%d, query='%s'", size, n, query_string);
 
 				// 3. Read response from socket.
 				pipesocket(qddaemon_sockfd, MyProcPort->sock);
