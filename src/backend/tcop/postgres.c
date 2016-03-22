@@ -106,7 +106,7 @@ extern char *savedSeqServerHost;
 extern int savedSeqServerPort;
 
 static volatile bool qddaemon_ready_for_query_sent = false;
-static int 			 qddaemon_sockfd = 0;
+static int 			 qddaemon_sockfd = -1;
 
 /* ----------------
  *		global variables
@@ -1895,7 +1895,7 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 				elog(LOG, "Use qddaemon");
 				useDaemon = true;
 
-				if (qddaemon_sockfd == 0)
+				if (qddaemon_sockfd < 0)
 				{
 					// 1. Connect to QDDaemon
 					qddaemon_sockfd = socket(AF_INET, SOCK_STREAM, 0);
