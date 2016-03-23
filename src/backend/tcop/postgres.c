@@ -1487,7 +1487,7 @@ static void writeAtLeast(int sockfd, const char *buffer, int len)
 		}
 		else
 		{
-			elog(LOG, "write to client: len = %d", rc);
+			elog(DEBUG1, "write to client: len = %d", rc);
 			ptr += rc;
 			len -= rc;
 		}
@@ -1895,7 +1895,7 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 				elog(LOG, "Use qddaemon");
 				useDaemon = true;
 
-				if (qddaemon_sockfd < 0)
+				if (qddaemon_sockfd <= 0)
 				{
 					// 1. Connect to QDDaemon
 					qddaemon_sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -1921,25 +1921,21 @@ exec_simple_query(const char *query_string, const char *seqServerHost, int seqSe
 				}
 
 				// 2. send message including original SQL to PooledQD daemon
-				// Format: <contentId><len><string>
+				// Format: <contentId><len><query_string>
 				// TODO: databasename, username, port, sql_parameters
 
 				int contentId = linitial_int(stmt->planTree->directDispatch.contentIds);
 				uint32 id = htonl((uint32) contentId);
-				write(qddaemon_sockfd, &id, sizeof(id));
+				writeAtLeast(qddaemon_sockfd, (char *)&id, sizeof(id));
 
 				size_t size = strlen(query_string);
 				// uint32 len = (uint32) size;		// No need to call htonl.
 				uint32 len = htonl((uint32) size);
-				write(qddaemon_sockfd, &len, sizeof(len));
+				writeAtLeast(qddaemon_sockfd, (char *)&len, sizeof(len));
 
-				int n = write(qddaemon_sockfd, query_string, size);
-				if (n < 0)
-				{
-					elog(ERROR, "failed to send query to QD Daemon");
-				}
+				writeAtLeast(qddaemon_sockfd, query_string, size);
 
-				elog(DEBUG1, "Got a SQL from client: len=%ld, written=%d, query='%s'", size, n, query_string);
+				elog(LOG, "Got a SQL from client: len=%ld, query='%s'", size, query_string);
 
 				// 3. Read response from socket.
 				pipesocket(qddaemon_sockfd, MyProcPort->sock);
@@ -5429,6 +5425,14 @@ PostgresMain(int argc, char *argv[],
 				 */
 				if (whereToSendOutput == DestRemote)
 					whereToSendOutput = DestNone;
+
+				if (qddaemon_sockfd > 0)
+				{
+					uint32 id = 0xFFFFFFFF;	// a hack to end of this connection
+					writeAtLeast(qddaemon_sockfd, (char *)&id, sizeof(id));
+					close(qddaemon_sockfd);
+					qddaemon_sockfd = -1;
+				}
 
 				/*
 				 * NOTE: if you are tempted to add more code here, DON'T!
