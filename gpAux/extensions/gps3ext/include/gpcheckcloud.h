@@ -9,7 +9,8 @@
 #include "s3conf.h"
 #include "s3downloader.h"
 #include "s3log.h"
-#include "s3wrapper.h"
+#include "s3reader.h"
+#include "s3thread.h"
 
 #define BUF_SIZE 64 * 1024
 

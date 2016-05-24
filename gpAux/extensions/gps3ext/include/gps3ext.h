@@ -1,5 +1,5 @@
-#ifndef _GPS3EXT_H_
-#define _GPS3EXT_H_
+#ifndef __GP_S3EXT_H_
+#define __GP_S3EXT_H_
 #include <string>
 
 #include <signal.h>
