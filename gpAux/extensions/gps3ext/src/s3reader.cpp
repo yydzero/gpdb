@@ -4,8 +4,8 @@
 #include "gps3ext.h"
 #include "s3conf.h"
 #include "s3log.h"
-#include "s3utils.h"
 #include "s3reader.h"
+#include "s3utils.h"
 
 using std::string;
 using std::stringstream;
@@ -26,7 +26,7 @@ bool S3Reader::Init(int segid, int segnum, int chunksize) {
 
     this->chunksize = chunksize;
 
-    // Validate url first
+    // validate url first
     if (!this->ValidateURL()) {
         S3ERROR("The given URL(%s) is invalid", this->url.c_str());
         return false;
@@ -38,14 +38,12 @@ bool S3Reader::Init(int segid, int segnum, int chunksize) {
                                    this->prefix, this->cred);
 
         if (!this->keylist) {
-            S3INFO("Can't get keylist from bucket %s",
-                   this->bucket.c_str());
+            S3INFO("Can't get keylist from bucket %s", this->bucket.c_str());
             if (initretry) {
                 S3INFO("Retrying");
                 continue;
             } else {
-                S3ERROR(
-                        "Quit initialization because ListBucket keeps failing");
+                S3ERROR("Quit initialization because ListBucket keeps failing");
                 return false;
             }
         }
@@ -69,12 +67,12 @@ bool S3Reader::Init(int segid, int segnum, int chunksize) {
         return false;
     }
 
-    // return this->filedownloader ? true : false;
     return true;
 }
 
 bool S3Reader::getNextDownloader() {
-    if (this->filedownloader) {  // reset old downloader
+    // delete previous downloader
+    if (this->filedownloader) {
         filedownloader->destroy();
         delete this->filedownloader;
         this->filedownloader = NULL;
@@ -85,6 +83,7 @@ bool S3Reader::getNextDownloader() {
         return true;
     }
 
+    // construct a new downloader
     if (this->concurrent_num > 0) {
         this->filedownloader = new Downloader(this->concurrent_num);
     } else {
@@ -117,7 +116,7 @@ bool S3Reader::getNextDownloader() {
 string S3Reader::getKeyURL(const string &key) {
     stringstream sstr;
     sstr << this->schema << "://"
-        << "s3-" << this->region << ".amazonaws.com/";
+         << "s3-" << this->region << ".amazonaws.com/";
     sstr << this->bucket << "/" << key;
     return sstr.str();
 }
@@ -125,27 +124,23 @@ string S3Reader::getKeyURL(const string &key) {
 bool S3Reader::TransferData(char *data, uint64_t &len) {
     if (!this->filedownloader) {
         S3INFO("No files to download, exit");
-        // not initialized?
         len = 0;
         return true;
     }
     uint64_t buflen;
 RETRY:
     buflen = len;
-    // S3DEBUG("getlen is %d", len);
     bool result = filedownloader->get(data, buflen);
-    if (!result) {  // read fail
+    if (!result) {
         S3ERROR("Failed to get data from filedownloader");
         return false;
     }
-    // S3DEBUG("getlen is %lld", buflen);
     if (buflen == 0) {
-        // change to next downloader
         if (!this->getNextDownloader()) {
             return false;
         }
 
-        if (this->filedownloader) {  // download next file
+        if (this->filedownloader) {
             S3INFO("Time to download new file");
             goto RETRY;
         }
@@ -265,9 +260,7 @@ bool reader_cleanup(S3Reader **reader) {
             return false;
         }
 
-        /*
-         * Cleanup function for the XML library.
-         */
+        // Cleanup function for the XML library.
         xmlCleanupParser();
     } catch (...) {
         S3ERROR("Caught an exception, aborting");

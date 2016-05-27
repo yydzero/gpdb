@@ -126,7 +126,7 @@ uint64_t XMLParserCallback(void *contents, uint64_t size, uint64_t nmemb,
 }
 
 // Returns string lengh till next occurence of given character.
-static int strlen_to_next_char(const char* ptr, char ch) {
+static int strlen_to_next_char(const char *ptr, char ch) {
     int len = 0;
     while ((*ptr != '\0') && (*ptr != ch)) {
         len++;

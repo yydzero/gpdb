@@ -1,6 +1,6 @@
-#include "s3extbase.cpp"
 #include "s3reader.cpp"
 #include "gtest/gtest.h"
+#include "s3extbase.cpp"
 
 TEST(ExtBase, ValidateURL_normal) {
     S3ExtBase *myData;

@@ -65,8 +65,7 @@ bool InitConfig(const string& conf_path, const string section = "default") {
     Config* s3cfg = new Config(conf_path);
     if (s3cfg == NULL || !s3cfg->Handle()) {
 #ifndef S3_STANDALONE
-        write_log(
-                  "Failed to parse config file \"%s\", or it doesn't exist\n",
+        write_log("Failed to parse config file \"%s\", or it doesn't exist\n",
                   conf_path.c_str());
 #else
         S3ERROR("Failed to parse config file \"%s\", or it doesn't exist",
@@ -128,8 +127,7 @@ bool InitConfig(const string& conf_path, const string section = "default") {
     ret = s3cfg->Scan(section.c_str(), "low_speed_limit", "%d",
                       &s3ext_low_speed_limit);
     if (!ret) {
-        S3INFO("The low_speed_limit is set to default value %d bytes/s",
-               10240);
+        S3INFO("The low_speed_limit is set to default value %d bytes/s", 10240);
         s3ext_low_speed_limit = 10240;
     }
 

@@ -1,10 +1,10 @@
 #ifndef __S3_UTILFUNCTIONS__
 #define __S3_UTILFUNCTIONS__
 
-#include <cstdio>
-#include <cstdlib>
 #include <stdint.h>
 #include <sys/types.h>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 

@@ -3,8 +3,8 @@
 
 #include <string>
 
-#include "s3extbase.h"
 #include "s3downloader.h"
+#include "s3extbase.h"
 
 using std::string;
 
@@ -26,7 +26,8 @@ class S3Reader : public S3ExtBase {
 
     // private:
     unsigned int contentindex;
-    // Downloader is repsonsible for downloading one file using multiple threads.
+    // Downloader is repsonsible for downloading one file using multiple
+    // threads.
     Downloader* filedownloader;
     // List of matched keys/files.
     ListBucketResult* keylist;

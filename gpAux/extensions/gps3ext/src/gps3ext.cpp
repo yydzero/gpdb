@@ -21,9 +21,9 @@
 #include "s3common.h"
 #include "s3conf.h"
 #include "s3log.h"
-#include "s3utils.h"
 #include "s3reader.h"
 #include "s3thread.h"
+#include "s3utils.h"
 
 /* Do the module magic dance */
 
