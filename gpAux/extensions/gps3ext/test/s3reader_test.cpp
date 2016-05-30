@@ -1,82 +1,41 @@
 #include "s3reader.cpp"
 #include "gtest/gtest.h"
-#include "s3extbase.cpp"
 
-TEST(ExtBase, ValidateURL_normal) {
-    S3ExtBase *myData;
-    myData = new S3Reader(
-        "s3://s3-us-west-2.amazonaws.com/s3test.pivotal.io/dataset1/normal");
+volatile bool QueryCancelPending = false;
 
-    ASSERT_TRUE(myData->ValidateURL());
-    EXPECT_STREQ("us-west-2", myData->get_region().c_str());
+TEST(OffsetMgr, simple) {
+    OffsetMgr *o = new OffsetMgr(4096, 1000);
+    Range r = o->NextOffset();
+    EXPECT_EQ(r.offset, 0);
+    EXPECT_EQ(r.len, 1000);
 
-    delete myData;
+    r = o->NextOffset();
+    EXPECT_EQ(r.offset, 1000);
+    EXPECT_EQ(r.len, 1000);
+
+    r = o->NextOffset();
+    EXPECT_EQ(r.offset, 2000);
+    EXPECT_EQ(r.len, 1000);
+
+    r = o->NextOffset();
+    EXPECT_EQ(r.offset, 3000);
+    EXPECT_EQ(r.len, 1000);
+
+    r = o->NextOffset();
+    EXPECT_EQ(r.offset, 4000);
+    EXPECT_EQ(r.len, 96);
+    delete o;
 }
 
-TEST(ExtBase, ValidateURL_default) {
-    S3ExtBase *myData;
-    myData =
-        new S3Reader("s3://s3.amazonaws.com/s3test.pivotal.io/dataset1/normal");
+TEST(OffsetMgr, reset) {
+    OffsetMgr *o = new OffsetMgr(1024, 100);
 
-    ASSERT_TRUE(myData->ValidateURL());
-    EXPECT_STREQ("external-1", myData->get_region().c_str());
+    o->NextOffset();
+    o->NextOffset();
+    o->Reset(333);
+    Range r = o->NextOffset();
 
-    delete myData;
-}
-
-TEST(ExtBase, ValidateURL_useast1) {
-    S3ExtBase *myData;
-    myData = new S3Reader(
-        "s3://s3-us-east-1.amazonaws.com/s3test.pivotal.io/dataset1/normal");
-
-    ASSERT_TRUE(myData->ValidateURL());
-    EXPECT_STREQ("external-1", myData->get_region().c_str());
-
-    delete myData;
-}
-
-TEST(ExtBase, ValidateURL_eucentral1) {
-    S3ExtBase *myData;
-    myData = new S3Reader(
-        "s3://s3.eu-central-1.amazonaws.com/s3test.pivotal.io/dataset1/normal");
-
-    ASSERT_TRUE(myData->ValidateURL());
-    EXPECT_STREQ("eu-central-1", myData->get_region().c_str());
-
-    delete myData;
-}
-
-TEST(ExtBase, ValidateURL_eucentral11) {
-    S3ExtBase *myData;
-    myData = new S3Reader(
-        "s3://s3-eu-central-1.amazonaws.com/s3test.pivotal.io/dataset1/normal");
-
-    ASSERT_TRUE(myData->ValidateURL());
-    EXPECT_STREQ("eu-central-1", myData->get_region().c_str());
-
-    delete myData;
-}
-
-TEST(ExtBase, ValidateURL_apnortheast2) {
-    S3ExtBase *myData;
-    myData = new S3Reader(
-        "s3://s3.ap-northeast-2.amazonaws.com/s3test.pivotal.io/dataset1/"
-        "normal");
-
-    ASSERT_TRUE(myData->ValidateURL());
-    EXPECT_STREQ("ap-northeast-2", myData->get_region().c_str());
-
-    delete myData;
-}
-
-TEST(ExtBase, ValidateURL_apnortheast21) {
-    S3ExtBase *myData;
-    myData = new S3Reader(
-        "s3://s3-ap-northeast-2.amazonaws.com/s3test.pivotal.io/dataset1/"
-        "normal");
-
-    ASSERT_TRUE(myData->ValidateURL());
-    EXPECT_STREQ("ap-northeast-2", myData->get_region().c_str());
-
-    delete myData;
+    EXPECT_EQ(r.offset, 333);
+    EXPECT_EQ(r.len, 100);
+    delete o;
 }
