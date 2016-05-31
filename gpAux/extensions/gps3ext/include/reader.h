@@ -6,7 +6,8 @@ class Reader {
     virtual ~Reader() {}
 
     virtual void open() = 0;
-    // read() attempts to read up to count bytes into the buffer starting at buf.
+    // read() attempts to read up to count bytes into the buffer starting at
+    // buf.
     virtual uint64_t read(char *buf, uint64_t count) = 0;
     virtual void close() = 0;
 };
