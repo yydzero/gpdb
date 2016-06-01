@@ -48,12 +48,39 @@ class ReaderParams {
 		this->size = size;
 	}
 
+	const string& getUrl() const {
+		return url;
+	}
+
+	void setUrl(const string& url) {
+		this->url = url;
+	}
+
+	int getSegId() const {
+		return segId;
+	}
+
+	void setSegId(int segId) {
+		this->segId = segId;
+	}
+
+	int getSegNum() const {
+		return segNum;
+	}
+
+	void setSegNum(int segNum) {
+		this->segNum = segNum;
+	}
+
   private:
-	string keyUrl;
+	string url;			// original url to read/write.
+	string keyUrl;		// key url in s3 bucket.
 	string region;
-	uint64_t size;		// key/file size
-	uint64_t chunkSize;
+	uint64_t size;		// key/file size.
+	uint64_t chunkSize;	// chunk size
 	S3Credential cred;
+	int segId;
+	int segNum;
 };
 
 #endif /* INCLUDE_READER_PARAMS_H_ */

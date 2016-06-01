@@ -19,17 +19,14 @@ using std::stringstream;
 
 S3BucketReader::S3BucketReader() : Reader() {
     this->keyIndex = -1;
-    this->keylist = NULL;
+    this->keyList = NULL;
 
     this->s3interface = NULL;
     this->upstreamReader = NULL;
-    this->chunksize = -1;
+    this->chunkSize = -1;
 
-    this->segid = -1;
-    this->segnum = -1;
-
-    this->cred.secret = s3ext_secret;
-    this->cred.keyid = s3ext_accessid;
+    this->segId = -1;
+    this->segNum = -1;
 
     this->needNewReader = true;
 }
@@ -39,19 +36,24 @@ S3BucketReader::~S3BucketReader() {}
 void S3BucketReader::setS3interface(S3Interface *s3) { this->s3interface = s3; }
 
 void S3BucketReader::open(const ReaderParams& params) {
+	this->url 		= params.getUrl();
+	this->segId 		= params.getSegId();
+	this->segNum 	= params.getSegNum();
+	this->cred      = params.getCred();
+
     this->validateURL();
-    this->keylist = this->listBucketWithRetry(3);
+    this->keyList = this->listBucketWithRetry(3);
     return;
 }
 
 BucketContent* S3BucketReader::getNextKey() {
-	this->keyIndex = (this->keyIndex == (unsigned int)-1) ? this->segid : this->keyIndex + this->segnum;
+	this->keyIndex = (this->keyIndex == (unsigned int)-1) ? this->segId : this->keyIndex + this->segNum;
 
-	if (this->keyIndex >= this->keylist->contents.size()) {
+	if (this->keyIndex >= this->keyList->contents.size()) {
 		return NULL;
 	}
 
-	return this->keylist->contents[this->keyIndex];
+	return this->keyList->contents[this->keyIndex];
 }
 
 const ReaderParams& S3BucketReader::getReaderParams(BucketContent* key) {
@@ -59,13 +61,13 @@ const ReaderParams& S3BucketReader::getReaderParams(BucketContent* key) {
 	params->setKeyUrl(this->getKeyURL(key->getName()));
 	params->setRegion(this->region);
 	params->setSize(key->getSize());
-	params->setChunkSize(this->chunksize);
+	params->setChunkSize(this->chunkSize);
 	S3DEBUG("key: %s, size: %" PRIu64, params->getKeyUrl().c_str(), params->getSize());
 	return *params;
 }
 
 uint64_t S3BucketReader::read(char *buf, uint64_t count) {
-	CHECK_OR_DIE(this->upstreamReader);
+	CHECK_OR_DIE(this->upstreamReader != NULL);
 
 	while (true) {
 		if (this->needNewReader) {
@@ -94,8 +96,6 @@ uint64_t S3BucketReader::read(char *buf, uint64_t count) {
 void S3BucketReader::close() {
 	return;
 }
-
-void S3BucketReader::setUrl(string url) { this->url = url; }
 
 // Set schema to 'https' or 'http'
 void S3BucketReader::SetSchema() {
@@ -176,6 +176,6 @@ void S3BucketReader::validateURL() {
     this->SetRegion();
     this->SetBucketAndPrefix();
 
-    bool ret = !(this->schema.empty() || this->region.empty() || this->bucket.empty());
-    CHECK_OR_DIE_MSG(ret, "%s is not valid", this->url.c_str());
+    bool ok = !(this->schema.empty() || this->region.empty() || this->bucket.empty());
+    CHECK_OR_DIE_MSG(ok, "'%s' is not valid", this->url.c_str());
 }

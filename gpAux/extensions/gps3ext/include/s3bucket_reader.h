@@ -20,9 +20,8 @@ class S3BucketReader : public Reader {
     void close();
 
     void setS3interface(S3Interface *s3);
-    void setUpstreamReader(Reader *reader);
+    void setUpstreamReader(Reader *reader) { this->upstreamReader = reader; }
 
-    void setUrl(string url);
     void validateURL();
     ListBucketResult *listBucketWithRetry(int retries);
 
@@ -31,9 +30,9 @@ class S3BucketReader : public Reader {
     string getKeyURL(const string &key);
 
    private:
-    int segid;   // segment id
-    int segnum;  // total number of segments
-    int chunksize;
+    int segId;   // segment id
+    int segNum;  // total number of segments
+    int chunkSize;
 
     string url;
     string schema;
@@ -48,7 +47,7 @@ class S3BucketReader : public Reader {
     Reader *upstreamReader;
     bool needNewReader;
 
-    ListBucketResult *keylist;  // List of matched keys/files.
+    ListBucketResult *keyList;  // List of matched keys/files.
     unsigned int keyIndex;  // BucketContent index of keylist->contents.
 
     void SetSchema();
