@@ -91,11 +91,11 @@ bool S3Reader::getNextDownloader() {
 
     // 3. Get KeyURL which downloader will download from S3.
     BucketContent *c = this->keylist->contents[this->contentindex];
-    string keyurl = this->getKeyURL(c->Key());
-    S3DEBUG("key: %s, size: %llu", keyurl.c_str(), c->Size());
+    string keyurl = this->getKeyURL(c->getName());
+    S3DEBUG("key: %s, size: %llu", keyurl.c_str(), c->getSize());
 
     // 4. Initialize and kick off Downloader.
-    bool ok = filedownloader->init(keyurl, this->region, c->Size(), this->chunksize,
+    bool ok = filedownloader->init(keyurl, this->region, c->getSize(), this->chunksize,
                                   &this->cred);
     if (ok) {
     		// for now, every segment downloads its assigned files(mod)

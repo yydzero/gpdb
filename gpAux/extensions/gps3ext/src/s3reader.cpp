@@ -712,7 +712,7 @@ bool S3Fetcher::processheader() {
 // CreateBucketContentItem
 BucketContent::~BucketContent() {}
 
-BucketContent::BucketContent() : key(""), size(0) {}
+BucketContent::BucketContent() : name(""), size(0) {}
 
 BucketContent *CreateBucketContentItem(const string &key, uint64_t size) {
     if (key == "") return NULL;
@@ -722,7 +722,7 @@ BucketContent *CreateBucketContentItem(const string &key, uint64_t size) {
         S3ERROR("Can't create bucket list, no enough memory?");
         return NULL;
     }
-    ret->key = key;
+    ret->name = key;
     ret->size = size;
     return ret;
 }

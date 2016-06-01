@@ -2,11 +2,13 @@
 #include "s3interface.cpp"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "reader_params.h"
 
 using ::testing::AtLeast;
 using ::testing::Return;
 using ::testing::_;
 
+// ================== MOCK Object ===================
 class MockS3Interface : public S3Interface {
    public:
     MOCK_METHOD5(ListBucket,
@@ -14,6 +16,8 @@ class MockS3Interface : public S3Interface {
                                    const string& bucket, const string& prefix,
                                    const S3Credential& cred));
 };
+
+// ================== S3BucketReaderTest ===================
 
 class S3BucketReaderTest : public testing::Test {
   protected:
@@ -29,13 +33,14 @@ class S3BucketReaderTest : public testing::Test {
 
 	S3BucketReader* reader;
 	MockS3Interface s3interface;
+	ReaderParams params;
 };
 
 TEST_F(S3BucketReaderTest, OpenInvalidURL) {
     string url = "https://s3-us-east-2.amazon.com/s3test.pivotal.io/whatever";
 
     reader->setUrl(url);
-    EXPECT_THROW(reader->open(), std::runtime_error);
+    EXPECT_THROW(reader->open(params), std::runtime_error);
 }
 
 TEST_F(S3BucketReaderTest, OpenURL) {
@@ -48,7 +53,7 @@ TEST_F(S3BucketReaderTest, OpenURL) {
     string url = "https://s3-us-east-2.amazonaws.com/s3test.pivotal.io/whatever";
     reader->setUrl(url);
 
-    EXPECT_NO_THROW(reader->open());
+    EXPECT_NO_THROW(reader->open(params));
 }
 
 TEST_F(S3BucketReaderTest, ListBucketWithRetryThrowException) {
@@ -80,4 +85,9 @@ TEST_F(S3BucketReaderTest, ListBucketWithRetries) {
         .WillOnce(Return(&result));
 
     EXPECT_EQ(&result, reader->listBucketWithRetry(3));
+}
+
+TEST_F(S3BucketReaderTest, ReaderReturnZeroForEmptyBucket) {
+	char buf[64] = {0};
+	EXPECT_EQ(0, reader->read(buf, sizeof(buf)));
 }

@@ -165,7 +165,7 @@ struct ListBucketResult {
     string Name;
     string Prefix;
     unsigned int MaxKeys;
-    vector<BucketContent*> contents;
+    vector<BucketContent *> contents;
 
     ~ListBucketResult();
 };
@@ -177,14 +177,14 @@ struct BucketContent {
                                                   uint64_t size);
     BucketContent();
     ~BucketContent();
-    string Key() const { return this->key; };
-    uint64_t Size() const { return this->size; };
+    string getName() const { return this->name; };
+    uint64_t getSize() const { return this->size; };
 
    private:
     // BucketContent(const BucketContent& b) = delete;
     // BucketContent operator=(const BucketContent& b) = delete;
 
-    string key;
+    string name;
     // const char* etags;
     uint64_t size;
 };

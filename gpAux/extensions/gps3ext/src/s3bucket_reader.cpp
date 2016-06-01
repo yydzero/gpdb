@@ -1,6 +1,9 @@
 #include <sstream>
 #include <string>
 
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
+
 #include "gpreader.h"
 #include "gps3ext.h"
 #include "reader.h"
@@ -9,12 +12,13 @@
 #include "s3log.h"
 #include "s3macros.h"
 #include "s3utils.h"
+#include "reader_params.h"
 
 using std::string;
 using std::stringstream;
 
 S3BucketReader::S3BucketReader() : Reader() {
-    this->contentindex = -1;
+    this->keyIndex = -1;
     this->keylist = NULL;
 
     this->s3interface = NULL;
@@ -26,20 +30,65 @@ S3BucketReader::S3BucketReader() : Reader() {
 
     this->cred.secret = s3ext_secret;
     this->cred.keyid = s3ext_accessid;
+
+    this->needNewReader = true;
 }
 
 S3BucketReader::~S3BucketReader() {}
 
 void S3BucketReader::setS3interface(S3Interface *s3) { this->s3interface = s3; }
 
-void S3BucketReader::open() {
+void S3BucketReader::open(const ReaderParams& params) {
     this->validateURL();
     this->keylist = this->listBucketWithRetry(3);
     return;
 }
 
+BucketContent* S3BucketReader::getNextKey() {
+	this->keyIndex = (this->keyIndex == (unsigned int)-1) ? this->segid : this->keyIndex + this->segnum;
+
+	if (this->keyIndex >= this->keylist->contents.size()) {
+		return NULL;
+	}
+
+	return this->keylist->contents[this->keyIndex];
+}
+
+const ReaderParams& S3BucketReader::getReaderParams(BucketContent* key) {
+	ReaderParams *params = new ReaderParams();
+	params->setKeyUrl(this->getKeyURL(key->getName()));
+	params->setRegion(this->region);
+	params->setSize(key->getSize());
+	params->setChunkSize(this->chunksize);
+	S3DEBUG("key: %s, size: %" PRIu64, params->getKeyUrl().c_str(), params->getSize());
+	return *params;
+}
+
 uint64_t S3BucketReader::read(char *buf, uint64_t count) {
-	return 0;
+	CHECK_OR_DIE(this->upstreamReader);
+
+	while (true) {
+		if (this->needNewReader) {
+			BucketContent *key = this->getNextKey();
+			if (key == NULL) {
+				S3DEBUG("No more files to download");
+				return 0;
+			}
+
+			this->upstreamReader->open(getReaderParams(key));
+			this->needNewReader = false;
+		}
+
+		uint64_t readCount = this->upstreamReader->read(buf, count);
+
+		if (readCount != 0) {
+			return readCount;
+		}
+
+		// Finished one file, continue to next
+		this->upstreamReader->close();
+		this->needNewReader = true;
+	}
 }
 
 void S3BucketReader::close() {
@@ -79,6 +128,14 @@ ListBucketResult *S3BucketReader::listBucketWithRetry(int retries) {
     CHECK_OR_DIE_MSG(false, "Failed to list bucket with retries: %s",
                      this->url.c_str());
     // return NULL;  Not needed, as CHECK_OR_DIE_MSG will return always.
+}
+
+string S3BucketReader::getKeyURL(const string &key) {
+    stringstream sstr;
+    sstr << this->schema << "://"
+         << "s3-" << this->region << ".amazonaws.com/";
+    sstr << this->bucket << "/" << key;
+    return sstr.str();
 }
 
 // Set AWS region, use 'external-1' if it is 'us-east-1' or not present
@@ -121,45 +178,4 @@ void S3BucketReader::validateURL() {
 
     bool ret = !(this->schema.empty() || this->region.empty() || this->bucket.empty());
     CHECK_OR_DIE_MSG(ret, "%s is not valid", this->url.c_str());
-}
-
-
-
-
-bool S3BucketReader::getNextDownloader() {
-    // 1. delete previous downloader if exists.
-    if (this->filedownloader) {
-        filedownloader->destroy();
-        delete this->filedownloader;
-        this->filedownloader = NULL;
-    }
-
-    if (this->contentindex >= this->keylist->contents.size()) {
-        S3DEBUG("No more files to download");
-        return true;
-    }
-
-    // 2. construct a new downloader with argument: concurrent_num
-    this->filedownloader = new Downloader(this->concurrent_num);
-    CHECK_OR_DIE_MSG(this->filedownloader != NULL, "%s", "Failed to construct filedownloader.");
-
-    // 3. Get KeyURL which downloader will download from S3.
-    BucketContent *c = this->keylist->contents[this->contentindex];
-    string keyurl = this->getKeyURL(c->Key());
-    S3DEBUG("key: %s, size: %llu", keyurl.c_str(), c->Size());
-
-    // 4. Initialize and kick off Downloader.
-    bool ok = filedownloader->init(keyurl, this->region, c->Size(), this->chunksize,
-                                  &this->cred);
-    if (ok) {
-    		// for now, every segment downloads its assigned files(mod)
-    		// better to build a workqueue in case not all segments are available
-    		this->contentindex += this->segnum;
-    } else {
-        delete this->filedownloader;
-        this->filedownloader = NULL;
-        return false;
-    }
-
-    return true;
 }
