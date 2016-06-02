@@ -1,5 +1,4 @@
 #include "s3bucket_reader.cpp"
-#include "s3interface.cpp"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "reader_params.h"
@@ -38,6 +37,7 @@ class S3BucketReaderTest : public testing::Test {
 	// TearDown() is invoked immediately after a test finishes.
 	virtual void TearDown() {
 	    bucketReader->close();
+	    delete bucketReader;
 	}
 
 	S3BucketReader* bucketReader;
@@ -189,4 +189,32 @@ TEST_F(S3BucketReaderTest, ReaderShouldSkipIfFileIsNotForThisSegment) {
 	bucketReader->setUpstreamReader(&s3reader);
 
 	EXPECT_EQ(0, bucketReader->read(buf, sizeof(buf)));
+}
+
+TEST_F(S3BucketReaderTest, UpstreamReaderThrowException) {
+    ListBucketResult *result = new ListBucketResult();
+    BucketContent* item = CreateBucketContentItem("foo", 0);
+    result->contents.push_back(item);
+    item = CreateBucketContentItem("bar", 456);
+    result->contents.push_back(item);
+
+    EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _))
+        .Times(1)
+        .WillOnce(Return(result));
+
+    EXPECT_CALL(s3reader, read(_, _))
+        .Times(AtLeast(1))
+        .WillRepeatedly(Throw(std::runtime_error("")));
+
+    EXPECT_CALL(s3reader, open(_)).Times(1);
+    EXPECT_CALL(s3reader, close()).Times(0);
+
+    params.setSegId(0);
+    params.setSegNum(1);
+    params.setUrl("https://s3-us-east-2.amazonaws.com/s3test.pivotal.io/whatever");
+    bucketReader->open(params);
+    bucketReader->setUpstreamReader(&s3reader);
+
+    EXPECT_THROW(bucketReader->read(buf, sizeof(buf)), std::runtime_error);
+    EXPECT_THROW(bucketReader->read(buf, sizeof(buf)), std::runtime_error);
 }

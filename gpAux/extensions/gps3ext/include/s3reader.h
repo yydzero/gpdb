@@ -161,6 +161,8 @@ class S3Fetcher : public HTTPFetcher {
 
 struct BucketContent;
 
+// To avoid double delete and core dump, always use new to create ListBucketResult object,
+// unless we upgrade to c++ 11. Reason is we delete ListBucketResult in close() explicitly.
 struct ListBucketResult {
     string Name;
     string Prefix;
@@ -188,11 +190,11 @@ struct BucketContent {
     uint64_t size;
 };
 
-xmlParserCtxtPtr DoGetXML(const string &region, const string &url,
+xmlParserCtxtPtr getBucketXML(const string &region, const string &url,
                           const string &prefix, const S3Credential &cred,
                           const string &marker);
 
-bool extractContent(ListBucketResult* result, xmlNode* root_element,
+bool parseBucketXML(ListBucketResult* result, xmlNode* root_element,
                     string& marker);
 
 // It is caller's responsibility to free returned memory.

@@ -15,110 +15,124 @@
 #include "s3reader.h"
 #include "s3url_parser.h"
 #include "s3utils.h"
+#include "s3macros.h"
 
 #include "s3interface.h"
 using std::stringstream;
 
+class XMLContextHolder
+{
+  public:
+    XMLContextHolder(xmlParserCtxtPtr ctx) : context(ctx) {}
+    ~XMLContextHolder()
+    {
+        if (context != NULL)
+        {
+            // TODO: confirm the order
+            xmlFreeParserCtxt(context);
+            xmlFreeDoc(context->myDoc);
+        }
+
+    }
+
+  private:
+    xmlParserCtxtPtr context;
+};
+
 S3Service::S3Service() {
-    // TODO Auto-generated constructor stub
 }
 
 S3Service::~S3Service() {
-    // TODO Auto-generated destructor stub
 }
 
-// It is caller's responsibility to free returned memory.
+// S3 requires query parameters specified alphabetically.
+string S3Service::getUrl(const string& prefix, const string& schema,
+        const string& host, const string& bucket, const string& marker) {
+    stringstream url;
+    if (prefix != "") {
+        url << schema << "://" << host << "/" << bucket << "?";
+        if (marker != "") {
+            url << "marker=" << marker << "&";
+        }
+        url << "prefix=" << prefix;
+    } else {
+        url << schema << "://" << bucket << "." << host << "?";
+        if (marker != "") {
+            url << "marker=" << marker;
+        }
+    }
+    return url.str();
+}
+
+
+bool checkAndParseBucketXML(ListBucketResult *result,
+                            xmlParserCtxtPtr xmlcontext,
+                            string &marker) {
+    XMLContextHolder holder(xmlcontext);
+
+    xmlNode *rootElement = xmlDocGetRootElement(xmlcontext->myDoc);
+    if (rootElement == NULL) {
+        S3ERROR("Failed to parse returned xml of bucket list");
+        return false;
+    }
+
+    xmlNodePtr curNode = rootElement->xmlChildrenNode;
+    while (curNode != NULL) {
+        if (xmlStrcmp(curNode->name, (const xmlChar *)"Message") == 0) {
+            char *content = (char *)xmlNodeGetContent(curNode);
+            if (content != NULL) {
+                S3ERROR("Amazon S3 returns error \"%s\"", content);
+                xmlFree(content);
+            }
+            return false;
+        }
+
+        curNode = curNode->next;
+    }
+
+    // parseBucketXML will set marker for next round.
+    if (parseBucketXML(result, rootElement, marker)) {
+        return true;
+    }
+
+    S3ERROR("Failed to extract key from bucket xml");
+    return false;
+}
+
+// Return NULL when there is failure due to network instability or
+// service unstable, so that caller could retry.
+//
+// Caller should delete returned object.
 ListBucketResult *S3Service::ListBucket(const string &schema,
                                         const string &region,
                                         const string &bucket,
                                         const string &prefix,
                                         const S3Credential &cred) {
-    // To get next up to 1000 keys.
-    // If marker is empty, get first 1000 then.
-    // S3 will return the last key as the next marker.
-    string marker = "";
-
     stringstream host;
     host << "s3-" << region << ".amazonaws.com";
-
     S3DEBUG("Host url is %s", host.str().c_str());
 
     ListBucketResult *result = new ListBucketResult();
-    if (!result) {
-        S3ERROR("Failed to allocate bucket list result");
-        return NULL;
-    }
+    CHECK_OR_DIE_MSG(result != NULL, "%s", "Failed to allocate bucket list result");
 
-    stringstream url;
-    xmlParserCtxtPtr xmlcontext = NULL;
+    string marker = "";
+    do {                    // To get next set(up to 1000) keys.
+        // S3 requires query parameters specified alphabetically.
+        string url = this->getUrl(prefix, schema, host.str(), bucket, marker);
 
-    do {
-        if (prefix != "") {
-            url << schema << "://" << host.str() << "/" << bucket << "?";
-
-            if (marker != "") {
-                url << "marker=" << marker << "&";
-            }
-
-            url << "prefix=" << prefix;
-        } else {
-            url << schema << "://" << bucket << "." << host.str() << "?";
-
-            if (marker != "") {
-                url << "marker=" << marker;
-            }
-        }
-
-        xmlcontext = DoGetXML(region, url.str(), prefix, cred, marker);
-        if (!xmlcontext) {
-            S3ERROR("Failed to list bucket for %s", url.str().c_str());
+        xmlParserCtxtPtr xmlcontext = getBucketXML(region, url, prefix, cred, marker);
+        if (xmlcontext == NULL) {
+            S3ERROR("Failed to list bucket for %s", url.c_str());
             delete result;
             return NULL;
         }
 
-        xmlDocPtr doc = xmlcontext->myDoc;
-        xmlNode *root_element = xmlDocGetRootElement(xmlcontext->myDoc);
-        if (!root_element) {
-            S3ERROR("Failed to parse returned xml of bucket list");
+        // parseBucketXML must not throw exception, otherwise result is leaked.
+        if (! checkAndParseBucketXML(result, xmlcontext, marker)) {
             delete result;
-            xmlFreeParserCtxt(xmlcontext);
-            xmlFreeDoc(doc);
             return NULL;
         }
-
-        xmlNodePtr cur = root_element->xmlChildrenNode;
-        while (cur != NULL) {
-            if (!xmlStrcmp(cur->name, (const xmlChar *)"Message")) {
-                char *content = (char *)xmlNodeGetContent(cur);
-                if (content) {
-                    S3ERROR("Amazon S3 returns error \"%s\"", content);
-                    xmlFree(content);
-                }
-                delete result;
-                xmlFreeParserCtxt(xmlcontext);
-                xmlFreeDoc(doc);
-                return NULL;
-            }
-
-            cur = cur->next;
-        }
-
-        if (!extractContent(result, root_element, marker)) {
-            S3ERROR("Failed to extract key from bucket list");
-            delete result;
-            xmlFreeParserCtxt(xmlcontext);
-            xmlFreeDoc(doc);
-            return NULL;
-        }
-
-        // clear url
-        url.str("");
-
-        // always cleanup
-        xmlFreeParserCtxt(xmlcontext);
-        xmlFreeDoc(doc);
-        xmlcontext = NULL;
-    } while (marker != "");
+    } while (! marker.empty());
 
     return result;
 }

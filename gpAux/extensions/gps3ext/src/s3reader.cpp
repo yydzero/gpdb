@@ -729,7 +729,7 @@ BucketContent *CreateBucketContentItem(const string &key, uint64_t size) {
 
 // require curl 7.17 higher
 // http://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketGET.html
-xmlParserCtxtPtr DoGetXML(const string &region, const string &url,
+xmlParserCtxtPtr getBucketXML(const string &region, const string &url,
                           const string &prefix, const S3Credential &cred,
                           const string &marker) {
     stringstream host;
@@ -771,7 +771,7 @@ xmlParserCtxtPtr DoGetXML(const string &region, const string &url,
     query << "prefix=" << prefix;
 
     if (!SignRequestV4("GET", header, region, p.Path(), query.str(), cred)) {
-        S3ERROR("Failed to sign in DoGetXML()");
+        S3ERROR("Failed to sign in %s", __func__);
         delete header;
         return NULL;
     }
@@ -807,7 +807,7 @@ xmlParserCtxtPtr DoGetXML(const string &region, const string &url,
     return xml.ctxt;
 }
 
-bool extractContent(ListBucketResult *result, xmlNode *root_element,
+bool parseBucketXML(ListBucketResult *result, xmlNode *root_element,
                     string &marker) {
     if (!result || !root_element) {
         return false;
@@ -942,7 +942,7 @@ ListBucketResult *ListBucket(const string &schema, const string &region,
             }
         }
 
-        xmlcontext = DoGetXML(region, url.str(), prefix, cred, marker);
+        xmlcontext = getBucketXML(region, url.str(), prefix, cred, marker);
         if (!xmlcontext) {
             S3ERROR("Failed to list bucket for %s", url.str().c_str());
             delete result;
@@ -976,7 +976,7 @@ ListBucketResult *ListBucket(const string &schema, const string &region,
             cur = cur->next;
         }
 
-        if (!extractContent(result, root_element, marker)) {
+        if (!parseBucketXML(result, root_element, marker)) {
             S3ERROR("Failed to extract key from bucket list");
             delete result;
             xmlFreeParserCtxt(xmlcontext);
