@@ -6,6 +6,7 @@
 
 using ::testing::AtLeast;
 using ::testing::Return;
+using ::testing::Throw;
 using ::testing::_;
 
 // ================== MOCK Object ===================
@@ -36,6 +37,7 @@ class S3BucketReaderTest : public testing::Test {
 
 	// TearDown() is invoked immediately after a test finishes.
 	virtual void TearDown() {
+	    bucketReader->close();
 	}
 
 	S3BucketReader* bucketReader;
@@ -53,11 +55,11 @@ TEST_F(S3BucketReaderTest, OpenInvalidURL) {
 }
 
 TEST_F(S3BucketReaderTest, OpenURL) {
-    ListBucketResult result;
+    ListBucketResult *result = new ListBucketResult();
 
     EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _))
         .Times(1)
-        .WillOnce(Return(&result));
+        .WillOnce(Return(result));
 
     string url = "https://s3-us-east-2.amazonaws.com/s3test.pivotal.io/whatever";
     params.setUrl(url);
@@ -75,25 +77,25 @@ TEST_F(S3BucketReaderTest, ListBucketWithRetryThrowExceptionWhenS3InterfaceIsNUL
 }
 
 TEST_F(S3BucketReaderTest, ListBucketWithRetry) {
-    ListBucketResult result;
+    ListBucketResult *result = new ListBucketResult();
 
     EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _))
         .Times(1)
-        .WillOnce(Return(&result));
+        .WillOnce(Return(result));
 
     EXPECT_NE((void*)NULL, bucketReader->listBucketWithRetry(1));
 }
 
 TEST_F(S3BucketReaderTest, ListBucketWithRetries) {
-    ListBucketResult result;
+    ListBucketResult *result = new ListBucketResult();
 
     EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _))
         .Times(3)
 		.WillOnce(Return((ListBucketResult *)NULL))
 		.WillOnce(Return((ListBucketResult *)NULL))
-        .WillOnce(Return(&result));
+        .WillOnce(Return(result));
 
-    EXPECT_EQ(&result, bucketReader->listBucketWithRetry(3));
+    EXPECT_EQ(result, bucketReader->listBucketWithRetry(3));
 }
 
 TEST_F(S3BucketReaderTest, ReaderThrowExceptionWhenUpstreamReaderIsNULL) {
@@ -101,10 +103,10 @@ TEST_F(S3BucketReaderTest, ReaderThrowExceptionWhenUpstreamReaderIsNULL) {
 }
 
 TEST_F(S3BucketReaderTest, ReaderReturnZeroForEmptyBucket) {
-	ListBucketResult result;
+    ListBucketResult *result = new ListBucketResult();
 	EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _))
 		.Times(1)
-		.WillOnce(Return(&result));
+		.WillOnce(Return(result));
 
 	params.setUrl("https://s3-us-east-2.amazonaws.com/s3test.pivotal.io/whatever");
 	bucketReader->open(params);
@@ -113,13 +115,13 @@ TEST_F(S3BucketReaderTest, ReaderReturnZeroForEmptyBucket) {
 }
 
 TEST_F(S3BucketReaderTest, ReadBucketWithSingleFile) {
-	ListBucketResult result;
+    ListBucketResult *result = new ListBucketResult();
 	BucketContent* item = CreateBucketContentItem("foo", 456);
-	result.contents.push_back(item);
+	result->contents.push_back(item);
 
 	EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _))
 		.Times(1)
-		.WillOnce(Return(&result));
+		.WillOnce(Return(result));
 
 	EXPECT_CALL(s3reader, read(_, _))
 		.Times(3)
@@ -142,15 +144,15 @@ TEST_F(S3BucketReaderTest, ReadBucketWithSingleFile) {
 }
 
 TEST_F(S3BucketReaderTest, ReadBuckeWithOneEmptyFileOneNonEmptyFile) {
-	ListBucketResult result;
+    ListBucketResult *result = new ListBucketResult();
 	BucketContent* item = CreateBucketContentItem("foo", 0);
-	result.contents.push_back(item);
+	result->contents.push_back(item);
 	item = CreateBucketContentItem("bar", 456);
-	result.contents.push_back(item);
+	result->contents.push_back(item);
 
 	EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _))
 		.Times(1)
-		.WillOnce(Return(&result));
+		.WillOnce(Return(result));
 
 	EXPECT_CALL(s3reader, read(_, _))
 		.Times(3)
@@ -171,14 +173,14 @@ TEST_F(S3BucketReaderTest, ReadBuckeWithOneEmptyFileOneNonEmptyFile) {
 	EXPECT_EQ(0,   bucketReader->read(buf, sizeof(buf)));
 }
 
-TEST_F(S3BucketReaderTest, ReaderShouldSkipIfNotMyVegetable) {
-	ListBucketResult result;
+TEST_F(S3BucketReaderTest, ReaderShouldSkipIfFileIsNotForThisSegment) {
+    ListBucketResult *result = new ListBucketResult();
 	BucketContent* item = CreateBucketContentItem("foo", 456);
-	result.contents.push_back(item);
+	result->contents.push_back(item);
 
 	EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _))
 			.Times(1)
-			.WillOnce(Return(&result));
+			.WillOnce(Return(result));
 
 	params.setSegId(10);
 	params.setSegNum(16);

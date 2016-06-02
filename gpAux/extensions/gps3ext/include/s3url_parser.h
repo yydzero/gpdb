@@ -13,7 +13,7 @@ class UrlParser {
 
     /* data */
    private:
-    char* extract_field(const struct http_parser_url* u,
+    char* extractField(const struct http_parser_url* u,
                         http_parser_url_fields i);
     char* schema;
     char* host;

@@ -8,4 +8,3 @@ S3KeyReader::S3KeyReader() {
 S3KeyReader::~S3KeyReader() {
 	// TODO Auto-generated destructor stub
 }
-

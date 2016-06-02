@@ -31,7 +31,9 @@ S3BucketReader::S3BucketReader() : Reader() {
     this->needNewReader = true;
 }
 
-S3BucketReader::~S3BucketReader() {}
+S3BucketReader::~S3BucketReader() {
+    this->close();
+}
 
 void S3BucketReader::setS3interface(S3Interface *s3) { this->s3interface = s3; }
 
@@ -39,7 +41,7 @@ void S3BucketReader::open(const ReaderParams& params) {
 	this->url 		= params.getUrl();
 	this->segId 		= params.getSegId();
 	this->segNum 	= params.getSegNum();
-	this->cred      = params.getCred();
+	this->cred		= params.getCred();
 
     this->validateURL();
     this->keyList = this->listBucketWithRetry(3);
@@ -73,7 +75,7 @@ uint64_t S3BucketReader::read(char *buf, uint64_t count) {
 		if (this->needNewReader) {
 			BucketContent *key = this->getNextKey();
 			if (key == NULL) {
-				S3DEBUG("No more files to download");
+				S3DEBUG("Read finished for segment: %d", this->segId);
 				return 0;
 			}
 
@@ -94,6 +96,11 @@ uint64_t S3BucketReader::read(char *buf, uint64_t count) {
 }
 
 void S3BucketReader::close() {
+    if (this->keyList != NULL) {
+        delete this->keyList;
+        this->keyList = NULL;
+    }
+
 	return;
 }
 

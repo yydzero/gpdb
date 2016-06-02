@@ -185,7 +185,6 @@ struct BucketContent {
     // BucketContent operator=(const BucketContent& b) = delete;
 
     string name;
-    // const char* etags;
     uint64_t size;
 };
 

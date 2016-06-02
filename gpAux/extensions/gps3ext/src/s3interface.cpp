@@ -16,7 +16,7 @@
 #include "s3url_parser.h"
 #include "s3utils.h"
 
-#include "../include/s3interface.h"
+#include "s3interface.h"
 using std::stringstream;
 
 S3Service::S3Service() {
