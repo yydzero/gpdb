@@ -23,9 +23,10 @@ class S3Service : public S3Interface {
                                  const string& bucket, const string& prefix,
                                  const S3Credential& cred);
 
-private:
+   private:
     string getUrl(const string& prefix, const string& schema,
-            const string& host, const string& bucket, const string& marker);
+                  const string& host, const string& bucket,
+                  const string& marker);
 };
 
 #endif /* INCLUDE_S3INTERFACE_H_ */

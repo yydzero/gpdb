@@ -61,8 +61,8 @@ distclean: clean
 	rm -f tags cscope.*
 
 tags:
-	ctags --c++-kinds=+p --fields=+iaS --extra=+q src/*.cpp test/*.cpp include/*.h
-	cscope -bq src/*.cpp test/*.cpp include/*.h
+	ctags --c++-kinds=+p --fields=+iaS --extra=+q src/*.cpp test/*.cpp include/*.h lib/*.cpp lib/*.h
+	cscope -bq src/*.cpp test/*.cpp include/*.h lib/*.cpp lib/*.h
 
 lint:
 	cppcheck -v --enable=warning src/*.cpp test/*.cpp include/*.h

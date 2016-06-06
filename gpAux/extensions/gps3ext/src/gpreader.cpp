@@ -5,8 +5,8 @@
 #include "gps3ext.h"
 #include "s3conf.h"
 #include "s3log.h"
-#include "s3utils.h"
 #include "s3macros.h"
+#include "s3utils.h"
 
 using std::string;
 using std::stringstream;
@@ -87,7 +87,8 @@ bool S3Reader::getNextDownloader() {
 
     // 2. construct a new downloader with argument: concurrent_num
     this->filedownloader = new Downloader(this->concurrent_num);
-    CHECK_OR_DIE_MSG(this->filedownloader != NULL, "%s", "Failed to construct filedownloader.");
+    CHECK_OR_DIE_MSG(this->filedownloader != NULL, "%s",
+                     "Failed to construct filedownloader.");
 
     // 3. Get KeyURL which downloader will download from S3.
     BucketContent *c = this->keylist->contents[this->contentindex];
@@ -95,12 +96,12 @@ bool S3Reader::getNextDownloader() {
     S3DEBUG("key: %s, size: %llu", keyurl.c_str(), c->getSize());
 
     // 4. Initialize and kick off Downloader.
-    bool ok = filedownloader->init(keyurl, this->region, c->getSize(), this->chunksize,
-                                  &this->cred);
+    bool ok = filedownloader->init(keyurl, this->region, c->getSize(),
+                                   this->chunksize, &this->cred);
     if (ok) {
-    		// for now, every segment downloads its assigned files(mod)
-    		// better to build a workqueue in case not all segments are available
-    		this->contentindex += this->segnum;
+        // for now, every segment downloads its assigned files(mod)
+        // better to build a workqueue in case not all segments are available
+        this->contentindex += this->segnum;
     } else {
         delete this->filedownloader;
         this->filedownloader = NULL;
@@ -127,14 +128,14 @@ bool S3Reader::TransferData(char *data, uint64_t &len) {
     }
 
 RETRY:
-	uint64_t buflen = len;
+    uint64_t buflen = len;
     bool ok = this->filedownloader->get(data, buflen);
     if (!ok) {
         S3ERROR("Failed to get data from file downloader");
         return false;
     }
     if (buflen == 0) {
-        if (! this->getNextDownloader()) {
+        if (!this->getNextDownloader()) {
             return false;
         }
 

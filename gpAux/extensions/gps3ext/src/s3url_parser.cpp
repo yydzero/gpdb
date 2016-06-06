@@ -51,7 +51,7 @@ UrlParser::~UrlParser() {
 }
 
 char *UrlParser::extractField(const struct http_parser_url *url_parser,
-                               http_parser_url_fields i) {
+                              http_parser_url_fields i) {
     if ((url_parser->field_set & (1 << i)) == 0) {
         return NULL;
     }

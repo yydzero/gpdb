@@ -14,10 +14,10 @@
 #include "gps3ext.h"
 #include "s3http_headers.h"
 #include "s3log.h"
+#include "s3macros.h"
 #include "s3reader.h"
 #include "s3url_parser.h"
 #include "s3utils.h"
-#include "s3macros.h"
 
 using std::stringstream;
 
@@ -229,7 +229,7 @@ Downloader::Downloader(uint8_t part_num)
       magic_bytes_num(0),
       compression(S3_ZIP_NONE),
       z_info(NULL) {
-	CHECK_OR_DIE(this->num != 0);
+    CHECK_OR_DIE(this->num != 0);
     this->threads = (pthread_t *)malloc(num * sizeof(pthread_t));
     if (this->threads)
         memset((void *)this->threads, 0, num * sizeof(pthread_t));
@@ -730,8 +730,8 @@ BucketContent *CreateBucketContentItem(const string &key, uint64_t size) {
 // require curl 7.17 higher
 // http://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketGET.html
 xmlParserCtxtPtr getBucketXML(const string &region, const string &url,
-                          const string &prefix, const S3Credential &cred,
-                          const string &marker) {
+                              const string &prefix, const S3Credential &cred,
+                              const string &marker) {
     stringstream host;
     host << "s3-" << region << ".amazonaws.com";
 
@@ -765,10 +765,15 @@ xmlParserCtxtPtr getBucketXML(const string &region, const string &url,
     header->Add(X_AMZ_CONTENT_SHA256, "UNSIGNED-PAYLOAD");
 
     std::stringstream query;
-    if (marker != "") {
-        query << "marker=" << marker << "&";
+    if (!marker.empty()) {
+        query << "marker=" << marker;
+        if (!prefix.empty()) {
+            query << "&";
+        }
     }
-    query << "prefix=" << prefix;
+    if (!prefix.empty()) {
+        query << "prefix=" << prefix;
+    }
 
     if (!SignRequestV4("GET", header, region, p.Path(), query.str(), cred)) {
         S3ERROR("Failed to sign in %s", __func__);

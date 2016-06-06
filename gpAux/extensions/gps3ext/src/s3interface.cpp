@@ -12,62 +12,61 @@
 #include "gps3ext.h"
 #include "s3http_headers.h"
 #include "s3log.h"
+#include "s3macros.h"
 #include "s3reader.h"
 #include "s3url_parser.h"
 #include "s3utils.h"
-#include "s3macros.h"
 
 #include "s3interface.h"
 using std::stringstream;
 
-class XMLContextHolder
-{
-  public:
+class XMLContextHolder {
+   public:
     XMLContextHolder(xmlParserCtxtPtr ctx) : context(ctx) {}
-    ~XMLContextHolder()
-    {
-        if (context != NULL)
-        {
+    ~XMLContextHolder() {
+        if (context != NULL) {
             // TODO: confirm the order
             xmlFreeParserCtxt(context);
             xmlFreeDoc(context->myDoc);
         }
-
     }
 
-  private:
+   private:
     xmlParserCtxtPtr context;
 };
 
-S3Service::S3Service() {
-}
+S3Service::S3Service() {}
 
-S3Service::~S3Service() {
-}
+S3Service::~S3Service() {}
 
 // S3 requires query parameters specified alphabetically.
-string S3Service::getUrl(const string& prefix, const string& schema,
-        const string& host, const string& bucket, const string& marker) {
+string S3Service::getUrl(const string &prefix, const string &schema,
+                         const string &host, const string &bucket,
+                         const string &marker) {
     stringstream url;
-    if (prefix != "") {
-        url << schema << "://" << host << "/" << bucket << "?";
-        if (marker != "") {
-            url << "marker=" << marker << "&";
-        }
-        url << "prefix=" << prefix;
-    } else {
-        url << schema << "://" << bucket << "." << host << "?";
-        if (marker != "") {
-            url << "marker=" << marker;
-        }
+    url << schema << "://" << host << "/" << bucket;
+
+    if (!marker.empty() || !prefix.empty()) {
+        url << "?";
     }
+
+    if (!marker.empty()) {
+        url << "marker=" << marker;
+    }
+
+    if (!prefix.empty()) {
+        if (!marker.empty()) {
+            url << "&";
+        }
+
+        url << "prefix=" << prefix;
+    }
+
     return url.str();
 }
 
-
 bool checkAndParseBucketXML(ListBucketResult *result,
-                            xmlParserCtxtPtr xmlcontext,
-                            string &marker) {
+                            xmlParserCtxtPtr xmlcontext, string &marker) {
     XMLContextHolder holder(xmlcontext);
 
     xmlNode *rootElement = xmlDocGetRootElement(xmlcontext->myDoc);
@@ -113,14 +112,16 @@ ListBucketResult *S3Service::ListBucket(const string &schema,
     S3DEBUG("Host url is %s", host.str().c_str());
 
     ListBucketResult *result = new ListBucketResult();
-    CHECK_OR_DIE_MSG(result != NULL, "%s", "Failed to allocate bucket list result");
+    CHECK_OR_DIE_MSG(result != NULL, "%s",
+                     "Failed to allocate bucket list result");
 
     string marker = "";
-    do {                    // To get next set(up to 1000) keys.
+    do {  // To get next set(up to 1000) keys.
         // S3 requires query parameters specified alphabetically.
         string url = this->getUrl(prefix, schema, host.str(), bucket, marker);
 
-        xmlParserCtxtPtr xmlcontext = getBucketXML(region, url, prefix, cred, marker);
+        xmlParserCtxtPtr xmlcontext =
+            getBucketXML(region, url, prefix, cred, marker);
         if (xmlcontext == NULL) {
             S3ERROR("Failed to list bucket for %s", url.c_str());
             delete result;
@@ -128,11 +129,11 @@ ListBucketResult *S3Service::ListBucket(const string &schema,
         }
 
         // parseBucketXML must not throw exception, otherwise result is leaked.
-        if (! checkAndParseBucketXML(result, xmlcontext, marker)) {
+        if (!checkAndParseBucketXML(result, xmlcontext, marker)) {
             delete result;
             return NULL;
         }
-    } while (! marker.empty());
+    } while (!marker.empty());
 
     return result;
 }
