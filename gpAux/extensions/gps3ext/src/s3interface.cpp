@@ -128,7 +128,7 @@ xmlParserCtxtPtr S3Service::getBucketXML(const string &region,
                                          const string &marker) {
     HTTPHeaders header = composeHTTPHeaders(url, marker, prefix, region, cred);
     std::map<string, string> empty;
-    Response response = service->Get(url, header, empty);
+    Response response = service->get(url, header, empty);
 
     CHECK_OR_DIE_MSG(response.isSuccess(), "Failed to GET: %s", url.c_str());
 
@@ -211,7 +211,7 @@ bool S3Service::parseBucketXML(ListBucketResult *result, xmlNode *root_element,
 
             if (key) {
                 if (size > 0) {  // skip empty item
-                    BucketContent *item = CreateBucketContentItem(key, size);
+                    BucketContent *item = new BucketContent(key, size);
                     if (item) {
                         result->contents.push_back(item);
                     } else {

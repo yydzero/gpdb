@@ -119,7 +119,7 @@ TEST_F(S3BucketReaderTest, ReaderReturnZeroForEmptyBucket) {
 
 TEST_F(S3BucketReaderTest, ReadBucketWithSingleFile) {
     ListBucketResult* result = new ListBucketResult();
-    BucketContent* item = CreateBucketContentItem("foo", 456);
+    BucketContent* item = new BucketContent("foo", 456);
     result->contents.push_back(item);
 
     EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _))
@@ -149,9 +149,9 @@ TEST_F(S3BucketReaderTest, ReadBucketWithSingleFile) {
 
 TEST_F(S3BucketReaderTest, ReadBuckeWithOneEmptyFileOneNonEmptyFile) {
     ListBucketResult* result = new ListBucketResult();
-    BucketContent* item = CreateBucketContentItem("foo", 0);
+    BucketContent* item = new BucketContent("foo", 0);
     result->contents.push_back(item);
-    item = CreateBucketContentItem("bar", 456);
+    item = new BucketContent("bar", 456);
     result->contents.push_back(item);
 
     EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _))
@@ -180,7 +180,7 @@ TEST_F(S3BucketReaderTest, ReadBuckeWithOneEmptyFileOneNonEmptyFile) {
 
 TEST_F(S3BucketReaderTest, ReaderShouldSkipIfFileIsNotForThisSegment) {
     ListBucketResult* result = new ListBucketResult();
-    BucketContent* item = CreateBucketContentItem("foo", 456);
+    BucketContent* item = new BucketContent("foo", 456);
     result->contents.push_back(item);
 
     EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _))
@@ -199,9 +199,9 @@ TEST_F(S3BucketReaderTest, ReaderShouldSkipIfFileIsNotForThisSegment) {
 
 TEST_F(S3BucketReaderTest, UpstreamReaderThrowException) {
     ListBucketResult* result = new ListBucketResult();
-    BucketContent* item = CreateBucketContentItem("foo", 0);
+    BucketContent* item = new BucketContent("foo", 0);
     result->contents.push_back(item);
-    item = CreateBucketContentItem("bar", 456);
+    item = new BucketContent("bar", 456);
     result->contents.push_back(item);
 
     EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _))

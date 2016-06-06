@@ -23,7 +23,7 @@ class RESTfulService {
    public:
     RESTfulService();
     virtual ~RESTfulService();
-    virtual Response Get(const string& url, const HTTPHeaders& headers,
+    virtual Response get(const string& url, const HTTPHeaders& headers,
                  const map<string, string>& params) = 0;
 };
 

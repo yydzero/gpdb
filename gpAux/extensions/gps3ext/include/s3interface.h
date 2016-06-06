@@ -24,7 +24,7 @@ class S3Service : public S3Interface {
                                  const string& bucket, const string& prefix,
                                  const S3Credential& cred);
 
-    void SetRESTfulService(RESTfulService* service) { this->service = service; }
+    void setRESTfulService(RESTfulService* service) { this->service = service; }
 
    private:
     string getUrl(const string& prefix, const string& schema,

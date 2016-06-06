@@ -176,19 +176,15 @@ struct ListBucketResult {
     ~ListBucketResult();
 };
 
-BucketContent* CreateBucketContentItem(const string& key, uint64_t size);
-
 struct BucketContent {
-    friend BucketContent* CreateBucketContentItem(const string& key,
-                                                  uint64_t size);
-    BucketContent();
-    ~BucketContent();
+    BucketContent() : name(""), size(0) {}
+    BucketContent(string name, uint64_t size) {
+        this->name = name;
+        this->size = size;
+    }
+    ~BucketContent() {}
     string getName() const { return this->name; };
     uint64_t getSize() const { return this->size; };
-
-   private:
-    // BucketContent(const BucketContent& b) = delete;
-    // BucketContent operator=(const BucketContent& b) = delete;
 
     string name;
     uint64_t size;
