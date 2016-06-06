@@ -1,5 +1,5 @@
-#ifndef INCLUDE_RESTFULSERVICE_H_
-#define INCLUDE_RESTFULSERVICE_H_
+#ifndef INCLUDE_RESTFUL_SERVICE_H_
+#define INCLUDE_RESTFUL_SERVICE_H_
 
 #include <stdint.h>
 #include <map>
@@ -12,6 +12,9 @@ using std::map;
 
 class Response {
    public:
+    bool isSuccess() { return ! buffer.empty(); }
+    vector<uint8_t>& getRawData() { return buffer; }
+
    private:
     vector<uint8_t> buffer;
 };
@@ -24,4 +27,4 @@ class RESTfulService {
                  const map<string, string>& params) = 0;
 };
 
-#endif /* INCLUDE_RESTFULSERVICE_H_ */
+#endif /* INCLUDE_RESTFUL_SERVICE_H_ */

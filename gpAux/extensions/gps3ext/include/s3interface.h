@@ -1,6 +1,7 @@
 #ifndef INCLUDE_S3INTERFACE_H_
 #define INCLUDE_S3INTERFACE_H_
 
+#include "restful_service.h"
 #include "s3reader.h"
 
 class S3Interface {
@@ -37,6 +38,9 @@ class S3Service : public S3Interface {
                                   const string& marker);
     bool checkAndParseBucketXML(ListBucketResult* result,
                                 xmlParserCtxtPtr xmlcontext, string& marker);
+    HTTPHeaders composeHTTPHeaders(const string& url,
+            const string& marker, const string& prefix, const string& region,
+            const S3Credential& cred);
 
     RESTfulService* service;
 };

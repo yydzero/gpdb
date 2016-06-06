@@ -91,45 +91,17 @@ bool S3Service::checkAndParseBucketXML(ListBucketResult *result,
     return false;
 }
 
-// require curl 7.17 higher
-// http://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketGET.html
-xmlParserCtxtPtr S3Service::getBucketXML(const string &region,
-                                         const string &url,
-                                         const string &prefix,
-                                         const S3Credential &cred,
-                                         const string &marker) {
+HTTPHeaders S3Service::composeHTTPHeaders(
+        const string& url, const string& marker, const string& prefix,
+        const string& region, const S3Credential& cred) {
+
     stringstream host;
     host << "s3-" << region << ".amazonaws.com";
 
-    CURL *curl = curl_easy_init();
-
-    if (curl) {
-        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-#if DEBUG_S3_CURL
-        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-#endif
-        curl_easy_setopt(curl, CURLOPT_FORBID_REUSE, 1L);
-    } else {
-        S3ERROR("Can't create curl instance, no enough memory?");
-        return NULL;
-    }
-
-    XMLInfo xml;
-    xml.ctxt = NULL;
-
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&xml);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, XMLParserCallback);
-
-    HTTPHeaders *header = new HTTPHeaders();
-    if (!header) {
-        S3ERROR("Can allocate memory for header");
-        return NULL;
-    }
-
-    header->Add(HOST, host.str());
+    HTTPHeaders header;
+    header.Add(HOST, host.str());
     UrlParser p(url.c_str());
-    header->Add(X_AMZ_CONTENT_SHA256, "UNSIGNED-PAYLOAD");
-
+    header.Add(X_AMZ_CONTENT_SHA256, "UNSIGNED-PAYLOAD");
     std::stringstream query;
     if (!marker.empty()) {
         query << "marker=" << marker;
@@ -140,42 +112,37 @@ xmlParserCtxtPtr S3Service::getBucketXML(const string &region,
     if (!prefix.empty()) {
         query << "prefix=" << prefix;
     }
-
-    if (!SignRequestV4("GET", header, region, p.Path(), query.str(), cred)) {
+    if (!SignRequestV4("GET", &header, region, p.Path(), query.str(), cred)) {
         S3ERROR("Failed to sign in %s", __func__);
-        delete header;
-        return NULL;
+        CHECK_OR_DIE_MSG(false, "Failed to sign in %s", __func__);
     }
+    return header;
+}
 
-    header->CreateList();
-    struct curl_slist *chunk = header->GetList();
+// require curl 7.17 higher
+// http://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketGET.html
+xmlParserCtxtPtr S3Service::getBucketXML(const string &region,
+                                         const string &url,
+                                         const string &prefix,
+                                         const S3Credential &cred,
+                                         const string &marker) {
+    HTTPHeaders header = composeHTTPHeaders(url, marker, prefix, region, cred);
+    std::map<string, string> empty;
+    Response response = service->Get(url, header, empty);
 
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
+    CHECK_OR_DIE_MSG(response.isSuccess(), "Failed to GET: %s", url.c_str());
 
-    CURLcode res = curl_easy_perform(curl);
-
-    if (res != CURLE_OK) {
-        S3ERROR("curl_easy_perform() failed: %s", curl_easy_strerror(res));
-        if (xml.ctxt) {
-            xmlDocPtr doc = xml.ctxt->myDoc;
-            xmlFreeParserCtxt(xml.ctxt);
-            xmlFreeDoc(doc);
-            xml.ctxt = NULL;
-        }
+    xmlParserCtxtPtr xmlptr = xmlCreatePushParserCtxt(NULL, NULL,
+            (const char *)response.getRawData().data(),
+            response.getRawData().size(), "resp.xml");
+    if (xmlptr != NULL) {
+        xmlParseChunk(xmlptr, "", 0, 1);
     } else {
-        if (xml.ctxt) {
-            xmlParseChunk(xml.ctxt, "", 0, 1);
-        } else {
-            S3ERROR("XML is downloaded but failed to be parsed");
-        }
+        S3ERROR("XML is downloaded but failed to be parsed");
+        CHECK_OR_DIE_MSG(false, "%s", "XML is downloaded but failed to be parsed");
     }
 
-    curl_easy_cleanup(curl);
-
-    header->FreeList();
-    delete header;
-
-    return xml.ctxt;
+    return xmlptr;
 }
 
 bool S3Service::parseBucketXML(ListBucketResult *result, xmlNode *root_element,
