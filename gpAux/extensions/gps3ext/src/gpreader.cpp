@@ -35,8 +35,8 @@ bool S3Reader::Init(int segid, int segnum, int chunksize) {
 
     int initretry = 3;
     while (initretry--) {
-        this->keylist = ListBucket(this->schema, this->region, this->bucket,
-                                   this->prefix, this->cred);
+        // TODO: refactor, ListBucket() here.
+        this->keylist = NULL;
 
         if (!this->keylist) {
             S3INFO("Can't get keylist from bucket %s", this->bucket.c_str());

@@ -19,9 +19,11 @@
 #include <zlib.h>
 
 #include "s3common.h"
+#include "s3macros.h"
 #include "s3url_parser.h"
 
 using std::vector;
+using std::stringstream;
 
 struct Range {
     /* data */
@@ -191,17 +193,5 @@ struct BucketContent {
     string name;
     uint64_t size;
 };
-
-xmlParserCtxtPtr getBucketXML(const string& region, const string& url,
-                              const string& prefix, const S3Credential& cred,
-                              const string& marker);
-
-bool parseBucketXML(ListBucketResult* result, xmlNode* root_element,
-                    string& marker);
-
-// It is caller's responsibility to free returned memory.
-ListBucketResult* ListBucket(const string& schema, const string& region,
-                             const string& bucket, const string& prefix,
-                             const S3Credential& cred);
 
 #endif

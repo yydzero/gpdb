@@ -46,27 +46,20 @@ string S3Service::getUrl(const string &prefix, const string &schema,
     stringstream url;
     url << schema << "://" << host << "/" << bucket;
 
-    if (!marker.empty() || !prefix.empty()) {
-        url << "?";
-    }
-
     if (!marker.empty()) {
-        url << "marker=" << marker;
+        url << "?marker=" << marker;
     }
 
     if (!prefix.empty()) {
-        if (!marker.empty()) {
-            url << "&";
-        }
-
-        url << "prefix=" << prefix;
+        url << (marker.empty() ? "?" : "&") << "prefix=" << prefix;
     }
 
     return url.str();
 }
 
-bool checkAndParseBucketXML(ListBucketResult *result,
-                            xmlParserCtxtPtr xmlcontext, string &marker) {
+bool S3Service::checkAndParseBucketXML(ListBucketResult *result,
+                                       xmlParserCtxtPtr xmlcontext,
+                                       string &marker) {
     XMLContextHolder holder(xmlcontext);
 
     xmlNode *rootElement = xmlDocGetRootElement(xmlcontext->myDoc);
@@ -90,7 +83,7 @@ bool checkAndParseBucketXML(ListBucketResult *result,
     }
 
     // parseBucketXML will set marker for next round.
-    if (parseBucketXML(result, rootElement, marker)) {
+    if (this->parseBucketXML(result, rootElement, marker)) {
         return true;
     }
 
@@ -98,6 +91,190 @@ bool checkAndParseBucketXML(ListBucketResult *result,
     return false;
 }
 
+// require curl 7.17 higher
+// http://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketGET.html
+xmlParserCtxtPtr S3Service::getBucketXML(const string &region,
+                                         const string &url,
+                                         const string &prefix,
+                                         const S3Credential &cred,
+                                         const string &marker) {
+    stringstream host;
+    host << "s3-" << region << ".amazonaws.com";
+
+    CURL *curl = curl_easy_init();
+
+    if (curl) {
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+#if DEBUG_S3_CURL
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+#endif
+        curl_easy_setopt(curl, CURLOPT_FORBID_REUSE, 1L);
+    } else {
+        S3ERROR("Can't create curl instance, no enough memory?");
+        return NULL;
+    }
+
+    XMLInfo xml;
+    xml.ctxt = NULL;
+
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&xml);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, XMLParserCallback);
+
+    HTTPHeaders *header = new HTTPHeaders();
+    if (!header) {
+        S3ERROR("Can allocate memory for header");
+        return NULL;
+    }
+
+    header->Add(HOST, host.str());
+    UrlParser p(url.c_str());
+    header->Add(X_AMZ_CONTENT_SHA256, "UNSIGNED-PAYLOAD");
+
+    std::stringstream query;
+    if (!marker.empty()) {
+        query << "marker=" << marker;
+        if (!prefix.empty()) {
+            query << "&";
+        }
+    }
+    if (!prefix.empty()) {
+        query << "prefix=" << prefix;
+    }
+
+    if (!SignRequestV4("GET", header, region, p.Path(), query.str(), cred)) {
+        S3ERROR("Failed to sign in %s", __func__);
+        delete header;
+        return NULL;
+    }
+
+    header->CreateList();
+    struct curl_slist *chunk = header->GetList();
+
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
+
+    CURLcode res = curl_easy_perform(curl);
+
+    if (res != CURLE_OK) {
+        S3ERROR("curl_easy_perform() failed: %s", curl_easy_strerror(res));
+        if (xml.ctxt) {
+            xmlDocPtr doc = xml.ctxt->myDoc;
+            xmlFreeParserCtxt(xml.ctxt);
+            xmlFreeDoc(doc);
+            xml.ctxt = NULL;
+        }
+    } else {
+        if (xml.ctxt) {
+            xmlParseChunk(xml.ctxt, "", 0, 1);
+        } else {
+            S3ERROR("XML is downloaded but failed to be parsed");
+        }
+    }
+
+    curl_easy_cleanup(curl);
+
+    header->FreeList();
+    delete header;
+
+    return xml.ctxt;
+}
+
+bool S3Service::parseBucketXML(ListBucketResult *result, xmlNode *root_element,
+                               string &marker) {
+    if (!result || !root_element) {
+        return false;
+    }
+
+    xmlNodePtr cur;
+    bool is_truncated = false;
+    char *content = NULL;
+    char *key = NULL;
+    char *key_size = NULL;
+
+    cur = root_element->xmlChildrenNode;
+    while (cur != NULL) {
+        if (key) {
+            xmlFree(key);
+            key = NULL;
+        }
+
+        if (!xmlStrcmp(cur->name, (const xmlChar *)"IsTruncated")) {
+            content = (char *)xmlNodeGetContent(cur);
+            if (content) {
+                if (!strncmp(content, "true", 4)) {
+                    is_truncated = true;
+                }
+                xmlFree(content);
+            }
+        }
+
+        if (!xmlStrcmp(cur->name, (const xmlChar *)"Name")) {
+            content = (char *)xmlNodeGetContent(cur);
+            if (content) {
+                result->Name = content;
+                xmlFree(content);
+            }
+        }
+
+        if (!xmlStrcmp(cur->name, (const xmlChar *)"Prefix")) {
+            content = (char *)xmlNodeGetContent(cur);
+            if (content) {
+                result->Prefix = content;
+                xmlFree(content);
+                // content is not used anymore in this loop
+                content = NULL;
+            }
+        }
+
+        if (!xmlStrcmp(cur->name, (const xmlChar *)"Contents")) {
+            xmlNodePtr contNode = cur->xmlChildrenNode;
+            uint64_t size = 0;
+
+            while (contNode != NULL) {
+                // no memleak here, every content has only one Key/Size node
+                if (!xmlStrcmp(contNode->name, (const xmlChar *)"Key")) {
+                    key = (char *)xmlNodeGetContent(contNode);
+                }
+                if (!xmlStrcmp(contNode->name, (const xmlChar *)"Size")) {
+                    key_size = (char *)xmlNodeGetContent(contNode);
+                    // Size of S3 file is a natural number, don't worry
+                    size = (uint64_t)atoll((const char *)key_size);
+                }
+                contNode = contNode->next;
+            }
+
+            if (key) {
+                if (size > 0) {  // skip empty item
+                    BucketContent *item = CreateBucketContentItem(key, size);
+                    if (item) {
+                        result->contents.push_back(item);
+                    } else {
+                        S3ERROR("Faild to create item for %s", key);
+                    }
+                } else {
+                    S3INFO("Size of \"%s\" is %" PRIu64 ", skip it", key, size);
+                }
+            }
+
+            if (key_size) {
+                xmlFree(key_size);
+                key_size = NULL;
+            }
+        }
+
+        cur = cur->next;
+    }
+
+    marker = (is_truncated && key) ? key : "";
+
+    if (key) {
+        xmlFree(key);
+    }
+
+    return true;
+}
+
+// ListBucket list all keys in given bucket with given prefix.
+//
 // Return NULL when there is failure due to network instability or
 // service unstable, so that caller could retry.
 //
@@ -111,19 +288,19 @@ ListBucketResult *S3Service::ListBucket(const string &schema,
     host << "s3-" << region << ".amazonaws.com";
     S3DEBUG("Host url is %s", host.str().c_str());
 
+    // TODO: here we have memory leak.
     ListBucketResult *result = new ListBucketResult();
     CHECK_OR_DIE_MSG(result != NULL, "%s",
                      "Failed to allocate bucket list result");
 
     string marker = "";
-    do {  // To get next set(up to 1000) keys.
+    do {  // To get next set(up to 1000) keys in one iteration.
         // S3 requires query parameters specified alphabetically.
         string url = this->getUrl(prefix, schema, host.str(), bucket, marker);
 
-        xmlParserCtxtPtr xmlcontext =
-            getBucketXML(region, url, prefix, cred, marker);
+        xmlParserCtxtPtr xmlcontext = getBucketXML(region, url, prefix, cred, marker);
         if (xmlcontext == NULL) {
-            S3ERROR("Failed to list bucket for %s", url.c_str());
+            S3ERROR("Failed to list bucket for '%s'", url.c_str());
             delete result;
             return NULL;
         }

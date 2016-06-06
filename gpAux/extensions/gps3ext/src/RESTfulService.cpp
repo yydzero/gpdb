@@ -5,12 +5,12 @@
  *      Author: hawang
  */
 
-#include "/Users/haozhou/git/S3gpdb/gpAux/extensions/gps3ext/include/RESTful.h"
+#include "../include/RESTfulService.h"
 
-RESTful::RESTful() {
+RESTfulService::RESTfulService() {
     // TODO Auto-generated constructor stub
 }
 
-RESTful::~RESTful() {
+RESTfulService::~RESTfulService() {
     // TODO Auto-generated destructor stub
 }

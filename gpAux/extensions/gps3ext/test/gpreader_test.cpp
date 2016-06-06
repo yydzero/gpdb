@@ -17,8 +17,7 @@ TEST(ExtBase, ValidateURL_normal) {
 
 TEST(ExtBase, ValidateURL_NoPrefixAndSlash) {
     S3ExtBase *myData;
-    myData = new S3Reader(
-        "s3://s3-us-west-2.amazonaws.com/s3test.pivotal.io");
+    myData = new S3Reader("s3://s3-us-west-2.amazonaws.com/s3test.pivotal.io");
 
     ASSERT_TRUE(myData->ValidateURL());
     EXPECT_STREQ("s3test.pivotal.io", myData->get_bucket().c_str());
@@ -29,8 +28,7 @@ TEST(ExtBase, ValidateURL_NoPrefixAndSlash) {
 
 TEST(ExtBase, ValidateURL_NoPrefix) {
     S3ExtBase *myData;
-    myData = new S3Reader(
-        "s3://s3-us-west-2.amazonaws.com/s3test.pivotal.io/");
+    myData = new S3Reader("s3://s3-us-west-2.amazonaws.com/s3test.pivotal.io/");
 
     ASSERT_TRUE(myData->ValidateURL());
     EXPECT_STREQ("s3test.pivotal.io", myData->get_bucket().c_str());
