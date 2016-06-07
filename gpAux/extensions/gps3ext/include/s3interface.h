@@ -30,7 +30,7 @@ class S3Service : public S3Interface {
     string getUrl(const string& prefix, const string& schema,
                   const string& host, const string& bucket,
                   const string& marker);
-    bool parseBucketXML(ListBucketResult* result, xmlNode* root_element,
+    void parseBucketXML(ListBucketResult* result, xmlNode* root_element,
                         string& marker);
     xmlParserCtxtPtr getBucketXML(const string& region, const string& url,
                                   const string& prefix,
@@ -38,9 +38,9 @@ class S3Service : public S3Interface {
                                   const string& marker);
     bool checkAndParseBucketXML(ListBucketResult* result,
                                 xmlParserCtxtPtr xmlcontext, string& marker);
-    HTTPHeaders composeHTTPHeaders(const string& url,
-            const string& marker, const string& prefix, const string& region,
-            const S3Credential& cred);
+    HTTPHeaders composeHTTPHeaders(const string& url, const string& marker,
+                                   const string& prefix, const string& region,
+                                   const S3Credential& cred);
 
     RESTfulService* service;
 };

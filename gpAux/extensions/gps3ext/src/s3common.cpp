@@ -34,7 +34,7 @@ static string encode_query_str(const string &query) {
 #define DATE_STR_LEN 9
 #define TIME_STAMP_STR_LEN 17
 #define SHA256_DIGEST_STRING_LENGTH 65
-bool SignRequestV4(const string &method, HTTPHeaders *h,
+void SignRequestV4(const string &method, HTTPHeaders *h,
                    const string &orig_region, const string &path,
                    const string &query, const S3Credential &cred) {
     struct tm tm_info;
@@ -106,7 +106,7 @@ bool SignRequestV4(const string &method, HTTPHeaders *h,
 
     h->Add(AUTHORIZATION, signature_header.str());
 
-    return true;
+    return;
 }
 
 // return the number of items

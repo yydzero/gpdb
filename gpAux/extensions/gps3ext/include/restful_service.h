@@ -12,7 +12,9 @@ using std::map;
 
 class Response {
    public:
-    bool isSuccess() { return ! buffer.empty(); }
+    Response() {}
+    Response(const vector<uint8_t>& buf) : buffer(buf) {}
+    bool isSuccess() { return !buffer.empty(); }
     vector<uint8_t>& getRawData() { return buffer; }
 
    private:
@@ -24,7 +26,7 @@ class RESTfulService {
     RESTfulService();
     virtual ~RESTfulService();
     virtual Response get(const string& url, const HTTPHeaders& headers,
-                 const map<string, string>& params) = 0;
+                         const map<string, string>& params) = 0;
 };
 
 #endif /* INCLUDE_RESTFUL_SERVICE_H_ */

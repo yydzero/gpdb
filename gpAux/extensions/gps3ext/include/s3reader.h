@@ -140,7 +140,7 @@ class HTTPFetcher : public BlockingBuffer {
 
    protected:
     uint64_t fetchdata(uint64_t offset, char* data, uint64_t len);
-    virtual bool processheader() { return true; };
+    virtual void signHeader() {}
     CURL* curl;
     Method method;
     HTTPHeaders headers;
@@ -154,7 +154,7 @@ class S3Fetcher : public HTTPFetcher {
     ~S3Fetcher(){};
 
    protected:
-    virtual bool processheader();
+    virtual void signHeader();
 
    private:
     string region;
@@ -170,7 +170,6 @@ struct BucketContent;
 struct ListBucketResult {
     string Name;
     string Prefix;
-    unsigned int MaxKeys;
     vector<BucketContent*> contents;
 
     ~ListBucketResult();

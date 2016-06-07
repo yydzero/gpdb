@@ -640,10 +640,7 @@ uint64_t HTTPFetcher::fetchdata(uint64_t offset, char *data, uint64_t len) {
 
         this->AddHeaderField(RANGE, rangebuf);
         this->AddHeaderField(X_AMZ_CONTENT_SHA256, "UNSIGNED-PAYLOAD");
-        if (!this->processheader()) {
-            S3ERROR("Failed to sign while fetching data, retry");
-            continue;
-        }
+        this->signHeader();
 
         this->headers.FreeList();
         this->headers.CreateList();
@@ -704,9 +701,9 @@ S3Fetcher::S3Fetcher(const string &url, const string &region, OffsetMgr *o,
     this->region = region;
 }
 
-bool S3Fetcher::processheader() {
-    return SignRequestV4("GET", &this->headers, this->region,
-                         this->urlparser.Path(), "", this->cred);
+void S3Fetcher::signHeader() {
+    SignRequestV4("GET", &this->headers, this->region, this->urlparser.Path(),
+                  "", this->cred);
 }
 
 ListBucketResult::~ListBucketResult() {

@@ -35,7 +35,7 @@ class XMLContextHolder {
     xmlParserCtxtPtr context;
 };
 
-S3Service::S3Service() {}
+S3Service::S3Service() : service(NULL) {}
 
 S3Service::~S3Service() {}
 
@@ -55,6 +55,62 @@ string S3Service::getUrl(const string &prefix, const string &schema,
     }
 
     return url.str();
+}
+
+HTTPHeaders S3Service::composeHTTPHeaders(const string &url,
+                                          const string &marker,
+                                          const string &prefix,
+                                          const string &region,
+                                          const S3Credential &cred) {
+    stringstream host;
+    host << "s3-" << region << ".amazonaws.com";
+
+    HTTPHeaders header;
+    header.Add(HOST, host.str());
+    UrlParser p(url.c_str());
+    header.Add(X_AMZ_CONTENT_SHA256, "UNSIGNED-PAYLOAD");
+    std::stringstream query;
+    if (!marker.empty()) {
+        query << "marker=" << marker;
+        if (!prefix.empty()) {
+            query << "&";
+        }
+    }
+    if (!prefix.empty()) {
+        query << "prefix=" << prefix;
+    }
+
+    SignRequestV4("GET", &header, region, p.Path(), query.str(), cred);
+
+    return header;
+}
+
+// require curl 7.17 higher
+// http://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketGET.html
+xmlParserCtxtPtr S3Service::getBucketXML(const string &region,
+                                         const string &url,
+                                         const string &prefix,
+                                         const S3Credential &cred,
+                                         const string &marker) {
+    HTTPHeaders header = composeHTTPHeaders(url, marker, prefix, region, cred);
+    std::map<string, string> empty;
+
+    Response response = service->get(url, header, empty);
+    if (!response.isSuccess()) {
+        S3ERROR("Failed to GET bucket list of '%s'", url.c_str());
+        return NULL;
+    }
+
+    xmlParserCtxtPtr xmlptr = xmlCreatePushParserCtxt(
+        NULL, NULL, (const char *)response.getRawData().data(),
+        response.getRawData().size(), "resp.xml");
+    if (xmlptr != NULL) {
+        xmlParseChunk(xmlptr, "", 0, 1);
+    } else {
+        S3ERROR("Failed to create XML parser context");
+    }
+
+    return xmlptr;
 }
 
 bool S3Service::checkAndParseBucketXML(ListBucketResult *result,
@@ -83,73 +139,14 @@ bool S3Service::checkAndParseBucketXML(ListBucketResult *result,
     }
 
     // parseBucketXML will set marker for next round.
-    if (this->parseBucketXML(result, rootElement, marker)) {
-        return true;
-    }
+    this->parseBucketXML(result, rootElement, marker);
 
-    S3ERROR("Failed to extract key from bucket xml");
-    return false;
+    return true;
 }
 
-HTTPHeaders S3Service::composeHTTPHeaders(
-        const string& url, const string& marker, const string& prefix,
-        const string& region, const S3Credential& cred) {
-
-    stringstream host;
-    host << "s3-" << region << ".amazonaws.com";
-
-    HTTPHeaders header;
-    header.Add(HOST, host.str());
-    UrlParser p(url.c_str());
-    header.Add(X_AMZ_CONTENT_SHA256, "UNSIGNED-PAYLOAD");
-    std::stringstream query;
-    if (!marker.empty()) {
-        query << "marker=" << marker;
-        if (!prefix.empty()) {
-            query << "&";
-        }
-    }
-    if (!prefix.empty()) {
-        query << "prefix=" << prefix;
-    }
-    if (!SignRequestV4("GET", &header, region, p.Path(), query.str(), cred)) {
-        S3ERROR("Failed to sign in %s", __func__);
-        CHECK_OR_DIE_MSG(false, "Failed to sign in %s", __func__);
-    }
-    return header;
-}
-
-// require curl 7.17 higher
-// http://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketGET.html
-xmlParserCtxtPtr S3Service::getBucketXML(const string &region,
-                                         const string &url,
-                                         const string &prefix,
-                                         const S3Credential &cred,
-                                         const string &marker) {
-    HTTPHeaders header = composeHTTPHeaders(url, marker, prefix, region, cred);
-    std::map<string, string> empty;
-    Response response = service->get(url, header, empty);
-
-    CHECK_OR_DIE_MSG(response.isSuccess(), "Failed to GET: %s", url.c_str());
-
-    xmlParserCtxtPtr xmlptr = xmlCreatePushParserCtxt(NULL, NULL,
-            (const char *)response.getRawData().data(),
-            response.getRawData().size(), "resp.xml");
-    if (xmlptr != NULL) {
-        xmlParseChunk(xmlptr, "", 0, 1);
-    } else {
-        S3ERROR("XML is downloaded but failed to be parsed");
-        CHECK_OR_DIE_MSG(false, "%s", "XML is downloaded but failed to be parsed");
-    }
-
-    return xmlptr;
-}
-
-bool S3Service::parseBucketXML(ListBucketResult *result, xmlNode *root_element,
+void S3Service::parseBucketXML(ListBucketResult *result, xmlNode *root_element,
                                string &marker) {
-    if (!result || !root_element) {
-        return false;
-    }
+    CHECK_OR_DIE((result != NULL && root_element != NULL));
 
     xmlNodePtr cur;
     bool is_truncated = false;
@@ -237,7 +234,7 @@ bool S3Service::parseBucketXML(ListBucketResult *result, xmlNode *root_element,
         xmlFree(key);
     }
 
-    return true;
+    return;
 }
 
 // ListBucket list all keys in given bucket with given prefix.
@@ -265,7 +262,8 @@ ListBucketResult *S3Service::ListBucket(const string &schema,
         // S3 requires query parameters specified alphabetically.
         string url = this->getUrl(prefix, schema, host.str(), bucket, marker);
 
-        xmlParserCtxtPtr xmlcontext = getBucketXML(region, url, prefix, cred, marker);
+        xmlParserCtxtPtr xmlcontext =
+            getBucketXML(region, url, prefix, cred, marker);
         if (xmlcontext == NULL) {
             S3ERROR("Failed to list bucket for '%s'", url.c_str());
             delete result;
