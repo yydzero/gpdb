@@ -12,9 +12,8 @@ using ::testing::_;
 class MockS3Interface : public S3Interface {
    public:
     MOCK_METHOD5(ListBucket,
-                 ListBucketResult*(const string& schema, const string& region,
-                                   const string& bucket, const string& prefix,
-                                   const S3Credential& cred));
+                 ListBucketResult*(const string& schema, const string& region, const string& bucket,
+                                   const string& prefix, const S3Credential& cred));
 };
 
 class MockS3Reader : public Reader {
@@ -57,12 +56,9 @@ TEST_F(S3BucketReaderTest, OpenInvalidURL) {
 TEST_F(S3BucketReaderTest, OpenURL) {
     ListBucketResult* result = new ListBucketResult();
 
-    EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _))
-        .Times(1)
-        .WillOnce(Return(result));
+    EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _)).Times(1).WillOnce(Return(result));
 
-    string url =
-        "https://s3-us-east-2.amazonaws.com/s3test.pivotal.io/whatever";
+    string url = "https://s3-us-east-2.amazonaws.com/s3test.pivotal.io/whatever";
     params.setUrl(url);
 
     EXPECT_NO_THROW(bucketReader->open(params));
@@ -72,8 +68,7 @@ TEST_F(S3BucketReaderTest, ListBucketWithRetryThrowException) {
     EXPECT_THROW(bucketReader->listBucketWithRetry(0), std::runtime_error);
 }
 
-TEST_F(S3BucketReaderTest,
-       ListBucketWithRetryThrowExceptionWhenS3InterfaceIsNULL) {
+TEST_F(S3BucketReaderTest, ListBucketWithRetryThrowExceptionWhenS3InterfaceIsNULL) {
     bucketReader->setS3interface(NULL);
     EXPECT_THROW(bucketReader->listBucketWithRetry(1), std::runtime_error);
 }
@@ -81,9 +76,7 @@ TEST_F(S3BucketReaderTest,
 TEST_F(S3BucketReaderTest, ListBucketWithRetry) {
     ListBucketResult* result = new ListBucketResult();
 
-    EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _))
-        .Times(1)
-        .WillOnce(Return(result));
+    EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _)).Times(1).WillOnce(Return(result));
 
     EXPECT_NE((void*)NULL, bucketReader->listBucketWithRetry(1));
 }
@@ -106,12 +99,9 @@ TEST_F(S3BucketReaderTest, ReaderThrowExceptionWhenUpstreamReaderIsNULL) {
 
 TEST_F(S3BucketReaderTest, ReaderReturnZeroForEmptyBucket) {
     ListBucketResult* result = new ListBucketResult();
-    EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _))
-        .Times(1)
-        .WillOnce(Return(result));
+    EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _)).Times(1).WillOnce(Return(result));
 
-    params.setUrl(
-        "https://s3-us-east-2.amazonaws.com/s3test.pivotal.io/whatever");
+    params.setUrl("https://s3-us-east-2.amazonaws.com/s3test.pivotal.io/whatever");
     bucketReader->open(params);
     bucketReader->setUpstreamReader(&s3reader);
     EXPECT_EQ(0, bucketReader->read(buf, sizeof(buf)));
@@ -122,9 +112,7 @@ TEST_F(S3BucketReaderTest, ReadBucketWithSingleFile) {
     BucketContent* item = new BucketContent("foo", 456);
     result->contents.push_back(item);
 
-    EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _))
-        .Times(1)
-        .WillOnce(Return(result));
+    EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _)).Times(1).WillOnce(Return(result));
 
     EXPECT_CALL(s3reader, read(_, _))
         .Times(3)
@@ -137,8 +125,7 @@ TEST_F(S3BucketReaderTest, ReadBucketWithSingleFile) {
 
     params.setSegId(0);
     params.setSegNum(1);
-    params.setUrl(
-        "https://s3-us-east-2.amazonaws.com/s3test.pivotal.io/whatever");
+    params.setUrl("https://s3-us-east-2.amazonaws.com/s3test.pivotal.io/whatever");
     bucketReader->open(params);
     bucketReader->setUpstreamReader(&s3reader);
 
@@ -154,9 +141,7 @@ TEST_F(S3BucketReaderTest, ReadBuckeWithOneEmptyFileOneNonEmptyFile) {
     item = new BucketContent("bar", 456);
     result->contents.push_back(item);
 
-    EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _))
-        .Times(1)
-        .WillOnce(Return(result));
+    EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _)).Times(1).WillOnce(Return(result));
 
     EXPECT_CALL(s3reader, read(_, _))
         .Times(3)
@@ -169,8 +154,7 @@ TEST_F(S3BucketReaderTest, ReadBuckeWithOneEmptyFileOneNonEmptyFile) {
 
     params.setSegId(0);
     params.setSegNum(1);
-    params.setUrl(
-        "https://s3-us-east-2.amazonaws.com/s3test.pivotal.io/whatever");
+    params.setUrl("https://s3-us-east-2.amazonaws.com/s3test.pivotal.io/whatever");
     bucketReader->open(params);
     bucketReader->setUpstreamReader(&s3reader);
 
@@ -183,14 +167,11 @@ TEST_F(S3BucketReaderTest, ReaderShouldSkipIfFileIsNotForThisSegment) {
     BucketContent* item = new BucketContent("foo", 456);
     result->contents.push_back(item);
 
-    EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _))
-        .Times(1)
-        .WillOnce(Return(result));
+    EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _)).Times(1).WillOnce(Return(result));
 
     params.setSegId(10);
     params.setSegNum(16);
-    params.setUrl(
-        "https://s3-us-east-2.amazonaws.com/s3test.pivotal.io/whatever");
+    params.setUrl("https://s3-us-east-2.amazonaws.com/s3test.pivotal.io/whatever");
     bucketReader->open(params);
     bucketReader->setUpstreamReader(&s3reader);
 
@@ -204,9 +185,7 @@ TEST_F(S3BucketReaderTest, UpstreamReaderThrowException) {
     item = new BucketContent("bar", 456);
     result->contents.push_back(item);
 
-    EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _))
-        .Times(1)
-        .WillOnce(Return(result));
+    EXPECT_CALL(s3interface, ListBucket(_, _, _, _, _)).Times(1).WillOnce(Return(result));
 
     EXPECT_CALL(s3reader, read(_, _))
         .Times(AtLeast(1))
@@ -217,8 +196,7 @@ TEST_F(S3BucketReaderTest, UpstreamReaderThrowException) {
 
     params.setSegId(0);
     params.setSegNum(1);
-    params.setUrl(
-        "https://s3-us-east-2.amazonaws.com/s3test.pivotal.io/whatever");
+    params.setUrl("https://s3-us-east-2.amazonaws.com/s3test.pivotal.io/whatever");
     bucketReader->open(params);
     bucketReader->setUpstreamReader(&s3reader);
 

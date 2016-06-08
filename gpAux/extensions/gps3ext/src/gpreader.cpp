@@ -87,8 +87,7 @@ bool S3Reader::getNextDownloader() {
 
     // 2. construct a new downloader with argument: concurrent_num
     this->filedownloader = new Downloader(this->concurrent_num);
-    CHECK_OR_DIE_MSG(this->filedownloader != NULL, "%s",
-                     "Failed to construct filedownloader.");
+    CHECK_OR_DIE_MSG(this->filedownloader != NULL, "%s", "Failed to construct filedownloader.");
 
     // 3. Get KeyURL which downloader will download from S3.
     BucketContent *c = this->keylist->contents[this->contentindex];
@@ -96,8 +95,8 @@ bool S3Reader::getNextDownloader() {
     S3DEBUG("key: %s, size: %llu", keyurl.c_str(), c->getSize());
 
     // 4. Initialize and kick off Downloader.
-    bool ok = filedownloader->init(keyurl, this->region, c->getSize(),
-                                   this->chunksize, &this->cred);
+    bool ok =
+        filedownloader->init(keyurl, this->region, c->getSize(), this->chunksize, &this->cred);
     if (ok) {
         // for now, every segment downloads its assigned files(mod)
         // better to build a workqueue in case not all segments are available

@@ -31,7 +31,7 @@ lint:
 tags:
 	@make -f Makefile.others tags
 
-test:
+test: format
 	@make -f Makefile.others test
 
 coverage:

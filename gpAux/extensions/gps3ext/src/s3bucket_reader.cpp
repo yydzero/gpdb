@@ -47,9 +47,8 @@ void S3BucketReader::open(const ReaderParams &params) {
 }
 
 BucketContent *S3BucketReader::getNextKey() {
-    this->keyIndex = (this->keyIndex == (unsigned int)-1)
-                         ? this->segId
-                         : this->keyIndex + this->segNum;
+    this->keyIndex =
+        (this->keyIndex == (unsigned int)-1) ? this->segId : this->keyIndex + this->segNum;
 
     if (this->keyIndex >= this->keyList->contents.size()) {
         return NULL;
@@ -64,8 +63,7 @@ const ReaderParams &S3BucketReader::getReaderParams(BucketContent *key) {
     params->setRegion(this->region);
     params->setSize(key->getSize());
     params->setChunkSize(this->chunkSize);
-    S3DEBUG("key: %s, size: %" PRIu64, params->getKeyUrl().c_str(),
-            params->getSize());
+    S3DEBUG("key: %s, size: %" PRIu64, params->getKeyUrl().c_str(), params->getSize());
     return *params;
 }
 
@@ -128,13 +126,11 @@ ListBucketResult *S3BucketReader::listBucketWithRetry(int retries) {
             return result;
         }
 
-        S3INFO("Can't get keylist from bucket %s, retrying ...",
-               this->bucket.c_str());
+        S3INFO("Can't get keylist from bucket %s, retrying ...", this->bucket.c_str());
     }
 
     S3ERROR("Failed to list bucket for URL: %s", this->url.c_str());
-    CHECK_OR_DIE_MSG(false, "Failed to list bucket with retries: %s",
-                     this->url.c_str());
+    CHECK_OR_DIE_MSG(false, "Failed to list bucket with retries: %s", this->url.c_str());
     // return NULL;  Not needed, as CHECK_OR_DIE_MSG will return always.
 }
 
@@ -150,8 +146,7 @@ string S3BucketReader::getKeyURL(const string &key) {
 // http://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region
 void S3BucketReader::SetRegion() {
     size_t ibegin =
-        this->url.find("://s3") +
-        strlen("://s3");  // index of character('.' or '-') after "3"
+        this->url.find("://s3") + strlen("://s3");  // index of character('.' or '-') after "3"
     size_t iend = this->url.find(".amazonaws.com");
 
     if (iend == string::npos) {
@@ -202,7 +197,6 @@ void S3BucketReader::validateURL() {
     this->SetRegion();
     this->SetBucketAndPrefix();
 
-    bool ok =
-        !(this->schema.empty() || this->region.empty() || this->bucket.empty());
+    bool ok = !(this->schema.empty() || this->region.empty() || this->bucket.empty());
     CHECK_OR_DIE_MSG(ok, "'%s' is not valid", this->url.c_str());
 }

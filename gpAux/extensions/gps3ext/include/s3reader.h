@@ -54,8 +54,8 @@ class OffsetMgr {
 
 class BlockingBuffer {
    public:
-    static BlockingBuffer* CreateBuffer(const string& url, const string& region,
-                                        OffsetMgr* o, S3Credential* pcred);
+    static BlockingBuffer* CreateBuffer(const string& url, const string& region, OffsetMgr* o,
+                                        S3Credential* pcred);
     BlockingBuffer(const string& url, OffsetMgr* o);
     virtual ~BlockingBuffer();
     bool Init();
@@ -100,8 +100,8 @@ class Downloader {
    public:
     Downloader(uint8_t part_num);
     ~Downloader();
-    bool init(const string& url, const string& region, uint64_t size,
-              uint64_t chunksize, S3Credential* pcred);
+    bool init(const string& url, const string& region, uint64_t size, uint64_t chunksize,
+              S3Credential* pcred);
     bool get(char* buf, uint64_t& len);
     void destroy();
 
@@ -149,8 +149,7 @@ class HTTPFetcher : public BlockingBuffer {
 
 class S3Fetcher : public HTTPFetcher {
    public:
-    S3Fetcher(const string& url, const string& region, OffsetMgr* o,
-              const S3Credential& cred);
+    S3Fetcher(const string& url, const string& region, OffsetMgr* o, const S3Credential& cred);
     ~S3Fetcher(){};
 
    protected:

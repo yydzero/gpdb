@@ -21,7 +21,7 @@
 using std::stringstream;
 
 class XMLContextHolder {
-public:
+   public:
     XMLContextHolder(xmlParserCtxtPtr ctx) : context(ctx) {}
     ~XMLContextHolder() {
         if (context != NULL) {
@@ -30,7 +30,7 @@ public:
         }
     }
 
-private:
+   private:
     xmlParserCtxtPtr context;
 };
 
@@ -39,9 +39,8 @@ S3Service::S3Service() : service(NULL) {}
 S3Service::~S3Service() {}
 
 // S3 requires query parameters specified alphabetically.
-string S3Service::getUrl(const string &prefix, const string &schema,
-        const string &host, const string &bucket,
-        const string &marker) {
+string S3Service::getUrl(const string &prefix, const string &schema, const string &host,
+                         const string &bucket, const string &marker) {
     stringstream url;
     url << schema << "://" << host << "/" << bucket;
 
@@ -56,10 +55,9 @@ string S3Service::getUrl(const string &prefix, const string &schema,
     return url.str();
 }
 
-
-HTTPHeaders S3Service::composeHTTPHeaders(
-        const string& url, const string& marker, const string& prefix,
-        const string& region, const S3Credential& cred) {
+HTTPHeaders S3Service::composeHTTPHeaders(const string &url, const string &marker,
+                                          const string &prefix, const string &region,
+                                          const S3Credential &cred) {
     stringstream host;
     host << "s3-" << region << ".amazonaws.com";
 
@@ -85,11 +83,9 @@ HTTPHeaders S3Service::composeHTTPHeaders(
 
 // require curl 7.17 higher
 // http://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketGET.html
-xmlParserCtxtPtr S3Service::getBucketXML(const string &region,
-        const string &url,
-        const string &prefix,
-        const S3Credential &cred,
-        const string &marker) {
+xmlParserCtxtPtr S3Service::getBucketXML(const string &region, const string &url,
+                                         const string &prefix, const S3Credential &cred,
+                                         const string &marker) {
     HTTPHeaders header = composeHTTPHeaders(url, marker, prefix, region, cred);
     std::map<string, string> empty;
 
@@ -99,9 +95,9 @@ xmlParserCtxtPtr S3Service::getBucketXML(const string &region,
         return NULL;
     }
 
-    xmlParserCtxtPtr xmlptr = xmlCreatePushParserCtxt(
-            NULL, NULL, (const char *)response.getRawData().data(),
-            response.getRawData().size(), "resp.xml");
+    xmlParserCtxtPtr xmlptr =
+        xmlCreatePushParserCtxt(NULL, NULL, (const char *)response.getRawData().data(),
+                                response.getRawData().size(), "resp.xml");
     if (xmlptr != NULL) {
         xmlParseChunk(xmlptr, "", 0, 1);
     } else {
@@ -111,9 +107,8 @@ xmlParserCtxtPtr S3Service::getBucketXML(const string &region,
     return xmlptr;
 }
 
-bool S3Service::checkAndParseBucketXML(ListBucketResult *result,
-        xmlParserCtxtPtr xmlcontext,
-        string &marker) {
+bool S3Service::checkAndParseBucketXML(ListBucketResult *result, xmlParserCtxtPtr xmlcontext,
+                                       string &marker) {
     XMLContextHolder holder(xmlcontext);
 
     xmlNode *rootElement = xmlDocGetRootElement(xmlcontext->myDoc);
@@ -142,9 +137,7 @@ bool S3Service::checkAndParseBucketXML(ListBucketResult *result,
     return true;
 }
 
-
-void S3Service::parseBucketXML(ListBucketResult *result, xmlNode *root_element,
-        string &marker) {
+void S3Service::parseBucketXML(ListBucketResult *result, xmlNode *root_element, string &marker) {
     CHECK_OR_DIE((result != NULL && root_element != NULL));
 
     xmlNodePtr cur;
@@ -242,27 +235,23 @@ void S3Service::parseBucketXML(ListBucketResult *result, xmlNode *root_element,
 // service unstable, so that caller could retry.
 //
 // Caller should delete returned object.
-ListBucketResult *S3Service::ListBucket(const string &schema,
-        const string &region,
-        const string &bucket,
-        const string &prefix,
-        const S3Credential &cred) {
+ListBucketResult *S3Service::ListBucket(const string &schema, const string &region,
+                                        const string &bucket, const string &prefix,
+                                        const S3Credential &cred) {
     stringstream host;
     host << "s3-" << region << ".amazonaws.com";
     S3DEBUG("Host url is %s", host.str().c_str());
 
     // TODO: here we have memory leak.
     ListBucketResult *result = new ListBucketResult();
-    CHECK_OR_DIE_MSG(result != NULL, "%s",
-            "Failed to allocate bucket list result");
+    CHECK_OR_DIE_MSG(result != NULL, "%s", "Failed to allocate bucket list result");
 
     string marker = "";
     do {  // To get next set(up to 1000) keys in one iteration.
         // S3 requires query parameters specified alphabetically.
         string url = this->getUrl(prefix, schema, host.str(), bucket, marker);
 
-        xmlParserCtxtPtr xmlcontext =
-                getBucketXML(region, url, prefix, cred, marker);
+        xmlParserCtxtPtr xmlcontext = getBucketXML(region, url, prefix, cred, marker);
         if (xmlcontext == NULL) {
             S3ERROR("Failed to list bucket for '%s'", url.c_str());
             delete result;

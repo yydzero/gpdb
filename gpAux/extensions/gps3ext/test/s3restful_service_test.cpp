@@ -1,12 +1,11 @@
-#include <iostream>
 #include <algorithm>
-#include <vector>
 #include <fstream>
+#include <iostream>
+#include <vector>
 
 #include "gtest/gtest.h"
 #include "s3http_headers.h"
 #include "s3restful_service.cpp"
-
 
 using namespace std;
 
@@ -23,10 +22,9 @@ TEST(S3RESTfulService, GetWithWrongHeader) {
 
     EXPECT_EQ(OK, resp.getStatus());
     EXPECT_EQ("Success", resp.getMessage());
-    //302 returned from bing.com
+    // 302 returned from bing.com
     EXPECT_EQ(true, resp.getRawData().size() < 500);
 }
-
 
 TEST(S3RESTfulService, DISABLED_GetWithEmptyHeader) {
     HTTPHeaders headers;
@@ -43,7 +41,6 @@ TEST(S3RESTfulService, DISABLED_GetWithEmptyHeader) {
     EXPECT_EQ(true, resp.getRawData().size() > 10000);
 }
 
-
 TEST(S3RESTfulService, GetWithoutURL) {
     HTTPHeaders headers;
     map<string, string> params;
@@ -54,7 +51,7 @@ TEST(S3RESTfulService, GetWithoutURL) {
 
     EXPECT_EQ(FAIL, resp.getStatus());
     EXPECT_EQ("failed to talk to s3 service URL using bad/illegal format or missing URL",
-            resp.getMessage());
+              resp.getMessage());
 }
 
 TEST(S3RESTfulService, GetWithWrongURL) {
@@ -70,6 +67,6 @@ TEST(S3RESTfulService, GetWithWrongURL) {
     EXPECT_EQ(OK, resp.getStatus());
     EXPECT_EQ("Success", resp.getMessage());
 
-    //404 returned from bing.com
+    // 404 returned from bing.com
     EXPECT_EQ(0, resp.getRawData().size());
 }

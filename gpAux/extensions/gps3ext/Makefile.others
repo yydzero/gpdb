@@ -79,6 +79,6 @@ lint:
 	cppcheck -v --enable=warning src/*.cpp test/*.cpp include/*.h
 
 format:
-	clang-format -style="{BasedOnStyle: Google, IndentWidth: 4}" -i src/*.cpp test/*.cpp include/*.h
+	clang-format -style="{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 100}" -i src/*.cpp test/*.cpp include/*.h
 
 .PHONY: buildtest test coverage clean distclean tags lint format

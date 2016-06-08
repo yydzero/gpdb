@@ -46,8 +46,7 @@ void S3ExtBase::SetSchema() {
 // http://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region
 void S3ExtBase::SetRegion() {
     size_t ibegin =
-        this->url.find("://s3") +
-        strlen("://s3");  // index of character('.' or '-') after "3"
+        this->url.find("://s3") + strlen("://s3");  // index of character('.' or '-') after "3"
     size_t iend = this->url.find(".amazonaws.com");
 
     if (iend == string::npos) {
@@ -98,6 +97,5 @@ bool S3ExtBase::ValidateURL() {
     this->SetRegion();
     this->SetBucketAndPrefix();
 
-    return !(this->schema.empty() || this->region.empty() ||
-             this->bucket.empty());
+    return !(this->schema.empty() || this->region.empty() || this->bucket.empty());
 }
