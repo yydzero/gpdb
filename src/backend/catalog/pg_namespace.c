@@ -37,6 +37,7 @@ NamespaceCreate(const char *nspName, Oid ownerId, Oid forceOid)
 	Datum		values[Natts_pg_namespace];
 	NameData	nname;
 	TupleDesc	tupDesc;
+	ObjectAddress myself;
 	int			i;
 
 	/* sanity checks */
@@ -80,6 +81,14 @@ NamespaceCreate(const char *nspName, Oid ownerId, Oid forceOid)
 
 	/* Record dependency on owner */
 	recordDependencyOnOwner(NamespaceRelationId, nspoid, ownerId);
+
+	/* Record dependencies */
+	myself.classId = NamespaceRelationId;
+	myself.objectId = nspoid;
+	myself.objectSubId = 0;
+
+	/* dependency on extension */
+	recordDependencyOnCurrentExtension(&myself, false);
 
 	return nspoid;
 }
