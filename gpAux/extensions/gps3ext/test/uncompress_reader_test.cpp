@@ -17,9 +17,11 @@ class MockBufferReader : public Reader {
     void close() {
     }
 
-    void setData(unsigned char *input, uint64_t size) {
+    void setData(const void *input, uint64_t size) {
+        const char *p = static_cast<const char *>(input);
+
         this->clear();
-        this->data.insert(this->data.end(), input, input + size);
+        this->data.insert(this->data.end(), p, p + size);
     }
 
     uint64_t read(char *buf, uint64_t count) {
@@ -61,7 +63,7 @@ class UncompressReaderTest : public testing::Test {
         uncompressReader.close();
     }
 
-    void setBufReaderByRawData(const char *input, int len) {
+    void setBufReaderByRawData(const void *input, int len) {
         uLong compressedLen = sizeof(compressionBuff);
 
         int err = compress(compressionBuff, &compressedLen, (const Bytef *)input, len);
@@ -327,28 +329,16 @@ TEST_F(UncompressReaderTest, AbleToUncompressWithSmartLargeReadBufferWithUncompr
     }
 }
 
-TEST_F(UncompressReaderTest,
-       DISABLED_AbleToUncompressWithSmarterLargeReadBufferWithUncompressableString) {
-    enableDebug();
-
-    S3_ZIP_CHUNKSIZE = 7;
+TEST_F(UncompressReaderTest, AbleToUncompressWithIncorrectEncodedStream) {
+    S3_ZIP_CHUNKSIZE = 128;
     uncompressReader.resizeUncompressReaderBuffer(S3_ZIP_CHUNKSIZE);
 
-    // Smaller chunk size, bigger read buffer from caller. Need composite multiple chunks.
+    // set an incorrect encoding stream to Mock directly.
+    // it will produce 'Z_DATA_ERROR' when decompressing
     char hello[] = "abcdefghigklmnopqrstuvwxyz";  // 26+1 bytes
-    setBufReaderByRawData(hello, sizeof(hello));
+    this->bufReader.setData(hello, sizeof(hello));
 
-    // for chunksize = 7, upper string will be decompressed in four steps: 4, 7, 7, 7, 2
+    char outputBuffer[128] = {0};
 
-    char outputBuffer[9] = {0};
-
-    int expectedLen[] = {9, 9, 9};
-    int offset = 0;
-    for (int i = 0; i < sizeof(expectedLen) / sizeof(int); i++) {
-        uint64_t count = uncompressReader.read(outputBuffer, sizeof(outputBuffer));
-        EXPECT_TRUE(strncmp(hello + offset, outputBuffer, count) == 0);
-        ASSERT_EQ(expectedLen[i], count);
-        offset += count;
-    }
-    resetLogLevel();
+    EXPECT_THROW(uncompressReader.read(outputBuffer, sizeof(outputBuffer)), std::runtime_error);
 }
