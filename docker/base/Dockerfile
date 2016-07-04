@@ -6,7 +6,7 @@ RUN yum -y update \
     && yum -y install apr-devel         \
                       bzip2-devel       \
                       ccache            \
-                      cmake3            \
+                      cmake             \
                       curl-devel        \
                       htop              \
                       iproute           \
@@ -31,8 +31,6 @@ RUN yum -y update \
 
 RUN curl -SL https://bootstrap.pypa.io/get-pip.py | python \
     && pip install psutil lockfile paramiko setuptools epydoc
-
-ENV PATH=/usr/local/bin:$PATH
 
 # compile GPDB
 
