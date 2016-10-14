@@ -704,6 +704,7 @@ _outCreateExtensionStmt(StringInfo str, CreateExtensionStmt *node)
 	WRITE_BOOL_FIELD(if_not_exists);
 	WRITE_NODE_FIELD(options);
 	WRITE_ENUM_FIELD(create_ext_state, CreateExtensionState);
+	WRITE_OID_FIELD(newOid);
 }
 
 static void
