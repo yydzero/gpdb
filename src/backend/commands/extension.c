@@ -1214,10 +1214,10 @@ CreateExtension(CreateExtensionStmt *stmt)
 				creating_extension = false;
 				CurrentExtensionObject = InvalidOid;
 				return InvalidOid;
-			case CREATE_EXTENSION_BEGIN:	/* Mark creating_extensin flag and add pg_extension catalog tuple */
+			case CREATE_EXTENSION_BEGIN:	/* Mark creating_extension flag and add pg_extension catalog tuple */
 				creating_extension = true;
 				break;
-			case CREATE_EXTENSION_END:		/* Mark creating_extensin flag = false */
+			case CREATE_EXTENSION_END:		/* Mark creating_extension flag = false */
 				creating_extension = false;
 				CurrentExtensionObject = InvalidOid;
 				return InvalidOid;
@@ -1486,7 +1486,8 @@ CreateExtension(CreateExtensionStmt *stmt)
 										versionName,
 										PointerGetDatum(NULL),
 										PointerGetDatum(NULL),
-										requiredExtensions);
+										requiredExtensions,
+										stmt->newOid);
 
 	/*
 	 * Apply any control-file comment on extension
@@ -1498,6 +1499,7 @@ CreateExtension(CreateExtensionStmt *stmt)
 	{
 		/* We must tell QE to create extension */
 		stmt->create_ext_state = CREATE_EXTENSION_BEGIN;
+		stmt->newOid = extensionOid;
 		CdbDispatchUtilityStatement((Node *) stmt,
 									DF_WITH_SNAPSHOT | DF_CANCEL_ON_ERROR,
 									NULL);
@@ -1508,7 +1510,9 @@ CreateExtension(CreateExtensionStmt *stmt)
 	}
 
 	/*
-	 * Execute the installation script file only happen in QD
+	 * No need to execute extension script (pure SQL statements) on
+	 * segments, as QD will take care of it when execute each SQL statement
+	 * in the script file.
 	 */
 	if (Gp_role != GP_ROLE_EXECUTE)
 		execute_extension_script(stmt, extensionOid, control,
@@ -1536,7 +1540,7 @@ Oid
 InsertExtensionTuple(const char *extName, Oid extOwner,
 					 Oid schemaOid, bool relocatable, const char *extVersion,
 					 Datum extConfig, Datum extCondition,
-					 List *requiredExtensions)
+					 List *requiredExtensions, Oid newOid)
 {
 	Oid			extensionOid;
 	Relation	rel;
@@ -1573,6 +1577,9 @@ InsertExtensionTuple(const char *extName, Oid extOwner,
 		values[Anum_pg_extension_extcondition - 1] = extCondition;
 
 	tuple = heap_form_tuple(rel->rd_att, values, nulls);
+
+	if (newOid != InvalidOid)
+		HeapTupleSetOid(tuple, newOid);
 
 	extensionOid = simple_heap_insert(rel, tuple);
 	CatalogUpdateIndexes(rel, tuple);

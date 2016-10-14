@@ -1138,7 +1138,7 @@ typedef enum CreateExtensionState
 	CREATE_EXTENSION_INIT,		/* not start to create extension */
 	CREATE_EXTENSION_BEGIN,     /* start to create extension */
 	CREATE_EXTENSION_END		/* finish to create extension */
-}CreateExtensionState;
+} CreateExtensionState;
 
 typedef struct CreateExtensionStmt
 {
@@ -1147,6 +1147,7 @@ typedef struct CreateExtensionStmt
 	bool		if_not_exists;	/* just do nothing if it already exists? */
 	List	   *options;		/* List of DefElem nodes */
 	CreateExtensionState create_ext_state;		/* create extension state */
+	Oid			newOid;			/* the new Oid of the object */
 } CreateExtensionStmt;
 
 /* Only used for ALTER EXTENSION UPDATE; later might need an action field */

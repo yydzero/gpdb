@@ -1133,6 +1133,7 @@ _readCreateExtensionStmt(void)
 	READ_BOOL_FIELD(if_not_exists);
 	READ_NODE_FIELD(options);
 	READ_ENUM_FIELD(create_ext_state, CreateExtensionState);
+	READ_OID_FIELD(newOid);
 
 	READ_DONE();
 }
