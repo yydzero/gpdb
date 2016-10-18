@@ -34,6 +34,7 @@
 #include "commands/defrem.h"
 #include "commands/discard.h"
 #include "commands/explain.h"
+#include "commands/extension.h"
 #include "commands/extprotocolcmds.h"
 #include "commands/filespace.h"
 #include "commands/lockcmds.h"
@@ -449,6 +450,8 @@ check_xact_readonly(Node *parsetree)
 		case T_CreateRoleStmt:
 		case T_IndexStmt:
 		case T_CreateExtensionStmt:
+		case T_AlterExtensionStmt:
+		case T_AlterExtensionContentsStmt:
 		case T_CreatePLangStmt:
 		case T_CreateOpClassStmt:
 		case T_CreateOpFamilyStmt:
@@ -1355,6 +1358,14 @@ ProcessUtility(Node *parsetree,
 
 		case T_CreateExtensionStmt:
 			CreateExtension((CreateExtensionStmt *) parsetree);
+			break;
+
+		case T_AlterExtensionStmt:
+			ExecAlterExtensionStmt((AlterExtensionStmt *) parsetree);
+			break;
+
+		case T_AlterExtensionContentsStmt:
+			ExecAlterExtensionContentsStmt((AlterExtensionContentsStmt *) parsetree);
 			break;
 
 		case T_RuleStmt:		/* CREATE RULE */
@@ -2408,6 +2419,14 @@ CreateCommandTag(Node *parsetree)
 			tag = "CREATE EXTENSION";
 			break;
 
+		case T_AlterExtensionStmt:
+			tag = "ALTER EXTENSION";
+			break;
+
+		case T_AlterExtensionContentsStmt:
+			tag = "ALTER EXTENSION";
+			break;
+
 		case T_RuleStmt:
 			tag = "CREATE RULE";
 			break;
@@ -2872,6 +2891,8 @@ GetCommandLogLevel(Node *parsetree)
 			break;
 
 		case T_CreateExtensionStmt:
+		case T_AlterExtensionStmt:
+		case T_AlterExtensionContentsStmt:
 			lev = LOGSTMT_DDL;
 			break;
 

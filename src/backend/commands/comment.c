@@ -639,14 +639,7 @@ CommentDatabase(List *qualname, char *comment)
 	 */
 
 	/* First get the database OID */
-	oid = get_database_oid(database);
-	if (!OidIsValid(oid))
-	{
-		ereport(WARNING,
-				(errcode(ERRCODE_UNDEFINED_DATABASE),
-				 errmsg("database \"%s\" does not exist", database)));
-		return;
-	}
+	oid = get_database_oid(database, false);
 
 	/* Check object security */
 	if (!pg_database_ownercheck(oid, GetUserId()))
@@ -678,14 +671,7 @@ CommentTablespace(List *qualname, char *comment)
 				 errmsg("tablespace name cannot be qualified")));
 	tablespace = strVal(linitial(qualname));
 
-	oid = get_tablespace_oid(tablespace);
-	if (!OidIsValid(oid))
-	{
-		ereport(ERROR,
-				(errcode(ERRCODE_UNDEFINED_OBJECT),
-				 errmsg("tablespace \"%s\" does not exist", tablespace)));
-		return;
-	}
+	oid = get_tablespace_oid(tablespace, false);
 
 	/* Check object security */
 	if (!pg_tablespace_ownercheck(oid, GetUserId()))
@@ -1213,12 +1199,7 @@ CommentConversion(List *qualname, char *comment)
 {
 	Oid			conversionOid;
 
-	conversionOid = FindConversionByName(qualname);
-	if (!OidIsValid(conversionOid))
-		ereport(ERROR,
-				(errcode(ERRCODE_UNDEFINED_OBJECT),
-				 errmsg("conversion \"%s\" does not exist",
-						NameListToString(qualname))));
+	conversionOid = get_conversion_oid(qualname, false);
 
 	/* Check object security */
 	if (!pg_conversion_ownercheck(conversionOid, GetUserId()))

@@ -626,7 +626,7 @@ ProcedureCreate(const char *procedureName,
 		recordDependencyOnOwner(ProcedureRelationId, retval, proowner);
 
 	/* dependency on extension */
-	recordDependencyOnCurrentExtension(&myself, false);
+	recordDependencyOnCurrentExtension(&myself, is_update);
 
 	heap_freetuple(tup);
 
