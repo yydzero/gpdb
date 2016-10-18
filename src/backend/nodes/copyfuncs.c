@@ -3962,6 +3962,31 @@ _copyCreateExtensionStmt(const CreateExtensionStmt *from)
 	return newnode;
 }
 
+static AlterExtensionStmt *
+_copyAlterExtensionStmt(AlterExtensionStmt *from)
+{
+	AlterExtensionStmt *newnode = makeNode(AlterExtensionStmt);
+
+	COPY_STRING_FIELD(extname);
+	COPY_NODE_FIELD(options);
+
+	return newnode;
+}
+
+static AlterExtensionContentsStmt *
+_copyAlterExtensionContentsStmt(AlterExtensionContentsStmt *from)
+{
+	AlterExtensionContentsStmt *newnode = makeNode(AlterExtensionContentsStmt);
+
+	COPY_STRING_FIELD(extname);
+	COPY_SCALAR_FIELD(action);
+	COPY_SCALAR_FIELD(objtype);
+	COPY_NODE_FIELD(objname);
+	COPY_NODE_FIELD(objargs);
+
+	return newnode;
+}
+
 static CreateTableSpaceStmt *
 _copyCreateTableSpaceStmt(CreateTableSpaceStmt *from)
 {
@@ -5063,6 +5088,12 @@ copyObject(void *from)
 			break;
 		case T_CreateExtensionStmt:
 			retval = _copyCreateExtensionStmt(from);
+			break;
+		case T_AlterExtensionStmt:
+			retval = _copyAlterExtensionStmt(from);
+			break;
+		case T_AlterExtensionContentsStmt:
+			retval = _copyAlterExtensionContentsStmt(from);
 			break;
 		case T_CreateFileSpaceStmt:
 			retval = _copyCreateFileSpaceStmt(from);

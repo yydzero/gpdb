@@ -182,7 +182,7 @@ CreateTableSpace(CreateTableSpaceStmt *stmt)
 	 * index would catch this anyway, but might as well give a friendlier
 	 * message.)
 	 */
-	if (OidIsValid(get_tablespace_oid(stmt->tablespacename)))
+	if (OidIsValid(get_tablespace_oid(stmt->tablespacename, true)))
 		ereport(ERROR,
 				(errcode(ERRCODE_DUPLICATE_OBJECT),
 				 errmsg("tablespace \"%s\" already exists",
@@ -958,7 +958,7 @@ assign_default_tablespace(const char *newval, bool doit, GucSource source)
 	if (IsTransactionState())
 	{
 		if (newval[0] != '\0' &&
-			!OidIsValid(get_tablespace_oid(newval)))
+			!OidIsValid(get_tablespace_oid(newval, true)))
 		{
 			/*
 			 * When source == PGC_S_TEST, we are checking the argument of an
@@ -1019,7 +1019,7 @@ GetDefaultTablespace(bool forTemp)
 	 * to refer to an existing tablespace; we just silently return InvalidOid,
 	 * causing the new object to be created in the database's tablespace.
 	 */
-	result = get_tablespace_oid(default_tablespace);
+	result = get_tablespace_oid(default_tablespace, true);
 
 	/*
 	 * Allow explicit specification of database's default tablespace in
@@ -1091,7 +1091,7 @@ PrepareTempTablespaces(void)
 		}
 
 		/* Else verify that name is a valid tablespace name */
-		curoid = get_tablespace_oid(curname);
+		curoid = get_tablespace_oid(curname, true);
 		if (curoid == InvalidOid)
 		{
 			/* Silently ignore any bad list elements */
@@ -1130,7 +1130,7 @@ PrepareTempTablespaces(void)
  * Returns InvalidOid if tablespace name not found.
  */
 Oid
-get_tablespace_oid(const char *tablespacename)
+get_tablespace_oid(const char *tablespacename, bool missing_ok)
 {
 	Oid			result;
 	Relation	rel;
@@ -1206,6 +1206,12 @@ get_tablespace_oid(const char *tablespacename)
 
 	heap_endscan(scandesc);
 	heap_close(rel, AccessShareLock);
+
+	if (!OidIsValid(result) && !missing_ok)
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_OBJECT),
+				 errmsg("tablespace \"%s\" does not exist",
+						tablespacename)));
 
 	return result;
 }

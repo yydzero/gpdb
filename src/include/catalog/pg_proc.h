@@ -42,14 +42,14 @@ CATALOG(pg_proc,1255) BKI_BOOTSTRAP
 	Oid			prolang;		/* OID of pg_language entry */
 	float4		procost;		/* estimated execution cost */
 	float4		prorows;		/* estimated # of rows out (if proretset) */
-	Oid			provariadic;	/* pg_type.oid of variadic argument */
+	Oid			provariadic;	/* element type of variadic array, or 0 */
 	bool		proisagg;		/* is it an aggregate? */
 	bool		prosecdef;		/* security definer */
 	bool		proisstrict;	/* strict with respect to NULLs? */
 	bool		proretset;		/* returns a set? */
 	char		provolatile;	/* see PROVOLATILE_ categories below */
 	int2		pronargs;		/* number of arguments */
-	int2        pronargdefaults;        /* number of arguments with defaults */
+	int2		pronargdefaults;	/* number of arguments with defaults */
 	Oid			prorettype;		/* OID of result type */
 	bool		proiswin;		/* is it a window function? */
 
@@ -4500,6 +4500,15 @@ DESCR("get set of in-progress txids in snapshot");
 DATA(insert OID = 2948 (  txid_visible_in_snapshot	PGNSP PGUID 12 1  0 f f t f i 2 16 "20 2970" _null_ _null_ _null_ txid_visible_in_snapshot - _null_ _null_ ));
 DESCR("is txid visible in snapshot?");
 
+/* Extensions */
+DATA(insert OID = 3082 (  pg_available_extensions		PGNSP PGUID 12 10 100 0 f f t t s 0 0 2249 f "" "{19,25,25}" "{o,o,o}" "{name,default_version,comment}" _null_ pg_available_extensions _null_ _null_ _null_ _null_));
+DESCR("list available extensions");
+DATA(insert OID = 3083 (  pg_available_extension_versions	PGNSP PGUID 12 10 100 0 f f t t s 0 0 2249 f "" "{19,25,16,16,19,1003,25}" "{o,o,o,o,o,o,o}" "{name,version,superuser,relocatable,schema,requires,comment}" _null_ pg_available_extension_versions _null_ _null_ _null_ _null_));
+DESCR("list available extension versions");
+DATA(insert OID = 3084 (  pg_extension_update_paths		PGNSP PGUID 12 10 100 0 f f t t s 1 0 2249 f "19" "{19,25,25,25}" "{i,o,o,o}" "{name,source,target,path}" _null_ pg_extension_update_paths _null_ _null_ _null_ _null_));
+DESCR("list an extension's version update paths");
+DATA(insert OID = 3086 (  pg_extension_config_dump		PGNSP PGUID 12 1 0 0 f f t f v 2 0 2278 f "2205 25" _null_ _null_ _null_ _null_ pg_extension_config_dump _null_ _null_ _null_ _null_));
+DESCR("flag an extension's table contents to be emitted by pg_dump");
 
 /*
  * Include more definitions from pg_proc_gp.h, for GPDB-added functions. They
