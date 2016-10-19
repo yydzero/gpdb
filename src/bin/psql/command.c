@@ -431,7 +431,7 @@ exec_command(const char *cmd,
 			case 'v':
 			case 'i':
 			case 's':
-			case 'x':
+			case 'E':	/* PostgreSQL use dx for extension, change to dE for foreign table */
             /* case 'S':  // GPDB:  We used to show just system tables for this */
 			case 'P':   /* GPDB: Parent-only tables, no children */
 				success = listTables(&cmd[1], pattern, show_verbose, show_system);
