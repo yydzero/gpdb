@@ -2226,6 +2226,7 @@ AlterFunctionNamespace_oid(Oid procOid, Oid nspOid)
 	proc->pronamespace = nspOid;
 
 	simple_heap_update(procRel, &tup->t_self, tup);
+	CatalogUpdateIndexes(procRel, tup);
 
 	/* Update dependency on schema */
 	if (changeDependencyFor(ProcedureRelationId, procOid,

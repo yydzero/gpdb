@@ -224,6 +224,7 @@ static void dumpTSParser(Archive *fout, TSParserInfo *prsinfo);
 static void dumpTSDictionary(Archive *fout, TSDictInfo *dictinfo);
 static void dumpTSTemplate(Archive *fout, TSTemplateInfo *tmplinfo);
 static void dumpTSConfig(Archive *fout, TSConfigInfo *cfginfo);
+static void dumpExtension(Archive *fout, ExtensionInfo *extinfo);
 
 static void dumpACL(Archive *fout, CatalogId objCatId, DumpId objDumpId,
 		const char *type, const char *name,
@@ -2541,7 +2542,11 @@ dumpDumpableObject(Archive *fout, DumpableObject *dobj)
 	{
 		case DO_NAMESPACE:
 			if (!postDataSchemaOnly)
-			dumpNamespace(fout, (NamespaceInfo *) dobj);
+				dumpNamespace(fout, (NamespaceInfo *) dobj);
+			break;
+		case DO_EXTENSION:
+			if (!postDataSchemaOnly)
+				dumpExtension(fout, (ExtensionInfo *) dobj);
 			break;
 		case DO_TYPE:
 			if (!postDataSchemaOnly)
@@ -2707,6 +2712,55 @@ dumpNamespace(Archive *fout, NamespaceInfo *nspinfo)
 
 	destroyPQExpBuffer(q);
 	destroyPQExpBuffer(delq);
+}
+
+/*
+ * dumpExtension
+ *	  writes out to fout the queries to recreate an extension
+ */
+static void
+dumpExtension(Archive *fout, ExtensionInfo *extinfo)
+{
+	PQExpBuffer q;
+	PQExpBuffer delq;
+	PQExpBuffer labelq;
+	char	   *qextname;
+
+	/* Skip if not to be dumped */
+	if (!extinfo->dobj.dump || dataOnly)
+		return;
+
+	q = createPQExpBuffer();
+	delq = createPQExpBuffer();
+	labelq = createPQExpBuffer();
+
+	qextname = strdup(fmtId(extinfo->dobj.name));
+
+	appendPQExpBuffer(delq, "DROP EXTENSION %s;\n", qextname);
+	appendPQExpBuffer(q, "CREATE EXTENSION IF NOT EXISTS %s WITH SCHEMA %s;\n",
+					  qextname, fmtId(extinfo->namespace));
+
+	appendPQExpBuffer(labelq, "EXTENSION %s", qextname);
+
+	ArchiveEntry(fout, extinfo->dobj.catId, extinfo->dobj.dumpId,
+				 extinfo->dobj.name,
+				 NULL, NULL,
+				 "",
+				 false, "EXTENSION",
+				 q->data, delq->data, NULL,
+				 extinfo->dobj.dependencies, extinfo->dobj.nDeps,
+				 NULL, NULL);
+
+	/* Dump Extension Comments and Security Labels */
+	dumpComment(fout, labelq->data,
+				NULL, "",
+				extinfo->dobj.catId, 0, extinfo->dobj.dumpId);
+
+	free(qextname);
+
+	destroyPQExpBuffer(q);
+	destroyPQExpBuffer(delq);
+	destroyPQExpBuffer(labelq);
 }
 
 /*

@@ -980,6 +980,11 @@ describeDumpableObject(DumpableObject *obj, char *buf, int bufsize)
 					 "SCHEMA %s  (ID %d OID %u)",
 					 obj->name, obj->dumpId, obj->catId.oid);
 			return;
+		case DO_EXTENSION:
+			snprintf(buf, bufsize,
+					 "EXTENSION %s  (ID %d OID %u)",
+					 obj->name, obj->dumpId, obj->catId.oid);
+			return;
 		case DO_TYPE:
 			snprintf(buf, bufsize,
 					 "TYPE %s  (ID %d OID %u)",

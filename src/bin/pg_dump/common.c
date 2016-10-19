@@ -60,11 +60,17 @@ static int  numTypeStorageOptions;
 static int	numFuncs;
 static int	numOperators;
 static int	numNamespaces;
+static int	numExtensions;
 static DumpableObject **tblinfoindex;
 static DumpableObject **typinfoindex;
 static DumpableObject **funinfoindex;
 static DumpableObject **oprinfoindex;
 static DumpableObject **nspinfoindex;
+static DumpableObject **extinfoindex;
+
+/* This is an array of object identities, not actual DumpableObjects */
+static ExtensionMemberId *extmembers;
+static int	numextmembers;
 
 bool is_gpdump = false; /* determines whether to print extra logging messages in getSchemaData */
 
@@ -75,6 +81,7 @@ static void flagInhAttrs(TableInfo *tbinfo, int numTables,
 static DumpableObject **buildIndexArray(void *objArray, int numObjs,
 				Size objSize);
 static int	DOCatalogIdCompare(const void *p1, const void *p2);
+static int	ExtensionMemberIdCompare(const void *p1, const void *p2);
 static void findParentsByOid(TableInfo *self,
 				 InhInfo *inhinfo, int numInherits);
 static int	strInArray(const char *pattern, char **arr, int arr_size);
@@ -94,6 +101,7 @@ getSchemaData(int *numTablesPtr, int g_role)
 	RuleInfo   *ruleinfo;
 	ProcLangInfo *proclanginfo;
 	CastInfo   *castinfo;
+	ExtensionInfo *extinfo;
 	OpclassInfo *opcinfo;
 	OpfamilyInfo *opfinfo;
 	ConvInfo   *convinfo;
@@ -107,6 +115,7 @@ getSchemaData(int *numTablesPtr, int g_role)
 	int			numRules;
 	int			numProcLangs;
 	int			numCasts;
+	int         numExtensions;
 	int			numOpclasses;
 	int			numOpfamilies;
 	int			numConversions;
@@ -116,6 +125,20 @@ getSchemaData(int *numTablesPtr, int g_role)
 	int			numTSDicts;
 	int			numTSConfigs;
 	const char *LOGGER_INFO = "INFO";
+
+	/*
+	 * We must read extensions and extension membership info first, because
+	 * extension membership needs to be consultable during decisions about
+	 * whether other objects are to be dumped.
+	 */
+	if (g_verbose)
+		write_msg(NULL, "reading extensions\n");
+	extinfo = getExtensions(&numExtensions);
+	extinfoindex = buildIndexArray(extinfo, numExtensions, sizeof(ExtensionInfo));
+
+	if (g_verbose)
+		write_msg(NULL, "identifying extension members\n");
+	getExtensionMembership(extinfo, numExtensions);
 
 	if (is_gpdump || g_verbose)
 		status_log_msg(LOGGER_INFO, progname, "reading schemas\n");
@@ -215,6 +238,11 @@ getSchemaData(int *numTablesPtr, int g_role)
 	if (is_gpdump || g_verbose)
 		status_log_msg(LOGGER_INFO, progname, "reading type casts\n");
 	castinfo = getCasts(&numCasts);
+
+	/* this must be after getTables */
+	if (g_verbose)
+		write_msg(NULL, "reading extensions\n");
+	extinfo = getExtensions(&numExtensions);
 
 	/* Link tables to parents, mark parents of target tables interesting */
 	if (is_gpdump || g_verbose)
@@ -847,6 +875,93 @@ NamespaceInfo *
 findNamespaceByOid(Oid oid)
 {
 	return (NamespaceInfo *) findObjectByOid(oid, nspinfoindex, numNamespaces);
+}
+
+/*
+ * findExtensionByOid
+ *	  finds the entry (in extinfo) of the extension with the given oid
+ *	  returns NULL if not found
+ */
+ExtensionInfo *
+findExtensionByOid(Oid oid)
+{
+	return (ExtensionInfo *) findObjectByOid(oid, extinfoindex, numExtensions);
+}
+
+
+/*
+ * setExtensionMembership
+ *	  accept and save data about which objects belong to extensions
+ */
+void
+setExtensionMembership(ExtensionMemberId *extmems, int nextmems)
+{
+	/* Sort array in preparation for binary searches */
+	if (nextmems > 1)
+		qsort((void *) extmems, nextmems, sizeof(ExtensionMemberId),
+			  ExtensionMemberIdCompare);
+	/* And save */
+	extmembers = extmems;
+	numextmembers = nextmems;
+}
+
+/*
+ * findOwningExtension
+ *	  return owning extension for specified catalog ID, or NULL if none
+ */
+ExtensionInfo *
+findOwningExtension(CatalogId catalogId)
+{
+	ExtensionMemberId *low;
+	ExtensionMemberId *high;
+
+	/*
+	 * We could use bsearch() here, but the notational cruft of calling
+	 * bsearch is nearly as bad as doing it ourselves; and the generalized
+	 * bsearch function is noticeably slower as well.
+	 */
+	if (numextmembers <= 0)
+		return NULL;
+	low = extmembers;
+	high = extmembers + (numextmembers - 1);
+	while (low <= high)
+	{
+		ExtensionMemberId *middle;
+		int			difference;
+
+		middle = low + (high - low) / 2;
+		/* comparison must match ExtensionMemberIdCompare, below */
+		difference = oidcmp(middle->catId.oid, catalogId.oid);
+		if (difference == 0)
+			difference = oidcmp(middle->catId.tableoid, catalogId.tableoid);
+		if (difference == 0)
+			return middle->ext;
+		else if (difference < 0)
+			low = middle + 1;
+		else
+			high = middle - 1;
+	}
+	return NULL;
+}
+
+/*
+ * qsort comparator for ExtensionMemberIds
+ */
+static int
+ExtensionMemberIdCompare(const void *p1, const void *p2)
+{
+	const ExtensionMemberId *obj1 = (const ExtensionMemberId *) p1;
+	const ExtensionMemberId *obj2 = (const ExtensionMemberId *) p2;
+	int			cmpval;
+
+	/*
+	 * Compare OID first since it's usually unique, whereas there will only be
+	 * a few distinct values of tableoid.
+	 */
+	cmpval = oidcmp(obj1->catId.oid, obj2->catId.oid);
+	if (cmpval == 0)
+		cmpval = oidcmp(obj1->catId.tableoid, obj2->catId.tableoid);
+	return cmpval;
 }
 
 
