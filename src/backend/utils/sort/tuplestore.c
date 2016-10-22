@@ -505,10 +505,11 @@ void
 tuplestore_putvalues(Tuplestorestate *state, TupleDesc tdesc,
                      Datum *values, bool *isnull)
 {
-	MinimalTuple tuple;
 	MemoryContext oldcxt = MemoryContextSwitchTo(state->context);
 
-	tuple = heap_form_minimal_tuple(tdesc, values, isnull);
+	MemTupleBinding *mt_bind = create_memtuple_binding(tdesc);
+	MemTuple tuple = memtuple_form_to(mt_bind, values, isnull, NULL, NULL, false);
+
 	USEMEM(state, GetMemoryChunkSpace(tuple));
 
 	tuplestore_puttuple_common(state, &state->pos, (void *) tuple);

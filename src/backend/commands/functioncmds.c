@@ -1815,6 +1815,7 @@ CreateCast(CreateCastStmt *stmt)
 	bool		nulls[Natts_pg_cast];
 	ObjectAddress myself,
 				referenced;
+	Oid			castOid;
 
 	sourcetypeid = typenameTypeId(NULL, stmt->sourcetype, NULL);
 	targettypeid = typenameTypeId(NULL, stmt->targettype, NULL);
@@ -2032,6 +2033,7 @@ CreateCast(CreateCastStmt *stmt)
 	
 	if (Gp_role == GP_ROLE_DISPATCH)
 	{
+		stmt->castOid = castOid;
 		CdbDispatchUtilityStatement((Node *) stmt,
 									DF_CANCEL_ON_ERROR|
 									DF_WITH_SNAPSHOT|

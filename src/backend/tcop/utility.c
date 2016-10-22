@@ -2233,6 +2233,9 @@ CreateCommandTag(Node *parsetree)
 				case OBJECT_DOMAIN:
 					tag = "ALTER DOMAIN";
 					break;
+				case OBJECT_EXTENSION:
+					tag = "ALTER EXTENSION";
+					break;
 				case OBJECT_FUNCTION:
 					tag = "ALTER FUNCTION";
 					break;
@@ -2277,6 +2280,9 @@ CreateCommandTag(Node *parsetree)
 					break;
 				case OBJECT_DOMAIN:
 					tag = "ALTER DOMAIN";
+					break;
+				case OBJECT_EXTENSION:
+					tag = "ALTER EXTENSION";
 					break;
 				case OBJECT_FUNCTION:
 					tag = "ALTER FUNCTION";
