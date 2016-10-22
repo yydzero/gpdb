@@ -905,7 +905,7 @@ execute_extension_script(CreateExtensionStmt *stmt,
 			/* We must reset QE CurrentExtensionObject to InvalidOid */
 			stmt->create_ext_state = CREATE_EXTENSION_END;
 			CdbDispatchUtilityStatement((Node *) stmt,
-										DF_WITH_SNAPSHOT | DF_CANCEL_ON_ERROR,
+										DF_WITH_SNAPSHOT | DF_CANCEL_ON_ERROR | DF_NEED_TWO_PHASE,
 										NULL);
 		}
 		PG_RE_THROW();
@@ -919,12 +919,12 @@ execute_extension_script(CreateExtensionStmt *stmt,
 	 * Restore the GUC variables we set above.
 	 */
 	AtEOXact_GUC(true, save_nestlevel);
-	if (Gp_role == GP_ROLE_DISPATCH)
+	if (Gp_role == GP_ROLE_DISPATCH && stmt != NULL)
 	{
 		/* We must reset QE CurrentExtensionObject to InvalidOid */
 		stmt->create_ext_state = CREATE_EXTENSION_END;
 		CdbDispatchUtilityStatement((Node *) stmt,
-									DF_WITH_SNAPSHOT | DF_CANCEL_ON_ERROR,
+									DF_WITH_SNAPSHOT | DF_CANCEL_ON_ERROR | DF_NEED_TWO_PHASE,
 									NULL);
 	}
 }
@@ -1520,7 +1520,7 @@ CreateExtension(CreateExtensionStmt *stmt)
 		stmt->create_ext_state = CREATE_EXTENSION_BEGIN;
 		stmt->newOid = extensionOid;
 		CdbDispatchUtilityStatement((Node *) stmt,
-									DF_WITH_SNAPSHOT | DF_CANCEL_ON_ERROR,
+									DF_WITH_SNAPSHOT | DF_CANCEL_ON_ERROR | DF_NEED_TWO_PHASE,
 									NULL);
 	}
 	else
@@ -2841,6 +2841,13 @@ ExecAlterExtensionStmt(AlterExtensionStmt *stmt)
 	 */
 	ApplyExtensionUpdates(stmt, extensionOid, control,
 						  oldVersionName, updateVersions);
+
+	if (Gp_role == GP_ROLE_DISPATCH)
+	{
+		CdbDispatchUtilityStatement((Node *) stmt,
+									DF_WITH_SNAPSHOT | DF_CANCEL_ON_ERROR | DF_NEED_TWO_PHASE,
+									NULL);
+	}
 }
 
 /*
@@ -2985,8 +2992,10 @@ ApplyExtensionUpdates(AlterExtensionStmt *stmt, Oid extensionOid,
 
 		/*
 		 * Finally, execute the update script file
+		 * Only execute SQL script on QD.
 		 */
-		execute_extension_script(NULL, extensionOid, control,
+		if (Gp_role == GP_ROLE_DISPATCH)
+			execute_extension_script(NULL, extensionOid, control,
 								 oldVersionName, versionName,
 								 requiredSchemas,
 								 schemaName, schemaOid);
@@ -3104,6 +3113,13 @@ ExecAlterExtensionContentsStmt(AlterExtensionContentsStmt *stmt)
 	 */
 	if (relation != NULL)
 		relation_close(relation, NoLock);
+
+	if (Gp_role == GP_ROLE_DISPATCH)
+	{
+		CdbDispatchUtilityStatement((Node *) stmt,
+									DF_WITH_SNAPSHOT | DF_CANCEL_ON_ERROR | DF_NEED_TWO_PHASE,
+									NULL);
+	}
 }
 
 /*

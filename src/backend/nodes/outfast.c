@@ -1981,6 +1981,12 @@ _outNode(StringInfo str, void *obj)
 			case T_AlterTypeStmt:
 				_outAlterTypeStmt(str, obj);
 				break;
+			case T_AlterExtensionStmt:
+				_outAlterExtensionStmt(str, obj);
+				break;
+			case T_AlterExtensionContentsStmt:
+				_outAlterExtensionContentsStmt(str, obj);
+				break;
 			case T_TupleDescNode:
 				_outTupleDescNode(str, obj);
 				break;
