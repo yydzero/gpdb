@@ -900,7 +900,7 @@ execute_extension_script(CreateExtensionStmt *stmt,
 		 * Restore the GUC variables we set above.
 		 */
 		AtEOXact_GUC(true, save_nestlevel);
-		if (Gp_role == GP_ROLE_DISPATCH)
+		if (Gp_role == GP_ROLE_DISPATCH && stmt != NULL)
 		{
 			/* We must reset QE CurrentExtensionObject to InvalidOid */
 			stmt->create_ext_state = CREATE_EXTENSION_END;
