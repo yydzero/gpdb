@@ -181,9 +181,14 @@ recordDependencyOnCurrentExtension(const ObjectAddress *object,
  * This is used when redefining an existing object.  Links leading to the
  * object do not change, and links leading from it will be recreated
  * (possibly with some differences from before).
+ *
+ * If skipExtensionDeps is true, we do not delete any dependencies that
+ * show that the given object is a member of an extension.  This avoids
+ * needing a lot of extra logic to fetch and recreate that dependency.
  */
 long
-deleteDependencyRecordsFor(Oid classId, Oid objectId)
+deleteDependencyRecordsFor(Oid classId, Oid objectId,
+						   bool skipExtensionDeps)
 {
 	long		count = 0;
 	Relation	depRel;
@@ -207,6 +212,10 @@ deleteDependencyRecordsFor(Oid classId, Oid objectId)
 
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
 	{
+		if (skipExtensionDeps &&
+			((Form_pg_depend) GETSTRUCT(tup))->deptype == DEPENDENCY_EXTENSION)
+			continue;
+
 		simple_heap_delete(depRel, &tup->t_self);
 		count++;
 	}

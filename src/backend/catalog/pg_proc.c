@@ -571,7 +571,7 @@ ProcedureCreate(const char *procedureName,
 	 */
 	if (is_update)
 	{
-		deleteDependencyRecordsFor(ProcedureRelationId, retval);
+		deleteDependencyRecordsFor(ProcedureRelationId, retval, true);
 		deleteProcCallbacks(retval);
 	}
 
