@@ -1152,7 +1152,7 @@ checkExtensionMembership(DumpableObject *dobj)
 	/* Record dependency so that getDependencies needn't deal with that */
 	addObjectDependency(dobj, ext->dobj.dumpId);
 
-	dobj->dump = ext->dobj.dump;
+	dobj->dump = false;
 
 	return true;
 }
@@ -1197,6 +1197,9 @@ expand_oid_patterns(SimpleStringList *patterns, SimpleOidList *oids)
 static void
 selectDumpableNamespace(NamespaceInfo *nsinfo)
 {
+	if (checkExtensionMembership(&nsinfo->dobj))
+		return;					/* extension membership overrides all else */
+
 	/*
 	 * If specific tables are being dumped, do not dump any complete
 	 * namespaces. If specific namespaces are being dumped, dump just those
@@ -1230,6 +1233,9 @@ selectDumpableNamespace(NamespaceInfo *nsinfo)
 static void
 selectDumpableTable(TableInfo *tbinfo)
 {
+	if (checkExtensionMembership(&tbinfo->dobj))
+		return;					/* extension membership overrides all else */
+
 	/*
 	 * If specific tables are being dumped, dump just those tables; else, dump
 	 * according to the parent namespace's dump flag.
@@ -1263,26 +1269,26 @@ selectDumpableTable(TableInfo *tbinfo)
  * object (the table or base type).
  */
 static void
-selectDumpableType(TypeInfo *tinfo)
+selectDumpableType(TypeInfo *tyinfo)
 {
 	/* skip complex types, except for standalone composite types */
-	if (OidIsValid(tinfo->typrelid) &&
-		tinfo->typrelkind != RELKIND_COMPOSITE_TYPE)
+	if (OidIsValid(tyinfo->typrelid) &&
+			tyinfo->typrelkind != RELKIND_COMPOSITE_TYPE)
 	{
-		TableInfo  *tytable = findTableByOid(tinfo->typrelid);
+		TableInfo  *tytable = findTableByOid(tyinfo->typrelid);
 
-		tinfo->dobj.objType = DO_DUMMY_TYPE;
+		tyinfo->dobj.objType = DO_DUMMY_TYPE;
 		if (tytable != NULL)
-			tinfo->dobj.dump = tytable->dobj.dump;
+			tyinfo->dobj.dump = tytable->dobj.dump;
 		else
-			tinfo->dobj.dump = false;
+			tyinfo->dobj.dump = false;
 		return;
 	}
 
 	/* skip auto-generated array types */
-	if (tinfo->isArray)
+	if (tyinfo->isArray)
 	{
-		tinfo->dobj.objType = DO_DUMMY_TYPE;
+		tyinfo->dobj.objType = DO_DUMMY_TYPE;
 		/*
 		 * Fall through to set the dump flag; we assume that the subsequent
 		 * rules will do the same thing as they would for the array's base
@@ -1291,20 +1297,23 @@ selectDumpableType(TypeInfo *tinfo)
 		 */
 	}
 
+	if (checkExtensionMembership(&tyinfo->dobj))
+		return;					/* extension membership overrides all else */
+
 	/* dump only types in dumpable namespaces */
-	if (!tinfo->dobj.namespace->dobj.dump)
-		tinfo->dobj.dump = false;
+	if (!tyinfo->dobj.namespace->dobj.dump)
+		tyinfo->dobj.dump = false;
 
 	/* skip undefined placeholder types */
-	else if (!tinfo->isDefined)
-		tinfo->dobj.dump = false;
+	else if (!tyinfo->isDefined)
+		tyinfo->dobj.dump = false;
 
 	/* skip auto-generated array types */
-	else if (tinfo->isArray)
-		tinfo->dobj.dump = false;
+	else if (tyinfo->isArray)
+		tyinfo->dobj.dump = false;
 
 	else
-		tinfo->dobj.dump = true;
+		tyinfo->dobj.dump = true;
 }
 
 
@@ -1348,13 +1357,6 @@ selectDumpableProcLang(ProcLangInfo *plang)
 	else
 		plang->dobj.dump = include_everything;
 }
-
-/*
- * selectDumpableObject: policy-setting subroutine
- *		Mark a generic dumpable object as to be dumped or not
- *
- * Use this only for object types without a special-case routine above.
- */
 
 /*
  * selectDumpableFunction: policy-setting subroutine
@@ -3200,6 +3202,7 @@ getFuncs(int *numFuncs)
 
 		/* Decide whether we want to dump it */
 		selectDumpableFunction(&finfo[i]);
+		selectDumpableObject(&(finfo[i].dobj));
 
 		if (strlen(finfo[i].rolname) == 0)
 			write_msg(NULL,
@@ -6323,7 +6326,8 @@ dumpProcLang(Archive *fout, ProcLangInfo *plang)
 	FuncInfo   *inlineInfo = NULL;
 	FuncInfo   *validatorInfo = NULL;
 
-	if (dataOnly)
+	/* Skip if not to be dumped */
+	if (!plang->dobj.dump || dataOnly)
 		return;
 
 	/*
@@ -7199,7 +7203,8 @@ dumpCast(Archive *fout, CastInfo *cast)
 	TypeInfo   *sourceInfo;
 	TypeInfo   *targetInfo;
 
-	if (dataOnly)
+	/* Skip if not to be dumped */
+	if (!cast->dobj.dump || dataOnly)
 		return;
 
 	if (OidIsValid(cast->castfunc))
@@ -10759,11 +10764,11 @@ getExtensionMembership(ExtensionInfo extinfo[], int numExtensions)
 	PQExpBuffer query;
 	PGresult   *res;
 	int			ntups,
-			nextmembers,
-			i;
+				nextmembers,
+				i;
 	int			i_classid,
-			i_objid,
-			i_refobjid;
+				i_objid,
+				i_refobjid;
 	ExtensionMemberId *extmembers;
 	ExtensionInfo *ext;
 
@@ -10867,9 +10872,9 @@ processExtensionTables(ExtensionInfo extinfo[], int numExtensions)
 	PQExpBuffer query;
 	PGresult   *res;
 	int			ntups,
-			i;
+				i;
 	int			i_conrelid,
-			i_confrelid;
+				i_confrelid;
 
 	/* Nothing to do if no extensions */
 	if (numExtensions == 0)
@@ -11073,7 +11078,7 @@ getDependencies(void)
 	appendPQExpBuffer(query, "SELECT "
 					  "classid, objid, refclassid, refobjid, deptype "
 					  "FROM pg_depend "
-					  "WHERE deptype != 'p' "
+					  "WHERE deptype != 'p' AND deptype != 'e' "
 					  "ORDER BY 1,2");
 
 	res = PQexec(g_conn, query->data);

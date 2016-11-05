@@ -3304,7 +3304,7 @@ dumpProcLang(Archive *fout, ProcLangInfo *plang)
 	FuncInfo   *inlineInfo = NULL;
 	FuncInfo   *validatorInfo = NULL;
 
-	if (dataOnly)
+	if (!plang->dobj.dump ||dataOnly)
 		return;
 
 	/*
@@ -4090,7 +4090,7 @@ dumpCast(Archive *fout, CastInfo *cast)
 	TypeInfo   *sourceInfo;
 	TypeInfo   *targetInfo;
 
-	if (dataOnly)
+	if (!cast->dobj.dump || dataOnly)
 		return;
 
 	if (OidIsValid(cast->castfunc))
@@ -7714,7 +7714,7 @@ getDependencies(void)
 	appendPQExpBuffer(query, "SELECT "
 					  "classid, objid, refclassid, refobjid, deptype "
 					  "FROM pg_depend "
-					  "WHERE deptype != 'p' "
+					  "WHERE deptype != 'p' AND deptype != 'e' "
 					  "ORDER BY 1,2");
 
 	res = PQexec(g_conn, query->data);

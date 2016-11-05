@@ -48,25 +48,19 @@ static int	numCatalogIds = 0;
  * arrays themselves would be simpler, but it doesn't work because pg_dump.c
  * may have already established pointers between items.)
  */
-static TableInfo *tblinfo;
-static TypeInfo *typinfo;
-static TypeStorageOptions *typestorageoptions;
-static FuncInfo *funinfo;
-static OprInfo *oprinfo;
-static NamespaceInfo *nspinfo;
-static int	numTables;
-static int	numTypes;
-static int  numTypeStorageOptions;
-static int	numFuncs;
-static int	numOperators;
-static int	numNamespaces;
-static int	numExtensions;
 static DumpableObject **tblinfoindex;
 static DumpableObject **typinfoindex;
 static DumpableObject **funinfoindex;
 static DumpableObject **oprinfoindex;
 static DumpableObject **nspinfoindex;
 static DumpableObject **extinfoindex;
+static int	numTables;
+static int	numTypes;
+static int	numFuncs;
+static int	numOperators;
+static int	numNamespaces;
+static int	numExtensions;
+static int  numTypeStorageOptions;
 
 /* This is an array of object identities, not actual DumpableObjects */
 static ExtensionMemberId *extmembers;
@@ -96,26 +90,18 @@ void		reset(void);
 TableInfo *
 getSchemaData(int *numTablesPtr, int g_role)
 {
-	AggInfo    *agginfo;
-	InhInfo    *inhinfo;
-	RuleInfo   *ruleinfo;
-	ProcLangInfo *proclanginfo;
-	CastInfo   *castinfo;
+	TableInfo  *tblinfo;
+	TypeInfo   *typinfo;
+	FuncInfo   *funinfo;
+	OprInfo    *oprinfo;
+	NamespaceInfo *nspinfo;
 	ExtensionInfo *extinfo;
-	OpclassInfo *opcinfo;
-	OpfamilyInfo *opfinfo;
-	ConvInfo   *convinfo;
-	ExtProtInfo *ptcinfo;
-	TSParserInfo *prsinfo;
-	TSTemplateInfo *tmplinfo;
-	TSDictInfo *dictinfo;
-	TSConfigInfo *cfginfo;
+	InhInfo    *inhinfo;
 	int			numAggregates;
 	int			numInherits;
 	int			numRules;
 	int			numProcLangs;
 	int			numCasts;
-	int         numExtensions;
 	int			numOpclasses;
 	int			numOpfamilies;
 	int			numConversions;
@@ -175,16 +161,16 @@ getSchemaData(int *numTablesPtr, int g_role)
 		/* this must be after getFuncs */
 		if (is_gpdump || g_verbose)
 			status_log_msg(LOGGER_INFO, progname, "reading type storage options\n");
-		typestorageoptions = getTypeStorageOptions(&numTypeStorageOptions);
+		getTypeStorageOptions(&numTypeStorageOptions);
 
 		/* this must be after getFuncs, too */
 		if (is_gpdump || g_verbose)
 			status_log_msg(LOGGER_INFO, progname, "reading procedural languages\n");
-		proclanginfo = getProcLangs(&numProcLangs);
+		getProcLangs(&numProcLangs);
 
 		if (is_gpdump || g_verbose)
 			status_log_msg(LOGGER_INFO, progname, "reading user-defined aggregate functions\n");
-		agginfo = getAggregates(&numAggregates);
+		getAggregates(&numAggregates);
 
 		if (is_gpdump || g_verbose)
 			status_log_msg(LOGGER_INFO, progname, "reading user-defined operators\n");
@@ -195,54 +181,54 @@ getSchemaData(int *numTablesPtr, int g_role)
 		{
 			if (is_gpdump || g_verbose)
 				status_log_msg(LOGGER_INFO, progname, "reading user-defined external protocols\n");
-			ptcinfo = getExtProtocols(&numExtProtocols);
+			getExtProtocols(&numExtProtocols);
 		}
 
 		if (is_gpdump || g_verbose)
 			status_log_msg(LOGGER_INFO, progname, "reading user-defined operator classes\n");
-		opcinfo = getOpclasses(&numOpclasses);
-
-		if (is_gpdump || g_verbose)
-			write_msg(NULL, "reading user-defined text search parsers\n");
-		prsinfo = getTSParsers(&numTSParsers);
-
-		if (is_gpdump || g_verbose)
-			write_msg(NULL, "reading user-defined text search templates\n");
-		tmplinfo = getTSTemplates(&numTSTemplates);
-
-		if (is_gpdump || g_verbose)
-			write_msg(NULL, "reading user-defined text search dictionaries\n");
-		dictinfo = getTSDictionaries(&numTSDicts);
-
-		if (is_gpdump || g_verbose)
-			write_msg(NULL, "reading user-defined text search configurations\n");
-		cfginfo = getTSConfigurations(&numTSConfigs);
+		getOpclasses(&numOpclasses);
 
 		if (is_gpdump || g_verbose)
 			status_log_msg(LOGGER_INFO, progname, "reading user-defined operator families\n");
-		opfinfo = getOpfamilies(&numOpfamilies);
+		getOpfamilies(&numOpfamilies);
+
+		if (is_gpdump || g_verbose)
+			write_msg(NULL, "reading user-defined text search parsers\n");
+		getTSParsers(&numTSParsers);
+
+		if (is_gpdump || g_verbose)
+			write_msg(NULL, "reading user-defined text search templates\n");
+		getTSTemplates(&numTSTemplates);
+
+		if (is_gpdump || g_verbose)
+			write_msg(NULL, "reading user-defined text search dictionaries\n");
+		getTSDictionaries(&numTSDicts);
+
+		if (is_gpdump || g_verbose)
+			write_msg(NULL, "reading user-defined text search configurations\n");
+		getTSConfigurations(&numTSConfigs);
 
 		if (is_gpdump || g_verbose)
 			status_log_msg(LOGGER_INFO, progname, "reading user-defined conversions\n");
-		convinfo = getConversions(&numConversions);
+		getConversions(&numConversions);
 	}
+
+	if (is_gpdump || g_verbose)
+		status_log_msg(LOGGER_INFO, progname, "reading type casts\n");
+	getCasts(&numCasts);
 
 	if (is_gpdump || g_verbose)
 		status_log_msg(LOGGER_INFO, progname, "reading table inheritance information\n");
 	inhinfo = getInherits(&numInherits);
 
+	/* Identify extension configuration tables that should be dumped */
+	if (g_verbose)
+		write_msg(NULL, "finding extension tables\n");
+	processExtensionTables(extinfo, numExtensions);
+
 	if (is_gpdump || g_verbose)
 		status_log_msg(LOGGER_INFO, progname, "reading rewrite rules\n");
-	ruleinfo = getRules(&numRules);
-
-	if (is_gpdump || g_verbose)
-		status_log_msg(LOGGER_INFO, progname, "reading type casts\n");
-	castinfo = getCasts(&numCasts);
-
-	/* this must be after getTables */
-	if (g_verbose)
-		write_msg(NULL, "reading extensions\n");
-	extinfo = getExtensions(&numExtensions);
+	getRules(&numRules);
 
 	/* Link tables to parents, mark parents of target tables interesting */
 	if (is_gpdump || g_verbose)
