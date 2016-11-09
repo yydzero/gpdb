@@ -34,6 +34,7 @@
 #include "catalog/indexing.h"
 #include "catalog/namespace.h"
 #include "catalog/objectaccess.h"
+#include "catalog/oid_dispatch.h"
 #include "catalog/pg_depend.h"
 #include "catalog/pg_extension.h"
 #include "catalog/pg_namespace.h"
@@ -906,6 +907,7 @@ execute_extension_script(CreateExtensionStmt *stmt,
 			stmt->create_ext_state = CREATE_EXTENSION_END;
 			CdbDispatchUtilityStatement((Node *) stmt,
 										DF_WITH_SNAPSHOT | DF_CANCEL_ON_ERROR | DF_NEED_TWO_PHASE,
+										GetAssignedOidsForDispatch(),
 										NULL);
 		}
 		PG_RE_THROW();
@@ -925,6 +927,7 @@ execute_extension_script(CreateExtensionStmt *stmt,
 		stmt->create_ext_state = CREATE_EXTENSION_END;
 		CdbDispatchUtilityStatement((Node *) stmt,
 									DF_WITH_SNAPSHOT | DF_CANCEL_ON_ERROR | DF_NEED_TWO_PHASE,
+									GetAssignedOidsForDispatch(),
 									NULL);
 	}
 }
@@ -1505,8 +1508,7 @@ CreateExtension(CreateExtensionStmt *stmt)
 										versionName,
 										PointerGetDatum(NULL),
 										PointerGetDatum(NULL),
-										requiredExtensions,
-										stmt->newOid);
+										requiredExtensions);
 
 	/*
 	 * Apply any control-file comment on extension
@@ -1518,9 +1520,9 @@ CreateExtension(CreateExtensionStmt *stmt)
 	{
 		/* We must tell QE to create extension */
 		stmt->create_ext_state = CREATE_EXTENSION_BEGIN;
-		stmt->newOid = extensionOid;
 		CdbDispatchUtilityStatement((Node *) stmt,
 									DF_WITH_SNAPSHOT | DF_CANCEL_ON_ERROR | DF_NEED_TWO_PHASE,
+									GetAssignedOidsForDispatch(),
 									NULL);
 	}
 	else
@@ -1559,7 +1561,7 @@ Oid
 InsertExtensionTuple(const char *extName, Oid extOwner,
 					 Oid schemaOid, bool relocatable, const char *extVersion,
 					 Datum extConfig, Datum extCondition,
-					 List *requiredExtensions, Oid newOid)
+					 List *requiredExtensions)
 {
 	Oid			extensionOid;
 	Relation	rel;
@@ -1596,9 +1598,6 @@ InsertExtensionTuple(const char *extName, Oid extOwner,
 		values[Anum_pg_extension_extcondition - 1] = extCondition;
 
 	tuple = heap_form_tuple(rel->rd_att, values, nulls);
-
-	if (newOid != InvalidOid)
-		HeapTupleSetOid(tuple, newOid);
 
 	extensionOid = simple_heap_insert(rel, tuple);
 	CatalogUpdateIndexes(rel, tuple);
@@ -2846,6 +2845,7 @@ ExecAlterExtensionStmt(AlterExtensionStmt *stmt)
 	{
 		CdbDispatchUtilityStatement((Node *) stmt,
 									DF_WITH_SNAPSHOT | DF_CANCEL_ON_ERROR | DF_NEED_TWO_PHASE,
+									GetAssignedOidsForDispatch(),
 									NULL);
 	}
 }
@@ -3118,6 +3118,7 @@ ExecAlterExtensionContentsStmt(AlterExtensionContentsStmt *stmt)
 	{
 		CdbDispatchUtilityStatement((Node *) stmt,
 									DF_WITH_SNAPSHOT | DF_CANCEL_ON_ERROR | DF_NEED_TWO_PHASE,
+									GetAssignedOidsForDispatch(),
 									NULL);
 	}
 }

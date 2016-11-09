@@ -1144,7 +1144,6 @@ typedef struct CreateExtensionStmt
 	bool		if_not_exists;	/* just do nothing if it already exists? */
 	List	   *options;		/* List of DefElem nodes */
 	CreateExtensionState create_ext_state;		/* create extension state */
-	Oid			newOid;			/* the new Oid of the object */
 } CreateExtensionStmt;
 
 /* Only used for ALTER EXTENSION UPDATE; later might need an action field */
