@@ -144,7 +144,7 @@ typedef enum ObjectClass
 	OCLASS_FILESPACE,           /* pg_filespace */
 	OCLASS_EXTPROTOCOL,			/* pg_extprotocol */
 	OCLASS_COMPRESSION,			/* pg_compression */
-	OCLASS_EXTENSION,           /* pg_extension */
+	OCLASS_EXTENSION,			/* pg_extension */
 	MAX_OCLASS					/* MUST BE LAST */
 } ObjectClass;
 

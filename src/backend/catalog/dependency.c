@@ -125,7 +125,7 @@ static const Oid object_classes[MAX_OCLASS] = {
 	FileSpaceRelationId,		/* OCLASS_FILESPACE */
 	ExtprotocolRelationId,		/* OCLASS_EXTPROTOCOL */
 	CompressionRelationId,		/* OCLASS_COMPRESSION */
-	ExtensionRelationId         /* OCLASS_EXTENSION */
+	ExtensionRelationId			/* OCLASS_EXTENSION */
 };
 
 
