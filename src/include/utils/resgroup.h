@@ -1,17 +1,16 @@
 /*-------------------------------------------------------------------------
  *
  * resgroup.h
- *	  GPDB resource group definitions.
+ *	  Greenplum database resource group definitions.
  *
- *
- * Copyright (c) 2006-2017, Greenplum inc.
+ * Copyright (c) 2016-Present Pivotal Software, Inc
  *
  *-------------------------------------------------------------------------
  */
 #ifndef RES_GROUP_H
 #define RES_GROUP_H
 
-#include "cdb/memquota.h"
+// #include "cdb/memquota.h"           // Do we really need this?
 #include "catalog/pg_resgroup.h"
 
 /*
@@ -33,7 +32,7 @@ typedef struct ResGroupCap
  */
 typedef struct ResGroupCaps
 {
-	ResGroupCap		__unknown;
+	ResGroupCap		__unknown;			// Why do we need a unknown field? A good place for comment
 	ResGroupCap		concurrency;
 	ResGroupCap		cpuRateLimit;
 	ResGroupCap		memLimit;
@@ -66,13 +65,13 @@ extern char                		*gp_resgroup_memory_policy_str;
 extern bool						gp_log_resgroup_memory;
 extern int						gp_resgroup_memory_policy_auto_fixed_mem;
 extern bool						gp_resgroup_print_operator_memory_limits;
-extern int						memory_spill_ratio;
+extern int						memory_spill_ratio;			// Do we want to use same prefix 'gp_resgroup_'?
 
-extern int MaxResourceGroups;
+extern int MaxResourceGroups;		// by default it is 9?? too small?
 extern double gp_resource_group_cpu_limit;
 extern double gp_resource_group_memory_limit;
 
-struct ResGroupConfigSnapshot;
+struct ResGroupConfigSnapshot;		// Who is using this guy?
 
 /* Type of statistic infomation */
 typedef enum
@@ -91,6 +90,8 @@ typedef enum
 /*
  * Functions in resgroup.c
  */
+
+// For pulbic methods, strongly suggest to add comment for each function, similar as dispatcher functions.
 
 /* Shared memory and semaphores */
 extern Size ResGroupShmemSize(void);
@@ -114,6 +115,7 @@ extern void SwitchResGroupOnSegment(const char *buf, int len);
 /* Retrieve statistic information of type from resource group */
 extern Datum ResGroupGetStat(Oid groupId, ResGroupStatType type);
 
+// There is no implementation for those functions?!
 extern int32 ResGroupCalcMemStocksExpected(const ResGroupCaps *caps);
 extern int32 ResGroupCalcMemQuotaStocks(const ResGroupCaps *caps);
 extern int32 ResGroupCalcMemSharedStocks(const ResGroupCaps *caps);
@@ -133,7 +135,7 @@ extern void ResGroupAlterOnCommit(Oid groupId,
 								  const ResGroupCaps *caps);
 extern void ResGroupDropCheckForWakeup(Oid groupId, bool isCommit);
 extern void ResGroupCheckForDrop(Oid groupId, char *name);
-extern int32 ResGroupAllocStocks(Oid groupId, int32 stocks);
+extern int32 ResGroupAllocStocks(Oid groupId, int32 stocks);        // No implementation ?!
 extern void ResGroupFreeStocks(Oid groupId, int32 stocks);
 extern void ResGroupDecideMemoryCaps(int groupId,
 									 ResGroupCaps *caps,

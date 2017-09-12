@@ -1,10 +1,10 @@
 /*-------------------------------------------------------------------------
  *
  * resource_manager.c
- *	  GPDB resource manager code.
+ *	  Greenplum database resource manager code.
  *
  *
- * Copyright (c) 2006-2017, Greenplum inc.
+ * Copyright (c) 2006-Present Pivotal Software, Inc
  *
  *
  -------------------------------------------------------------------------

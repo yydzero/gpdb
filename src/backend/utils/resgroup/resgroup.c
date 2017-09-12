@@ -1,10 +1,10 @@
 /*-------------------------------------------------------------------------
  *
  * resgroup.c
- *	  GPDB resource group management code.
+ *	  Greenplum database resource group management code.
  *
  *
- * Copyright (c) 2006-2017, Greenplum inc.
+ * Copyright (c) 2016-Present Pivotal Software, Inc
  *
  *
  *-------------------------------------------------------------------------
@@ -51,7 +51,8 @@ ResManagerMemoryPolicy     	gp_resgroup_memory_policy = RESMANAGER_MEMORY_POLICY
 bool						gp_log_resgroup_memory = false;
 int							gp_resgroup_memory_policy_auto_fixed_mem;
 bool						gp_resgroup_print_operator_memory_limits = false;
-int							memory_spill_ratio=20;
+int							memory_spill_ratio = 20;
+
 /*
  * Data structures
  */
@@ -106,7 +107,7 @@ typedef struct ResGroupData
 	Oid			groupId;		/* Id for this group */
 	ResGroupCaps	caps;
 	int			nRunning;		/* number of running trans */
-	PROC_QUEUE	waitProcs;
+	PROC_QUEUE	waitProcs;		// A better name?
 	int			totalExecuted;	/* total number of executed trans */
 	int			totalQueued;	/* total number of queued trans	*/
 	Interval	totalQueuedTime;/* total queue time */
@@ -133,19 +134,19 @@ typedef struct ResGroupData
 typedef struct ResGroupControl
 {
 	HTAB			*htbl;
-	int 			segmentsOnMaster;
+	int 			segmentsOnMaster;	// What is this guy?
 
 	/*
 	 * The hash table for resource groups in shared memory should only be populated
-	 * once, so we add a flag here to implement this requirement.
+	 * once, so we add a flag here to implement this requirement.	// ???
 	 */
 	bool			loaded;
 
-	int32			totalChunks;	/* total memory chuncks on this segment */
+	int32			totalChunks;	/* total memory chuncks on this segment */	// What is chunks? A readme in resgroup directory is needed.
 	int32			freeChunks;		/* memory chuncks not allocated to any group */
 
 	int				nGroups;
-	ResGroupData	groups[1];
+	ResGroupData	groups[1];		// Why the length is 1?? Good place for comment?
 } ResGroupControl;
 
 /* GUC */
@@ -163,12 +164,14 @@ static ResGroupProcData _MyResGroupProcInfo =
 };
 static ResGroupProcData *MyResGroupProcInfo = &_MyResGroupProcInfo;
 
-static bool localResWaiting = false;
+static bool localResWaiting = false;		// Add some comments?
 
 /* static functions */
 
+// What is our criteria to use Capital function name and others??
+
 static bool groupApplyMemCaps(ResGroupData *group, const ResGroupCaps *caps);
-static int32 getChunksFromPool(Oid groupId, int32 chunks);
+static int32 getChunksFromPool(Oid groupId, int32 chunks);		// What is chunks, what is pool, what is slots? good info for README.md
 static void returnChunksToPool(Oid groupId, int32 chunks);
 static void groupAssginChunks(ResGroupData *group,
 							  int32 chunks,
@@ -212,8 +215,7 @@ static void ResGroupSetMemorySpillRatio(const ResGroupCaps *caps);
 static void ResGroupCheckMemorySpillRatio(const ResGroupCaps *caps);
 
 /*
- * Estimate size the resource group structures will need in
- * shared memory.
+ * Estimate size in shared memory resource group structures need.
  */
 Size
 ResGroupShmemSize(void)
@@ -226,7 +228,7 @@ ResGroupShmemSize(void)
 	/* The control structure. */
 	size = add_size(size, sizeof(ResGroupControl) - sizeof(ResGroupData));
 
-	/* The control structure. */
+	/* The control structure. */		// is this accurate ?
 	size = add_size(size, mul_size(MaxResourceGroups, sizeof(ResGroupData)));
 
 	/* Add a safety margin */
@@ -310,9 +312,9 @@ AllocResGroupEntry(Oid groupId, const ResGroupOpts *opts)
 	group = ResGroupCreate(groupId, &caps);
 	if (!group)
 	{
-		LWLockRelease(ResGroupLock);
+		LWLockRelease(ResGroupLock);		// Could we remove this safely?
 
-		ereport(PANIC,
+		ereport(PANIC,     // Do we need to panic here?
 				(errcode(ERRCODE_OUT_OF_MEMORY),
 				errmsg("not enough shared memory for resource groups")));
 	}
@@ -987,11 +989,11 @@ ResGroupCreate(Oid groupId, const ResGroupCaps *caps)
 
 	group = ResGroupHashNew(groupId);
 	if (group == NULL)
-		return NULL;
+		return NULL;			// How about ereport(ERROR here?
 
 	group->groupId = groupId;
 	group->caps = *caps;
-	group->nRunning = 0;
+	group->nRunning = 0;		// How about memset(group, 0, ...), then set non-zero value after?
 	ProcQueueInit(&group->waitProcs);
 	group->totalExecuted = 0;
 	group->totalQueued = 0;
@@ -1249,7 +1251,7 @@ ResGroupSlotAcquire(void)
 	Assert(MyResGroupProcInfo->groupId == InvalidOid);
 
 	groupId = GetResGroupIdForRole(GetUserId());
-	if (groupId == InvalidOid)
+	if (groupId == InvalidOid)		// below 2 lines move to GetResGroupIdForRole()?
 		groupId = superuser() ? ADMINRESGROUP_OID : DEFAULTRESGROUP_OID;
 
 retry:
@@ -1279,7 +1281,7 @@ retry:
 	if (group->lockedForDrop)
 	{
 		Assert(group->nRunning == 0);
-		ResGroupWait(group, true);
+		ResGroupWait(group, true);			// What are we waiting for now? on proc->procLatch
 
 		/* retry if the drop resource group transaction is finished */
 		retried = true;
@@ -1523,6 +1525,8 @@ getSegmentChunks(void)
 
 	return ResGroupOps_GetTotalMemory() * gp_resource_group_memory_limit / nsegments;
 }
+
+/* the memory allocation algorithm should be documented either in code or README */
 
 /*
  * Get total expected memory quota of a group in chunks
@@ -2175,20 +2179,20 @@ ResGroupHashNew(Oid groupId)
 	Assert(LWLockHeldExclusiveByMe(ResGroupLock));
 
 	if (groupId == InvalidOid)
-		return NULL;
+		return NULL;		// How about ereport(ERROR ...
 
 	for (i = 0; i < pResGroupControl->nGroups; i++)
 	{
 		if (pResGroupControl->groups[i].groupId == InvalidOid)
 			break;
 	}
-	Assert(i < pResGroupControl->nGroups);
+	Assert(i < pResGroupControl->nGroups);		// What is the purpose of this assert? in product code, what happens if break?
 
 	entry = (ResGroupHashEntry *)
 		hash_search(pResGroupControl->htbl, (void *) &groupId, HASH_ENTER_NULL, &found);
 	/* caller should test that the group does not exist already */
 	Assert(!found);
-	entry->index = i;
+	entry->index = i;		// How about if entry is NULL?
 
 	return &pResGroupControl->groups[i];
 }
@@ -2263,7 +2267,7 @@ AtProcExit_ResGroup(int code, Datum arg)
  * The proc may wait on the queue for a slot, or wait for the
  * DROP transaction to finish. In the first case, at the same time
  * we get interrupted (SIGINT or SIGTERM), we could have been
- * grantted a slot or not. In the second case, there's no running
+ * granted a slot or not. In the second case, there's no running
  * transaction in the group. If the DROP transaction is finished
  * (commit or abort) at the same time as we get interrupted,
  * MyProc should have been removed from the wait queue, and the
@@ -2368,10 +2372,10 @@ ResGroupGetMemInfo(int *memLimit, int *slotQuota, int *sharedQuota)
  * Convert ResGroupOpts to ResGroupCaps
  */
 void
-ResGroupOptsToCaps(const ResGroupOpts *optsIn, ResGroupCaps *capsOut)
+ResGroupOptsToCaps(const ResGroupOpts *optsIn, ResGroupCaps *capsOut)		// When to use const?
 {
 	int i;
-	ResGroupCap		*caps = (ResGroupCap *) capsOut;
+	ResGroupCap		*caps = (ResGroupCap *) capsOut;		// Why those explicit cast?
 	const int32		*opts = (int32 *) optsIn;
 
 	for (i = 0; i < RESGROUP_LIMIT_TYPE_COUNT; i++)

@@ -3,7 +3,7 @@
  * resgroupcmds.c
  *	  Commands for manipulating resource group.
  *
- * Copyright (c) 2006-2017, Greenplum inc.
+ * Copyright (c) 2016-Present Pivotal Software, Inc
  *
  * IDENTIFICATION
  *    src/backend/commands/resgroupcmds.c
@@ -762,7 +762,7 @@ GetResGroupIdForRole(Oid roleid)
 
 	/*
 	 * to cave the code of cache part, we provide a resource owner here if no
-	 * existing
+	 * existing   // what does this means?
 	 */
 	if (CurrentResourceOwner == NULL)
 	{
@@ -770,6 +770,8 @@ GetResGroupIdForRole(Oid roleid)
 		CurrentResourceOwner = owner;
 	}
 
+	// Could we use syscache here?
+	// HeapTuple tuple = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
 	rel = heap_open(AuthIdRelationId, AccessShareLock);
 
 	ScanKeyInit(&key,
@@ -811,7 +813,7 @@ GetResGroupIdForRole(Oid roleid)
 
 	if (owner)
 	{
-		CurrentResourceOwner = NULL;
+		CurrentResourceOwner = NULL;		// Why do we want to create and then delete resource owner?
 		ResourceOwnerDelete(owner);
 	}
 
