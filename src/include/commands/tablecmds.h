@@ -4,7 +4,7 @@
  *	  prototypes for tablecmds.c.
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/commands/tablecmds.h
@@ -21,6 +21,8 @@
 #include "executor/tuptable.h"
 #include "nodes/execnodes.h"
 #include "access/htup.h"
+#include "catalog/dependency.h"
+#include "catalog/objectaddress.h"
 #include "nodes/parsenodes.h"
 #include "nodes/relation.h"
 #include "parser/parse_node.h"
@@ -45,6 +47,7 @@ typedef struct NewConstraint
 	List	   *qualstate;		/* Execution state for CHECK */
 } NewConstraint;
 
+<<<<<<< HEAD
 extern const char *synthetic_sql;
 
 extern Oid	DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId, char relstorage, bool dispatch);
@@ -54,6 +57,10 @@ extern void	DefineExternalRelation(CreateExternalStmt *stmt);
 extern void	DefinePartitionedRelation(CreateStmt *stmt, Oid reloid);
 
 extern void EvaluateDeferredStatements(List *deferredStmts);
+=======
+extern ObjectAddress DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
+			   ObjectAddress *typaddress);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 extern void RemoveRelations(DropStmt *drop);
 
@@ -69,7 +76,13 @@ extern void ATExecChangeOwner(Oid relationOid, Oid newOwnerId, bool recursing, L
 
 extern void AlterTableInternal(Oid relid, List *cmds, bool recurse);
 
-extern void AlterTableNamespace(AlterObjectSchemaStmt *stmt);
+extern Oid	AlterTableMoveAll(AlterTableMoveAllStmt *stmt);
+
+extern ObjectAddress AlterTableNamespace(AlterObjectSchemaStmt *stmt,
+					Oid *oldschema);
+
+extern void AlterTableNamespaceInternal(Relation rel, Oid oldNspOid,
+							Oid nspOid, ObjectAddresses *objsMoved);
 
 extern void AlterTableNamespaceInternal(Relation rel, Oid oldNspOid,
 							Oid nspOid, ObjectAddresses *objsMoved);
@@ -85,14 +98,16 @@ extern void ExecuteTruncate(TruncateStmt *stmt);
 
 extern void SetRelationHasSubclass(Oid relationId, bool relhassubclass);
 
-extern void renameatt(RenameStmt *stmt);
+extern ObjectAddress renameatt(RenameStmt *stmt);
 
-extern void RenameConstraint(RenameStmt *stmt);
+extern ObjectAddress renameatt_type(RenameStmt *stmt);
 
-extern void RenameRelation(RenameStmt *stmt);
+extern ObjectAddress RenameConstraint(RenameStmt *stmt);
+
+extern ObjectAddress RenameRelation(RenameStmt *stmt);
 
 extern void RenameRelationInternal(Oid myrelid,
-					   const char *newrelname);
+					   const char *newrelname, bool is_internal);
 
 extern void find_composite_type_dependencies(Oid typeOid,
 								 Relation origRelation,
@@ -126,4 +141,6 @@ extern Oid transformFkeyCheckAttrs(Relation pkrel,
 extern void RangeVarCallbackOwnsTable(const RangeVar *relation,
 						  Oid relId, Oid oldRelId, void *arg);
 
+extern void RangeVarCallbackOwnsRelation(const RangeVar *relation,
+							 Oid relId, Oid oldRelId, void *noCatalogs);
 #endif   /* TABLECMDS_H */

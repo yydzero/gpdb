@@ -3,7 +3,7 @@
  * geo_decls.h - Declarations for various 2D constructs.
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/utils/geo_decls.h
@@ -68,8 +68,6 @@ typedef struct
 typedef struct
 {
 	Point		p[2];
-
-	double		m;				/* precomputed to save time, not in tuple */
 } LSEG;
 
 
@@ -82,25 +80,18 @@ typedef struct
 	int32		npts;
 	int32		closed;			/* is this a closed polygon? */
 	int32		dummy;			/* padding to make it double align */
-	Point		p[1];			/* variable length array of POINTs */
+	Point		p[FLEXIBLE_ARRAY_MEMBER];
 } PATH;
 
 
 /*---------------------------------------------------------------------
  * LINE - Specified by its general equation (Ax+By+C=0).
- *		If there is a y-intercept, it is C, which
- *		 incidentally gives a freebie point on the line
- *		 (if B=0, then C is the x-intercept).
- *		Slope m is precalculated to save time; if
- *		 the line is not vertical, m == A.
  *-------------------------------------------------------------------*/
 typedef struct
 {
 	double		A,
 				B,
 				C;
-
-	double		m;
 } LINE;
 
 
@@ -124,7 +115,7 @@ typedef struct
 	int32		vl_len_;		/* varlena header (do not touch directly!) */
 	int32		npts;
 	BOX			boundbox;
-	Point		p[1];			/* variable length array of POINTs */
+	Point		p[FLEXIBLE_ARRAY_MEMBER];
 } POLYGON;
 
 /*---------------------------------------------------------------------
@@ -311,6 +302,8 @@ extern Datum box_add(PG_FUNCTION_ARGS);
 extern Datum box_sub(PG_FUNCTION_ARGS);
 extern Datum box_mul(PG_FUNCTION_ARGS);
 extern Datum box_div(PG_FUNCTION_ARGS);
+extern Datum point_box(PG_FUNCTION_ARGS);
+extern Datum boxes_bound_box(PG_FUNCTION_ARGS);
 
 /* public path routines */
 extern Datum path_area(PG_FUNCTION_ARGS);
@@ -401,7 +394,10 @@ extern Datum circle_diameter(PG_FUNCTION_ARGS);
 extern Datum circle_radius(PG_FUNCTION_ARGS);
 extern Datum circle_distance(PG_FUNCTION_ARGS);
 extern Datum dist_pc(PG_FUNCTION_ARGS);
+extern Datum dist_cpoint(PG_FUNCTION_ARGS);
 extern Datum dist_cpoly(PG_FUNCTION_ARGS);
+extern Datum dist_ppoly(PG_FUNCTION_ARGS);
+extern Datum dist_polyp(PG_FUNCTION_ARGS);
 extern Datum circle_center(PG_FUNCTION_ARGS);
 extern Datum cr_circle(PG_FUNCTION_ARGS);
 extern Datum box_circle(PG_FUNCTION_ARGS);
@@ -418,6 +414,7 @@ extern Datum gist_box_picksplit(PG_FUNCTION_ARGS);
 extern Datum gist_box_consistent(PG_FUNCTION_ARGS);
 extern Datum gist_box_penalty(PG_FUNCTION_ARGS);
 extern Datum gist_box_same(PG_FUNCTION_ARGS);
+extern Datum gist_box_fetch(PG_FUNCTION_ARGS);
 extern Datum gist_poly_compress(PG_FUNCTION_ARGS);
 extern Datum gist_poly_consistent(PG_FUNCTION_ARGS);
 extern Datum gist_circle_compress(PG_FUNCTION_ARGS);
@@ -425,6 +422,9 @@ extern Datum gist_circle_consistent(PG_FUNCTION_ARGS);
 extern Datum gist_point_compress(PG_FUNCTION_ARGS);
 extern Datum gist_point_consistent(PG_FUNCTION_ARGS);
 extern Datum gist_point_distance(PG_FUNCTION_ARGS);
+extern Datum gist_bbox_distance(PG_FUNCTION_ARGS);
+extern Datum gist_point_fetch(PG_FUNCTION_ARGS);
+
 
 /* geo_selfuncs.c */
 extern Datum areasel(PG_FUNCTION_ARGS);

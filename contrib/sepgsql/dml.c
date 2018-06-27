@@ -4,12 +4,13 @@
  *
  * Routines to handle DML permission checks
  *
- * Copyright (c) 2010-2012, PostgreSQL Global Development Group
+ * Copyright (c) 2010-2015, PostgreSQL Global Development Group
  *
  * -------------------------------------------------------------------------
  */
 #include "postgres.h"
 
+#include "access/htup_details.h"
 #include "access/sysattr.h"
 #include "access/tupdesc.h"
 #include "catalog/catalog.h"
@@ -92,10 +93,7 @@ fixup_whole_row_references(Oid relOid, Bitmapset *columns)
 static Bitmapset *
 fixup_inherited_columns(Oid parentId, Oid childId, Bitmapset *columns)
 {
-	AttrNumber	attno;
-	Bitmapset  *tmpset;
 	Bitmapset  *result = NULL;
-	char	   *attname;
 	int			index;
 
 	/*
@@ -104,10 +102,12 @@ fixup_inherited_columns(Oid parentId, Oid childId, Bitmapset *columns)
 	if (parentId == childId)
 		return columns;
 
-	tmpset = bms_copy(columns);
-	while ((index = bms_first_member(tmpset)) > 0)
+	index = -1;
+	while ((index = bms_next_member(columns, index)) >= 0)
 	{
-		attno = index + FirstLowInvalidHeapAttributeNumber;
+		/* bit numbers are offset by FirstLowInvalidHeapAttributeNumber */
+		AttrNumber	attno = index + FirstLowInvalidHeapAttributeNumber;
+		char	   *attname;
 
 		/*
 		 * whole-row-reference shall be fixed-up later
@@ -127,12 +127,11 @@ fixup_inherited_columns(Oid parentId, Oid childId, Bitmapset *columns)
 			elog(ERROR, "cache lookup failed for attribute %s of relation %u",
 				 attname, childId);
 
-		index = attno - FirstLowInvalidHeapAttributeNumber;
-		result = bms_add_member(result, index);
+		result = bms_add_member(result,
+								attno - FirstLowInvalidHeapAttributeNumber);
 
 		pfree(attname);
 	}
-	bms_free(tmpset);
 
 	return result;
 }
@@ -146,9 +145,10 @@ fixup_inherited_columns(Oid parentId, Oid childId, Bitmapset *columns)
 static bool
 check_relation_privileges(Oid relOid,
 						  Bitmapset *selected,
-						  Bitmapset *modified,
+						  Bitmapset *inserted,
+						  Bitmapset *updated,
 						  uint32 required,
-						  bool abort)
+						  bool abort_on_violation)
 {
 	ObjectAddress object;
 	char	   *audit_name;
@@ -186,7 +186,7 @@ check_relation_privileges(Oid relOid,
 	object.classId = RelationRelationId;
 	object.objectId = relOid;
 	object.objectSubId = 0;
-	audit_name = getObjectDescription(&object);
+	audit_name = getObjectIdentity(&object);
 	switch (relkind)
 	{
 		case RELKIND_RELATION:
@@ -194,7 +194,7 @@ check_relation_privileges(Oid relOid,
 											 SEPG_CLASS_DB_TABLE,
 											 required,
 											 audit_name,
-											 abort);
+											 abort_on_violation);
 			break;
 
 		case RELKIND_SEQUENCE:
@@ -205,7 +205,7 @@ check_relation_privileges(Oid relOid,
 												 SEPG_CLASS_DB_SEQUENCE,
 												 SEPG_DB_SEQUENCE__GET_VALUE,
 												 audit_name,
-												 abort);
+												 abort_on_violation);
 			break;
 
 		case RELKIND_VIEW:
@@ -213,7 +213,7 @@ check_relation_privileges(Oid relOid,
 											 SEPG_CLASS_DB_VIEW,
 											 SEPG_DB_VIEW__EXPAND,
 											 audit_name,
-											 abort);
+											 abort_on_violation);
 			break;
 
 		default:
@@ -232,8 +232,9 @@ check_relation_privileges(Oid relOid,
 	 * Check permissions on the columns
 	 */
 	selected = fixup_whole_row_references(relOid, selected);
-	modified = fixup_whole_row_references(relOid, modified);
-	columns = bms_union(selected, modified);
+	inserted = fixup_whole_row_references(relOid, inserted);
+	updated = fixup_whole_row_references(relOid, updated);
+	columns = bms_union(selected, bms_union(inserted, updated));
 
 	while ((index = bms_first_member(columns)) >= 0)
 	{
@@ -242,12 +243,15 @@ check_relation_privileges(Oid relOid,
 
 		if (bms_is_member(index, selected))
 			column_perms |= SEPG_DB_COLUMN__SELECT;
-		if (bms_is_member(index, modified))
+		if (bms_is_member(index, inserted))
+		{
+			if (required & SEPG_DB_TABLE__INSERT)
+				column_perms |= SEPG_DB_COLUMN__INSERT;
+		}
+		if (bms_is_member(index, updated))
 		{
 			if (required & SEPG_DB_TABLE__UPDATE)
 				column_perms |= SEPG_DB_COLUMN__UPDATE;
-			if (required & SEPG_DB_TABLE__INSERT)
-				column_perms |= SEPG_DB_COLUMN__INSERT;
 		}
 		if (column_perms == 0)
 			continue;
@@ -264,7 +268,7 @@ check_relation_privileges(Oid relOid,
 										 SEPG_CLASS_DB_COLUMN,
 										 column_perms,
 										 audit_name,
-										 abort);
+										 abort_on_violation);
 		pfree(audit_name);
 
 		if (!result)
@@ -279,7 +283,7 @@ check_relation_privileges(Oid relOid,
  * Entrypoint of the DML permission checks
  */
 bool
-sepgsql_dml_privileges(List *rangeTabls, bool abort)
+sepgsql_dml_privileges(List *rangeTabls, bool abort_on_violation)
 {
 	ListCell   *lr;
 
@@ -305,7 +309,7 @@ sepgsql_dml_privileges(List *rangeTabls, bool abort)
 			required |= SEPG_DB_TABLE__INSERT;
 		if (rte->requiredPerms & ACL_UPDATE)
 		{
-			if (!bms_is_empty(rte->modifiedCols))
+			if (!bms_is_empty(rte->updatedCols))
 				required |= SEPG_DB_TABLE__UPDATE;
 			else
 				required |= SEPG_DB_TABLE__LOCK;
@@ -334,7 +338,8 @@ sepgsql_dml_privileges(List *rangeTabls, bool abort)
 		{
 			Oid			tableOid = lfirst_oid(li);
 			Bitmapset  *selectedCols;
-			Bitmapset  *modifiedCols;
+			Bitmapset  *insertedCols;
+			Bitmapset  *updatedCols;
 
 			/*
 			 * child table has different attribute numbers, so we need to fix
@@ -342,16 +347,19 @@ sepgsql_dml_privileges(List *rangeTabls, bool abort)
 			 */
 			selectedCols = fixup_inherited_columns(rte->relid, tableOid,
 												   rte->selectedCols);
-			modifiedCols = fixup_inherited_columns(rte->relid, tableOid,
-												   rte->modifiedCols);
+			insertedCols = fixup_inherited_columns(rte->relid, tableOid,
+												   rte->insertedCols);
+			updatedCols = fixup_inherited_columns(rte->relid, tableOid,
+												  rte->updatedCols);
 
 			/*
 			 * check permissions on individual tables
 			 */
 			if (!check_relation_privileges(tableOid,
 										   selectedCols,
-										   modifiedCols,
-										   required, abort))
+										   insertedCols,
+										   updatedCols,
+										   required, abort_on_violation))
 				return false;
 		}
 		list_free(tableIds);

@@ -8,9 +8,13 @@
  * but also length coercion functions.
  *
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2006-2010, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
  * Copyright (c) 2002-2012, PostgreSQL Global Development Group
+=======
+ * Copyright (c) 2002-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  *
  * src/include/catalog/pg_cast.h
  *
@@ -217,6 +221,20 @@ DATA(insert ( 3769	 20 1288 a f ));
 DATA(insert ( 3769	 23    0 a b ));
 DATA(insert (	25 2205 1079 i f ));
 DATA(insert ( 1043 2205 1079 i f ));
+DATA(insert (	26 4096    0 i b ));
+DATA(insert ( 4096	 26    0 i b ));
+DATA(insert (	20 4096 1287 i f ));
+DATA(insert (	21 4096  313 i f ));
+DATA(insert (	23 4096    0 i b ));
+DATA(insert ( 4096	 20 1288 a f ));
+DATA(insert ( 4096	 23    0 a b ));
+DATA(insert (	26 4089    0 i b ));
+DATA(insert ( 4089	 26    0 i b ));
+DATA(insert (	20 4089 1287 i f ));
+DATA(insert (	21 4089  313 i f ));
+DATA(insert (	23 4089    0 i b ));
+DATA(insert ( 4089	 20 1288 a f ));
+DATA(insert ( 4089	 23    0 a b ));
 
 /*
  * String category
@@ -280,6 +298,7 @@ DATA(insert (  703	 23    0 e b ));
 /*
  * Geometric category
  */
+DATA(insert (  600	603 4091 a f ));
 DATA(insert (  601	600 1532 e f ));
 DATA(insert (  602	600 1533 e f ));
 DATA(insert (  602	604 1449 a f ));
@@ -366,6 +385,7 @@ DATA(insert ( 1560 1560 1685 i f ));
 DATA(insert ( 1562 1562 1687 i f ));
 DATA(insert ( 1700 1700 1703 i f ));
 
+<<<<<<< HEAD
 /* complex type */
 DATA(insert (701  7198 3584 i f));
 DATA(insert (700  7198 3585 i f));
@@ -384,5 +404,10 @@ DATA(insert (   27   20 6021 e f ));
 /* GP: Allow explicit cast between tid and aotid. */
 DATA(insert (	27 3300    0 e b ));
 DATA(insert ( 3300	 27    0 e b ));
+=======
+/* json to/from jsonb */
+DATA(insert (  114 3802    0 a i ));
+DATA(insert ( 3802	114    0 a i ));
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #endif   /* PG_CAST_H */

@@ -3,9 +3,13 @@
  * fd.c
  *	  Virtual file descriptor code.
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2007-2009, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
@@ -41,6 +45,7 @@
  * for a long time, like relation files. It is the caller's responsibility
  * to close them, there is no automatic mechanism in fd.c for that.
  *
+<<<<<<< HEAD
  * AllocateFile, AllocateDir and OpenTransientFile are wrappers around
  * fopen(3), opendir(3), and open(2), respectively. They behave like the
  * corresponding native functions, except that the handle is registered with
@@ -50,6 +55,17 @@
  * functions at any one time.
  *
  * Finally, BasicOpenFile is a just thin wrapper around open() that can
+=======
+ * AllocateFile, AllocateDir, OpenPipeStream and OpenTransientFile are
+ * wrappers around fopen(3), opendir(3), popen(3) and open(2), respectively.
+ * They behave like the corresponding native functions, except that the handle
+ * is registered with the current subtransaction, and will be automatically
+ * closed at abort. These are intended mainly for short operations like
+ * reading a configuration file; there is a limit on the number of files that
+ * can be opened using these functions at any one time.
+ *
+ * Finally, BasicOpenFile is just a thin wrapper around open() that can
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * release file descriptors in use by the virtual file descriptors if
  * necessary. There is no automatic cleanup of file descriptors returned by
  * BasicOpenFile, it is solely the caller's responsibility to close the file
@@ -71,12 +87,14 @@
 
 #include "miscadmin.h"
 #include "access/xact.h"
+#include "access/xlog.h"
 #include "catalog/catalog.h"
 #include "catalog/pg_tablespace.h"
 #include "pgstat.h"
 #include "storage/fd.h"
 #include "storage/ipc.h"
 #include "utils/guc.h"
+<<<<<<< HEAD
 #include "utils/resowner.h"
 #include "utils/workfile_mgr.h"
 #include "utils/faultinjector.h"
@@ -84,14 +102,24 @@
 // Provide some indirection here in case we have problems with lseek and
 // 64 bits on some platforms
 #define pg_lseek64(a,b,c) (int64)lseek(a,b,c)
+=======
+#include "utils/resowner_private.h"
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
+
+/* Define PG_FLUSH_DATA_WORKS if we have an implementation for pg_flush_data */
+#if defined(HAVE_SYNC_FILE_RANGE)
+#define PG_FLUSH_DATA_WORKS 1
+#elif defined(USE_POSIX_FADVISE) && defined(POSIX_FADV_DONTNEED)
+#define PG_FLUSH_DATA_WORKS 1
+#endif
 
 /*
  * We must leave some file descriptors free for system(), the dynamic loader,
  * and other code that tries to open files without consulting fd.c.  This
  * is the number left free.  (While we can be pretty sure we won't get
  * EMFILE, there's never any guarantee that we won't get ENFILE due to
- * other processes chewing up FDs.	So it's a bad idea to try to open files
+ * other processes chewing up FDs.  So it's a bad idea to try to open files
  * without consulting fd.c.  Nonetheless we cannot control all code.)
  *
  * Because this is just a fixed setting, we are effectively assuming that
@@ -135,9 +163,15 @@ int			max_safe_fds = 32;	/* default if not changed */
 /* Debugging.... */
 
 #ifdef FDDEBUG
-#define DO_DB(A) A
+#define DO_DB(A) \
+	do { \
+		int			_do_db_save_errno = errno; \
+		A; \
+		errno = _do_db_save_errno; \
+	} while (0)
 #else
-#define DO_DB(A)				/* A */
+#define DO_DB(A) \
+	((void) 0)
 #endif
 
 #define VFD_CLOSED (-1)
@@ -152,8 +186,6 @@ int			max_safe_fds = 32;	/* default if not changed */
 /* these are the assigned bits in fdstate below: */
 #define FD_TEMPORARY		(1 << 0)	/* T = delete when closed */
 #define FD_XACT_TEMPORARY	(1 << 1)	/* T = delete at eoXact */
-#define FD_XACT_TRANSIENT	(1 << 2)	/* T = close (not delete) at aoXact,
-										 * but keep VFD */
 
 typedef struct vfd
 {
@@ -172,8 +204,8 @@ typedef struct vfd
 } Vfd;
 
 /*
- * Virtual File Descriptor array pointer and size.	This grows as
- * needed.	'File' values are indexes into this array.
+ * Virtual File Descriptor array pointer and size.  This grows as
+ * needed.  'File' values are indexes into this array.
  * Note that VfdCache[0] is not a usable VFD, just a list header.
  */
 static Vfd *VfdCache;
@@ -184,13 +216,16 @@ static Size SizeVfdCache = 0;
  */
 static int	nfile = 0;
 
-/* True if there are files to close/delete at end of transaction */
-static bool have_pending_fd_cleanup = false;
+/*
+ * Flag to tell whether it's worth scanning VfdCache looking for temp files
+ * to close
+ */
+static bool have_xact_temporary_files = false;
 
 /*
  * Tracks the total size of all temporary files.  Note: when temp_file_limit
  * is being enforced, this cannot overflow since the limit cannot be more
- * than INT_MAX kilobytes.	When not enforcing, it could theoretically
+ * than INT_MAX kilobytes.  When not enforcing, it could theoretically
  * overflow, but we don't care.
  */
 static uint64 temporary_files_size = 0;
@@ -198,16 +233,21 @@ static uint64 temporary_files_size = 0;
 /*
  * List of OS handles opened with AllocateFile, AllocateDir and
  * OpenTransientFile.
+<<<<<<< HEAD
  *
  * Since we don't want to encourage heavy use of those functions,
  * it seems OK to put a pretty small maximum limit on the number of
  * simultaneously allocated descs.
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  */
-#define MAX_ALLOCATED_DESCS  32
-
 typedef enum
 {
 	AllocateDescFile,
+<<<<<<< HEAD
+=======
+	AllocateDescPipe,
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	AllocateDescDir,
 	AllocateDescRawFD
 } AllocateDescKind;
@@ -215,17 +255,18 @@ typedef enum
 typedef struct
 {
 	AllocateDescKind kind;
+	SubTransactionId create_subid;
 	union
 	{
 		FILE	   *file;
 		DIR		   *dir;
 		int			fd;
 	}			desc;
-	SubTransactionId create_subid;
 } AllocateDesc;
 
 static int	numAllocatedDescs = 0;
-static AllocateDesc allocatedDescs[MAX_ALLOCATED_DESCS];
+static int	maxAllocatedDescs = 0;
+static AllocateDesc *allocatedDescs = NULL;
 
 /*
  * Number of temporary files opened during the current session;
@@ -251,12 +292,13 @@ static int	nextTempTableSpace = 0;
  * Insert		   - put a file at the front of the Lru ring
  * LruInsert	   - put a file at the front of the Lru ring and open it
  * ReleaseLruFile  - Release an fd by closing the last entry in the Lru ring
+ * ReleaseLruFiles - Release fd(s) until we're under the max_safe_fds limit
  * AllocateVfd	   - grab a free (or new) file record (from VfdArray)
  * FreeVfd		   - free a file record
  *
  * The Least Recently Used ring is a doubly linked list that begins and
  * ends on element zero.  Element zero is special -- it doesn't represent
- * a file and its "fd" field always == VFD_CLOSED.	Element zero is just an
+ * a file and its "fd" field always == VFD_CLOSED.  Element zero is just an
  * anchor that shows us the beginning/end of the ring.
  * Only VFD elements that are currently really open (have an FD assigned) are
  * in the Lru ring.  Elements that are "virtually" open can be recognized
@@ -278,18 +320,36 @@ static void LruDelete(File file);
 static void Insert(File file);
 static int	LruInsert(File file);
 static bool ReleaseLruFile(void);
+static void ReleaseLruFiles(void);
 static File AllocateVfd(void);
 static void FreeVfd(File file);
 
 static int	FileAccess(File file);
+<<<<<<< HEAD
 static File OpenTemporaryFileInTablespace(Oid tblspcOid, bool rejectError,
 										  const char *filename, bool makenameunique, bool create);
+=======
+static File OpenTemporaryFileInTablespace(Oid tblspcOid, bool rejectError);
+static bool reserveAllocatedDesc(void);
+static int	FreeDesc(AllocateDesc *desc);
+static struct dirent *ReadDirExtended(DIR *dir, const char *dirname, int elevel);
+
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 static void AtProcExit_Files(int code, Datum arg);
 static void CleanupTempFiles(bool isProcExit);
 static void RemovePgTempFilesInDir(const char *tmpdirname);
 static void RemovePgTempRelationFiles(const char *tsdirname);
 static void RemovePgTempRelationFilesInDbspace(const char *dbspacedirname);
 static bool looks_like_temp_rel_name(const char *name);
+
+static void walkdir(const char *path,
+		void (*action) (const char *fname, bool isdir, int elevel),
+		bool process_symlinks,
+		int elevel);
+#ifdef PG_FLUSH_DATA_WORKS
+static void pre_sync_fname(const char *fname, bool isdir, int elevel);
+#endif
+static void fsync_fname_ext(const char *fname, bool isdir, int elevel);
 
 
 /*
@@ -365,16 +425,83 @@ pg_fdatasync(int fd)
 /*
  * pg_flush_data --- advise OS that the data described won't be needed soon
  *
- * Not all platforms have posix_fadvise; treat as noop if not available.
+ * Not all platforms have sync_file_range or posix_fadvise; treat as no-op
+ * if not available.  Also, treat as no-op if enableFsync is off; this is
+ * because the call isn't free, and some platforms such as Linux will actually
+ * block the requestor until the write is scheduled.
  */
 int
 pg_flush_data(int fd, off_t offset, off_t amount)
 {
-#if defined(USE_POSIX_FADVISE) && defined(POSIX_FADV_DONTNEED)
-	return posix_fadvise(fd, offset, amount, POSIX_FADV_DONTNEED);
+#ifdef PG_FLUSH_DATA_WORKS
+	if (enableFsync)
+	{
+#if defined(HAVE_SYNC_FILE_RANGE)
+		return sync_file_range(fd, offset, amount, SYNC_FILE_RANGE_WRITE);
+#elif defined(USE_POSIX_FADVISE) && defined(POSIX_FADV_DONTNEED)
+		return posix_fadvise(fd, offset, amount, POSIX_FADV_DONTNEED);
 #else
-	return 0;
+#error PG_FLUSH_DATA_WORKS should not have been defined
 #endif
+	}
+#endif
+	return 0;
+}
+
+
+/*
+ * fsync_fname -- fsync a file or directory, handling errors properly
+ *
+ * Try to fsync a file or directory. When doing the latter, ignore errors that
+ * indicate the OS just doesn't allow/require fsyncing directories.
+ */
+void
+fsync_fname(char *fname, bool isdir)
+{
+	int			fd;
+	int			returncode;
+
+	/*
+	 * Some OSs require directories to be opened read-only whereas other
+	 * systems don't allow us to fsync files opened read-only; so we need both
+	 * cases here
+	 */
+	if (!isdir)
+		fd = OpenTransientFile(fname,
+							   O_RDWR | PG_BINARY,
+							   S_IRUSR | S_IWUSR);
+	else
+		fd = OpenTransientFile(fname,
+							   O_RDONLY | PG_BINARY,
+							   S_IRUSR | S_IWUSR);
+
+	/*
+	 * Some OSs don't allow us to open directories at all (Windows returns
+	 * EACCES)
+	 */
+	if (fd < 0 && isdir && (errno == EISDIR || errno == EACCES))
+		return;
+
+	else if (fd < 0)
+		ereport(ERROR,
+				(errcode_for_file_access(),
+				 errmsg("could not open file \"%s\": %m", fname)));
+
+	returncode = pg_fsync(fd);
+
+	/* Some OSs don't allow us to fsync directories at all */
+	if (returncode != 0 && isdir && errno == EBADF)
+	{
+		CloseTransientFile(fd);
+		return;
+	}
+
+	if (returncode != 0)
+		ereport(ERROR,
+				(errcode_for_file_access(),
+				 errmsg("could not fsync file \"%s\": %m", fname)));
+
+	CloseTransientFile(fd);
 }
 
 /*
@@ -426,7 +553,7 @@ InitFileAccess(void)
  * We stop counting if usable_fds reaches max_to_probe.  Note: a small
  * value of max_to_probe might result in an underestimate of already_open;
  * we must fill in any "gaps" in the set of used FDs before the calculation
- * of already_open will give the right answer.	In practice, max_to_probe
+ * of already_open will give the right answer.  In practice, max_to_probe
  * of a couple of dozen should be enough to ensure good results.
  *
  * We assume stdin (FD 0) is available for dup'ing
@@ -505,7 +632,7 @@ count_usable_fds(int max_to_probe, int *usable_fds, int *already_open)
 	pfree(fd);
 
 	/*
-	 * Return results.	usable_fds is just the number of successful dups. We
+	 * Return results.  usable_fds is just the number of successful dups. We
 	 * assume that the system limit is highestfd+1 (remember 0 is a legal FD
 	 * number) and so already_open is highestfd+1 - usable_fds.
 	 */
@@ -645,7 +772,6 @@ LruDelete(File file)
 	Vfd		   *vfdP;
 
 	Assert(file != 0);
-	Assert(!FileIsNotOpen(file));
 
 	DO_DB(elog(LOG, "LruDelete %d (%s)",
 			   file, VfdCache[file].fileName));
@@ -703,11 +829,8 @@ LruInsert(File file)
 
 	if (FileIsNotOpen(file))
 	{
-		while (nfile + numAllocatedDescs >= max_safe_fds)
-		{
-			if (!ReleaseLruFile())
-				break;
-		}
+		/* Close excess kernel FDs. */
+		ReleaseLruFiles();
 
 		/*
 		 * The open could still fail for lack of file descriptors, eg due to
@@ -719,7 +842,7 @@ LruInsert(File file)
 		if (vfdP->fd < 0)
 		{
 			DO_DB(elog(LOG, "RE_OPEN FAILED: %d", errno));
-			return vfdP->fd;
+			return -1;
 		}
 		else
 		{
@@ -746,6 +869,9 @@ LruInsert(File file)
 	return 0;
 }
 
+/*
+ * Release one kernel FD by closing the least-recently-used VFD.
+ */
 static bool
 ReleaseLruFile(void)
 {
@@ -764,13 +890,27 @@ ReleaseLruFile(void)
 	return false;				/* no files available to free */
 }
 
+/*
+ * Release kernel FDs as needed to get under the max_safe_fds limit.
+ * After calling this, it's OK to try to open another file.
+ */
+static void
+ReleaseLruFiles(void)
+{
+	while (nfile + numAllocatedDescs >= max_safe_fds)
+	{
+		if (!ReleaseLruFile())
+			break;
+	}
+}
+
 static File
 AllocateVfd(void)
 {
 	Index		i;
 	File		file;
 
-	DO_DB(elog(LOG, "AllocateVfd. Size %lu", SizeVfdCache));
+	DO_DB(elog(LOG, "AllocateVfd. Size %zu", SizeVfdCache));
 
 	Assert(SizeVfdCache > 0);	/* InitFileAccess not called? */
 
@@ -917,18 +1057,18 @@ PathNameOpenFile(FileName fileName, int fileFlags, int fileMode)
 	file = AllocateVfd();
 	vfdP = &VfdCache[file];
 
-	while (nfile + numAllocatedDescs >= max_safe_fds)
-	{
-		if (!ReleaseLruFile())
-			break;
-	}
+	/* Close excess kernel FDs. */
+	ReleaseLruFiles();
 
 	vfdP->fd = BasicOpenFile(fileName, fileFlags, fileMode);
 
 	if (vfdP->fd < 0)
 	{
+		int			save_errno = errno;
+
 		FreeVfd(file);
 		free(fnamecopy);
+		errno = save_errno;
 		return -1;
 	}
 	++nfile;
@@ -1090,7 +1230,7 @@ OpenTemporaryFile(bool interXact, const char *filePrefix)
 		VfdCache[file].resowner = CurrentResourceOwner;
 
 		/* ensure cleanup happens at eoxact */
-		have_pending_fd_cleanup = true;
+		have_xact_temporary_files = true;
 	}
 
 	return file;
@@ -1243,25 +1383,6 @@ OpenTemporaryFileInTablespace(Oid tblspcOid, bool rejectError,
 	}
 
 	return file;
-}
-
-/*
- * Set the transient flag on a file
- *
- * This flag tells CleanupTempFiles to close the kernel-level file descriptor
- * (but not the VFD itself) at end of transaction.
- */
-void
-FileSetTransient(File file)
-{
-	Vfd		   *vfdP;
-
-	Assert(FileIsValid(file));
-
-	vfdP = &VfdCache[file];
-	vfdP->fdstate |= FD_XACT_TRANSIENT;
-
-	have_pending_fd_cleanup = true;
 }
 
 /*
@@ -1489,7 +1610,7 @@ FileWrite(File file, char *buffer, int amount)
 
 	/*
 	 * If enforcing temp_file_limit and it's a temp file, check to see if the
-	 * write would overrun temp_file_limit, and throw error if so.	Note: it's
+	 * write would overrun temp_file_limit, and throw error if so.  Note: it's
 	 * really a modularity violation to throw error here; we should set errno
 	 * and return -1.  However, there's no way to report a suitable error
 	 * message if we do that.  All current callers would just throw error
@@ -1756,9 +1877,69 @@ FilePathName(File file)
 
 
 /*
+ * Make room for another allocatedDescs[] array entry if needed and possible.
+ * Returns true if an array element is available.
+ */
+static bool
+reserveAllocatedDesc(void)
+{
+	AllocateDesc *newDescs;
+	int			newMax;
+
+	/* Quick out if array already has a free slot. */
+	if (numAllocatedDescs < maxAllocatedDescs)
+		return true;
+
+	/*
+	 * If the array hasn't yet been created in the current process, initialize
+	 * it with FD_MINFREE / 2 elements.  In many scenarios this is as many as
+	 * we will ever need, anyway.  We don't want to look at max_safe_fds
+	 * immediately because set_max_safe_fds() may not have run yet.
+	 */
+	if (allocatedDescs == NULL)
+	{
+		newMax = FD_MINFREE / 2;
+		newDescs = (AllocateDesc *) malloc(newMax * sizeof(AllocateDesc));
+		/* Out of memory already?  Treat as fatal error. */
+		if (newDescs == NULL)
+			ereport(ERROR,
+					(errcode(ERRCODE_OUT_OF_MEMORY),
+					 errmsg("out of memory")));
+		allocatedDescs = newDescs;
+		maxAllocatedDescs = newMax;
+		return true;
+	}
+
+	/*
+	 * Consider enlarging the array beyond the initial allocation used above.
+	 * By the time this happens, max_safe_fds should be known accurately.
+	 *
+	 * We mustn't let allocated descriptors hog all the available FDs, and in
+	 * practice we'd better leave a reasonable number of FDs for VFD use.  So
+	 * set the maximum to max_safe_fds / 2.  (This should certainly be at
+	 * least as large as the initial size, FD_MINFREE / 2.)
+	 */
+	newMax = max_safe_fds / 2;
+	if (newMax > maxAllocatedDescs)
+	{
+		newDescs = (AllocateDesc *) realloc(allocatedDescs,
+											newMax * sizeof(AllocateDesc));
+		/* Treat out-of-memory as a non-fatal error. */
+		if (newDescs == NULL)
+			return false;
+		allocatedDescs = newDescs;
+		maxAllocatedDescs = newMax;
+		return true;
+	}
+
+	/* Can't enlarge allocatedDescs[] any more. */
+	return false;
+}
+
+/*
  * Routines that want to use stdio (ie, FILE*) should use AllocateFile
  * rather than plain fopen().  This lets fd.c deal with freeing FDs if
- * necessary to open the file.	When done, call FreeFile rather than fclose.
+ * necessary to open the file.  When done, call FreeFile rather than fclose.
  *
  * Note that files that will be open for any significant length of time
  * should NOT be handled this way, since they cannot share kernel file
@@ -1780,16 +1961,15 @@ AllocateFile(const char *name, const char *mode)
 	DO_DB(elog(LOG, "AllocateFile: Allocated %d (%s)",
 			   numAllocatedDescs, name));
 
-	/*
-	 * The test against MAX_ALLOCATED_DESCS prevents us from overflowing
-	 * allocatedFiles[]; the test against max_safe_fds prevents AllocateFile
-	 * from hogging every one of the available FDs, which'd lead to infinite
-	 * looping.
-	 */
-	if (numAllocatedDescs >= MAX_ALLOCATED_DESCS ||
-		numAllocatedDescs >= max_safe_fds - 1)
-		elog(ERROR, "exceeded MAX_ALLOCATED_DESCS while trying to open file \"%s\"",
-			 name);
+	/* Can we allocate another non-virtual FD? */
+	if (!reserveAllocatedDesc())
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_RESOURCES),
+				 errmsg("exceeded maxAllocatedDescs (%d) while trying to open file \"%s\"",
+						maxAllocatedDescs, name)));
+
+	/* Close excess kernel FDs. */
+	ReleaseLruFiles();
 
 TryAgain:
 	if ((file = fopen(name, mode)) != NULL)
@@ -1842,6 +2022,7 @@ OpenTransientFile(FileName fileName, int fileFlags, int fileMode)
 {
 	int			fd;
 
+<<<<<<< HEAD
 
 	DO_DB(elog(LOG, "OpenTransientFile: Allocated %d (%s)",
 			   numAllocatedDescs, fileName));
@@ -1856,6 +2037,20 @@ OpenTransientFile(FileName fileName, int fileFlags, int fileMode)
 		numAllocatedDescs >= max_safe_fds - 1)
 		elog(ERROR, "exceeded MAX_ALLOCATED_DESCS while trying to open file \"%s\"",
 			 fileName);
+=======
+	DO_DB(elog(LOG, "OpenTransientFile: Allocated %d (%s)",
+			   numAllocatedDescs, fileName));
+
+	/* Can we allocate another non-virtual FD? */
+	if (!reserveAllocatedDesc())
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_RESOURCES),
+				 errmsg("exceeded maxAllocatedDescs (%d) while trying to open file \"%s\"",
+						maxAllocatedDescs, fileName)));
+
+	/* Close excess kernel FDs. */
+	ReleaseLruFiles();
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	fd = BasicOpenFile(fileName, fileFlags, fileMode);
 
@@ -1875,6 +2070,63 @@ OpenTransientFile(FileName fileName, int fileFlags, int fileMode)
 }
 
 /*
+<<<<<<< HEAD
+=======
+ * Routines that want to initiate a pipe stream should use OpenPipeStream
+ * rather than plain popen().  This lets fd.c deal with freeing FDs if
+ * necessary.  When done, call ClosePipeStream rather than pclose.
+ */
+FILE *
+OpenPipeStream(const char *command, const char *mode)
+{
+	FILE	   *file;
+
+	DO_DB(elog(LOG, "OpenPipeStream: Allocated %d (%s)",
+			   numAllocatedDescs, command));
+
+	/* Can we allocate another non-virtual FD? */
+	if (!reserveAllocatedDesc())
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_RESOURCES),
+				 errmsg("exceeded maxAllocatedDescs (%d) while trying to execute command \"%s\"",
+						maxAllocatedDescs, command)));
+
+	/* Close excess kernel FDs. */
+	ReleaseLruFiles();
+
+TryAgain:
+	fflush(stdout);
+	fflush(stderr);
+	errno = 0;
+	if ((file = popen(command, mode)) != NULL)
+	{
+		AllocateDesc *desc = &allocatedDescs[numAllocatedDescs];
+
+		desc->kind = AllocateDescPipe;
+		desc->desc.file = file;
+		desc->create_subid = GetCurrentSubTransactionId();
+		numAllocatedDescs++;
+		return desc->desc.file;
+	}
+
+	if (errno == EMFILE || errno == ENFILE)
+	{
+		int			save_errno = errno;
+
+		ereport(LOG,
+				(errcode(ERRCODE_INSUFFICIENT_RESOURCES),
+				 errmsg("out of file descriptors: %m; release and retry")));
+		errno = 0;
+		if (ReleaseLruFile())
+			goto TryAgain;
+		errno = save_errno;
+	}
+
+	return NULL;
+}
+
+/*
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Free an AllocateDesc of any type.
  *
  * The argument *must* point into the allocatedDescs[] array.
@@ -1889,6 +2141,9 @@ FreeDesc(AllocateDesc *desc)
 	{
 		case AllocateDescFile:
 			result = fclose(desc->desc.file);
+			break;
+		case AllocateDescPipe:
+			result = pclose(desc->desc.file);
 			break;
 		case AllocateDescDir:
 			result = closedir(desc->desc.dir);
@@ -1982,16 +2237,15 @@ AllocateDir(const char *dirname)
 	DO_DB(elog(LOG, "AllocateDir: Allocated %d (%s)",
 			   numAllocatedDescs, dirname));
 
-	/*
-	 * The test against MAX_ALLOCATED_DESCS prevents us from overflowing
-	 * allocatedDescs[]; the test against max_safe_fds prevents AllocateDir
-	 * from hogging every one of the available FDs, which'd lead to infinite
-	 * looping.
-	 */
-	if (numAllocatedDescs >= MAX_ALLOCATED_DESCS ||
-		numAllocatedDescs >= max_safe_fds - 1)
-		elog(ERROR, "exceeded MAX_ALLOCATED_DESCS while trying to open directory \"%s\"",
-			 dirname);
+	/* Can we allocate another non-virtual FD? */
+	if (!reserveAllocatedDesc())
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_RESOURCES),
+				 errmsg("exceeded maxAllocatedDescs (%d) while trying to open directory \"%s\"",
+						maxAllocatedDescs, dirname)));
+
+	/* Close excess kernel FDs. */
+	ReleaseLruFiles();
 
 TryAgain:
 	if ((dir = opendir(dirname)) != NULL)
@@ -2025,7 +2279,7 @@ TryAgain:
  * Read a directory opened with AllocateDir, ereport'ing any error.
  *
  * This is easier to use than raw readdir() since it takes care of some
- * otherwise rather tedious and error-prone manipulation of errno.	Also,
+ * otherwise rather tedious and error-prone manipulation of errno.  Also,
  * if you are happy with a generic error message for AllocateDir failure,
  * you can just do
  *
@@ -2044,31 +2298,34 @@ TryAgain:
 struct dirent *
 ReadDir(DIR *dir, const char *dirname)
 {
+	return ReadDirExtended(dir, dirname, ERROR);
+}
+
+/*
+ * Alternate version that allows caller to specify the elevel for any
+ * error report.  If elevel < ERROR, returns NULL on any error.
+ */
+static struct dirent *
+ReadDirExtended(DIR *dir, const char *dirname, int elevel)
+{
 	struct dirent *dent;
 
 	/* Give a generic message for AllocateDir failure, if caller didn't */
 	if (dir == NULL)
-		ereport(ERROR,
+	{
+		ereport(elevel,
 				(errcode_for_file_access(),
 				 errmsg("could not open directory \"%s\": %m",
 						dirname)));
+		return NULL;
+	}
 
 	errno = 0;
 	if ((dent = readdir(dir)) != NULL)
 		return dent;
 
-#ifdef WIN32
-
-	/*
-	 * This fix is in mingw cvs (runtime/mingwex/dirent.c rev 1.4), but not in
-	 * released version
-	 */
-	if (GetLastError() == ERROR_NO_MORE_FILES)
-		errno = 0;
-#endif
-
 	if (errno)
-		ereport(ERROR,
+		ereport(elevel,
 				(errcode_for_file_access(),
 				 errmsg("could not read directory \"%s\": %m",
 						dirname)));
@@ -2104,6 +2361,31 @@ FreeDir(DIR *dir)
 	return closedir(dir);
 }
 
+
+/*
+ * Close a pipe stream returned by OpenPipeStream.
+ */
+int
+ClosePipeStream(FILE *file)
+{
+	int			i;
+
+	DO_DB(elog(LOG, "ClosePipeStream: Allocated %d", numAllocatedDescs));
+
+	/* Remove file from list of allocated files, if it's present */
+	for (i = numAllocatedDescs; --i >= 0;)
+	{
+		AllocateDesc *desc = &allocatedDescs[i];
+
+		if (desc->kind == AllocateDescPipe && desc->desc.file == file)
+			return FreeDesc(desc);
+	}
+
+	/* Only get here if someone passes us a file not in allocatedDescs */
+	elog(WARNING, "file passed to ClosePipeStream was not obtained from OpenPipeStream");
+
+	return pclose(file);
+}
 
 /*
  * closeAllVfds
@@ -2146,7 +2428,7 @@ SetTempTablespaces(Oid *tableSpaces, int numSpaces)
 	numTempTableSpaces = numSpaces;
 
 	/*
-	 * Select a random starting point in the list.	This is to minimize
+	 * Select a random starting point in the list.  This is to minimize
 	 * conflicts between backends that are most likely sharing the same list
 	 * of temp tablespaces.  Note that if we create multiple temp files in the
 	 * same transaction, we'll advance circularly through the list --- this
@@ -2175,7 +2457,7 @@ TempTablespacesAreSet(void)
 /*
  * GetNextTempTableSpace
  *
- * Select the next temp tablespace to use.	A result of InvalidOid means
+ * Select the next temp tablespace to use.  A result of InvalidOid means
  * to use the current database's default tablespace.
  */
 Oid
@@ -2227,9 +2509,8 @@ AtEOSubXact_Files(bool isCommit, SubTransactionId mySubid,
  * particularly care which).  All still-open per-transaction temporary file
  * VFDs are closed, which also causes the underlying files to be deleted
  * (although they should've been closed already by the ResourceOwner
- * cleanup). Transient files have their kernel file descriptors closed.
- * Furthermore, all "allocated" stdio files are closed. We also forget any
- * transaction-local temp tablespace list.
+ * cleanup). Furthermore, all "allocated" stdio files are closed. We also
+ * forget any transaction-local temp tablespace list.
  */
 void
 AtEOXact_Files(void)
@@ -2252,10 +2533,7 @@ AtProcExit_Files(int code, Datum arg)
 }
 
 /*
- * General cleanup routine for fd.c.
- *
- * Temporary files are closed, and their underlying files deleted.
- * Transient files are closed.
+ * Close temporary files and delete their underlying files.
  *
  * isProcExit: if true, this is being called as the backend process is
  * exiting. If that's the case, we should remove all temporary files; if
@@ -2272,56 +2550,44 @@ CleanupTempFiles(bool isProcExit)
 	 * Careful here: at proc_exit we need extra cleanup, not just
 	 * xact_temporary files.
 	 */
-	if (isProcExit || have_pending_fd_cleanup)
+	if (isProcExit || have_xact_temporary_files)
 	{
 		Assert(FileIsNotOpen(0));		/* Make sure ring not corrupted */
 		for (i = 1; i < SizeVfdCache; i++)
 		{
 			unsigned short fdstate = VfdCache[i].fdstate;
 
-			if (VfdCache[i].fileName != NULL)
+			if ((fdstate & FD_TEMPORARY) && VfdCache[i].fileName != NULL)
 			{
-				if (fdstate & FD_TEMPORARY)
+				/*
+				 * If we're in the process of exiting a backend process, close
+				 * all temporary files. Otherwise, only close temporary files
+				 * local to the current transaction. They should be closed by
+				 * the ResourceOwner mechanism already, so this is just a
+				 * debugging cross-check.
+				 */
+				if (isProcExit)
+					FileClose(i);
+				else if (fdstate & FD_XACT_TEMPORARY)
 				{
-					/*
-					 * If we're in the process of exiting a backend process,
-					 * close all temporary files. Otherwise, only close
-					 * temporary files local to the current transaction. They
-					 * should be closed by the ResourceOwner mechanism
-					 * already, so this is just a debugging cross-check.
-					 */
-					if (isProcExit)
-						FileClose(i);
-					else if (fdstate & FD_XACT_TEMPORARY)
-					{
-						elog(WARNING,
-						"temporary file %s not closed at end-of-transaction",
-							 VfdCache[i].fileName);
-						FileClose(i);
-					}
-				}
-				else if (fdstate & FD_XACT_TRANSIENT)
-				{
-					/*
-					 * Close the FD, and remove the entry from the LRU ring,
-					 * but also remove the flag from the VFD.  This is to
-					 * ensure that if the VFD is reused in the future for
-					 * non-transient access, we don't close it inappropriately
-					 * then.
-					 */
-					if (!FileIsNotOpen(i))
-						LruDelete(i);
-					VfdCache[i].fdstate &= ~FD_XACT_TRANSIENT;
+					elog(WARNING,
+						 "temporary file %s not closed at end-of-transaction",
+						 VfdCache[i].fileName);
+					FileClose(i);
 				}
 			}
 		}
 
-		have_pending_fd_cleanup = false;
+		have_xact_temporary_files = false;
 	}
 
+<<<<<<< HEAD
 	workfile_mgr_cleanup();
 
 	/* Clean up "allocated" stdio files and dirs. */
+=======
+	/* Clean up "allocated" stdio files, dirs and fds. */
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	while (numAllocatedDescs > 0)
 		FreeDesc(&allocatedDescs[0]);
 }
@@ -2566,4 +2832,249 @@ looks_like_temp_rel_name(const char *name)
 	if (name[pos] != '\0')
 		return false;
 	return true;
+}
+
+
+/*
+ * Issue fsync recursively on PGDATA and all its contents.
+ *
+ * We fsync regular files and directories wherever they are, but we
+ * follow symlinks only for pg_xlog and immediately under pg_tblspc.
+ * Other symlinks are presumed to point at files we're not responsible
+ * for fsyncing, and might not have privileges to write at all.
+ *
+ * Errors are logged but not considered fatal; that's because this is used
+ * only during database startup, to deal with the possibility that there are
+ * issued-but-unsynced writes pending against the data directory.  We want to
+ * ensure that such writes reach disk before anything that's done in the new
+ * run.  However, aborting on error would result in failure to start for
+ * harmless cases such as read-only files in the data directory, and that's
+ * not good either.
+ *
+ * Note we assume we're chdir'd into PGDATA to begin with.
+ */
+void
+SyncDataDirectory(void)
+{
+	bool		xlog_is_symlink;
+
+	/* We can skip this whole thing if fsync is disabled. */
+	if (!enableFsync)
+		return;
+
+	/*
+	 * If pg_xlog is a symlink, we'll need to recurse into it separately,
+	 * because the first walkdir below will ignore it.
+	 */
+	xlog_is_symlink = false;
+
+#ifndef WIN32
+	{
+		struct stat st;
+
+		if (lstat("pg_xlog", &st) < 0)
+			ereport(LOG,
+					(errcode_for_file_access(),
+					 errmsg("could not stat file \"%s\": %m",
+							"pg_xlog")));
+		else if (S_ISLNK(st.st_mode))
+			xlog_is_symlink = true;
+	}
+#else
+	if (pgwin32_is_junction("pg_xlog"))
+		xlog_is_symlink = true;
+#endif
+
+	/*
+	 * If possible, hint to the kernel that we're soon going to fsync the data
+	 * directory and its contents.  Errors in this step are even less
+	 * interesting than normal, so log them only at DEBUG1.
+	 */
+#ifdef PG_FLUSH_DATA_WORKS
+	walkdir(".", pre_sync_fname, false, DEBUG1);
+	if (xlog_is_symlink)
+		walkdir("pg_xlog", pre_sync_fname, false, DEBUG1);
+	walkdir("pg_tblspc", pre_sync_fname, true, DEBUG1);
+#endif
+
+	/*
+	 * Now we do the fsync()s in the same order.
+	 *
+	 * The main call ignores symlinks, so in addition to specially processing
+	 * pg_xlog if it's a symlink, pg_tblspc has to be visited separately with
+	 * process_symlinks = true.  Note that if there are any plain directories
+	 * in pg_tblspc, they'll get fsync'd twice.  That's not an expected case
+	 * so we don't worry about optimizing it.
+	 */
+	walkdir(".", fsync_fname_ext, false, LOG);
+	if (xlog_is_symlink)
+		walkdir("pg_xlog", fsync_fname_ext, false, LOG);
+	walkdir("pg_tblspc", fsync_fname_ext, true, LOG);
+}
+
+/*
+ * walkdir: recursively walk a directory, applying the action to each
+ * regular file and directory (including the named directory itself).
+ *
+ * If process_symlinks is true, the action and recursion are also applied
+ * to regular files and directories that are pointed to by symlinks in the
+ * given directory; otherwise symlinks are ignored.  Symlinks are always
+ * ignored in subdirectories, ie we intentionally don't pass down the
+ * process_symlinks flag to recursive calls.
+ *
+ * Errors are reported at level elevel, which might be ERROR or less.
+ *
+ * See also walkdir in initdb.c, which is a frontend version of this logic.
+ */
+static void
+walkdir(const char *path,
+		void (*action) (const char *fname, bool isdir, int elevel),
+		bool process_symlinks,
+		int elevel)
+{
+	DIR		   *dir;
+	struct dirent *de;
+
+	dir = AllocateDir(path);
+	if (dir == NULL)
+	{
+		ereport(elevel,
+				(errcode_for_file_access(),
+				 errmsg("could not open directory \"%s\": %m", path)));
+		return;
+	}
+
+	while ((de = ReadDirExtended(dir, path, elevel)) != NULL)
+	{
+		char		subpath[MAXPGPATH];
+		struct stat fst;
+		int			sret;
+
+		CHECK_FOR_INTERRUPTS();
+
+		if (strcmp(de->d_name, ".") == 0 ||
+			strcmp(de->d_name, "..") == 0)
+			continue;
+
+		snprintf(subpath, MAXPGPATH, "%s/%s", path, de->d_name);
+
+		if (process_symlinks)
+			sret = stat(subpath, &fst);
+		else
+			sret = lstat(subpath, &fst);
+
+		if (sret < 0)
+		{
+			ereport(elevel,
+					(errcode_for_file_access(),
+					 errmsg("could not stat file \"%s\": %m", subpath)));
+			continue;
+		}
+
+		if (S_ISREG(fst.st_mode))
+			(*action) (subpath, false, elevel);
+		else if (S_ISDIR(fst.st_mode))
+			walkdir(subpath, action, false, elevel);
+	}
+
+	FreeDir(dir);				/* we ignore any error here */
+
+	/*
+	 * It's important to fsync the destination directory itself as individual
+	 * file fsyncs don't guarantee that the directory entry for the file is
+	 * synced.
+	 */
+	(*action) (path, true, elevel);
+}
+
+
+/*
+ * Hint to the OS that it should get ready to fsync() this file.
+ *
+ * Ignores errors trying to open unreadable files, and logs other errors at a
+ * caller-specified level.
+ */
+#ifdef PG_FLUSH_DATA_WORKS
+
+static void
+pre_sync_fname(const char *fname, bool isdir, int elevel)
+{
+	int			fd;
+
+	fd = OpenTransientFile((char *) fname, O_RDONLY | PG_BINARY, 0);
+
+	if (fd < 0)
+	{
+		if (errno == EACCES || (isdir && errno == EISDIR))
+			return;
+		ereport(elevel,
+				(errcode_for_file_access(),
+				 errmsg("could not open file \"%s\": %m", fname)));
+		return;
+	}
+
+	/*
+	 * We ignore errors from pg_flush_data() because this is only a hint.
+	 */
+	(void) pg_flush_data(fd, 0, 0);
+
+	(void) CloseTransientFile(fd);
+}
+
+#endif   /* PG_FLUSH_DATA_WORKS */
+
+/*
+ * fsync_fname_ext -- Try to fsync a file or directory
+ *
+ * Ignores errors trying to open unreadable files, or trying to fsync
+ * directories on systems where that isn't allowed/required, and logs other
+ * errors at a caller-specified level.
+ */
+static void
+fsync_fname_ext(const char *fname, bool isdir, int elevel)
+{
+	int			fd;
+	int			flags;
+	int			returncode;
+
+	/*
+	 * Some OSs require directories to be opened read-only whereas other
+	 * systems don't allow us to fsync files opened read-only; so we need both
+	 * cases here.  Using O_RDWR will cause us to fail to fsync files that are
+	 * not writable by our userid, but we assume that's OK.
+	 */
+	flags = PG_BINARY;
+	if (!isdir)
+		flags |= O_RDWR;
+	else
+		flags |= O_RDONLY;
+
+	/*
+	 * Open the file, silently ignoring errors about unreadable files (or
+	 * unsupported operations, e.g. opening a directory under Windows), and
+	 * logging others.
+	 */
+	fd = OpenTransientFile((char *) fname, flags, 0);
+	if (fd < 0)
+	{
+		if (errno == EACCES || (isdir && errno == EISDIR))
+			return;
+		ereport(elevel,
+				(errcode_for_file_access(),
+				 errmsg("could not open file \"%s\": %m", fname)));
+		return;
+	}
+
+	returncode = pg_fsync(fd);
+
+	/*
+	 * Some OSes don't allow us to fsync directories at all, so we can ignore
+	 * those errors. Anything else needs to be logged.
+	 */
+	if (returncode != 0 && !(isdir && errno == EBADF))
+		ereport(elevel,
+				(errcode_for_file_access(),
+				 errmsg("could not fsync file \"%s\": %m", fname)));
+
+	(void) CloseTransientFile(fd);
 }

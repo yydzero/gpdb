@@ -17,10 +17,15 @@ SUBDIRS     := fstream
 
 override CPPFLAGS := -I. -I$(srcdir) $(CPPFLAGS)
 
+<<<<<<< HEAD
 OBJS = guc.o help_config.o pg_rusage.o ps_status.o superuser.o tzparser.o uriparser.o \
        rbtree.o \
        faultinjector.o netcheck.o testutils.o \
 	   bitstream.o bitmap_compression.o guc_gp.o zlib_wrapper.o backend_cancel.o
+=======
+OBJS = guc.o help_config.o pg_rusage.o ps_status.o rls.o \
+       sampling.o superuser.o timeout.o tzparser.o
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 # This location might depend on the installation directories. Therefore
 # we can't subsitute it into pg_config.h.
@@ -32,13 +37,6 @@ include $(top_srcdir)/src/backend/common.mk
 
 # guc-file is compiled as part of guc
 guc.o: guc-file.c
-
-guc-file.c: guc-file.l
-ifdef FLEX
-	$(FLEX) $(FLEXFLAGS) -o'$@' $<
-else
-	@$(missing) flex $< $@
-endif
 
 # Note: guc-file.c is not deleted by 'make clean',
 # since we want to ship it in distribution tarballs.

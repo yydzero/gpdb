@@ -1,5 +1,6 @@
 # Global excludes across all subdirectories
 *.o
+*.obj
 *.so
 *.so.[0-9]
 *.so.[0-9].[0-9]
@@ -11,6 +12,7 @@
 *.dll
 *.a
 *.mo
+*.pot
 objfiles.txt
 .deps/
 *.log
@@ -19,7 +21,9 @@ objfiles.txt
 *.gcov
 *.gcov.out
 lcov.info
+coverage/
 *.vcproj
+*.vcxproj
 win32ver.rc
 *.exe
 lib*dll.defautom4te.cache
@@ -48,9 +52,11 @@ GPATH
 GRTAGS
 GTAGS
 lib*dll.def
+lib*.pc
 
 # Local excludes in root directory
 /GNUmakefile
+/config.cache
 /config.log
 /config.status
 /VERSION
@@ -60,3 +66,4 @@ lib*dll.def
 /Release/
 /CMakeLists.txt
 /.idea
+/tmp_install/

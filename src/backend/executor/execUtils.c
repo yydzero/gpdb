@@ -3,9 +3,13 @@
  * execUtils.c
  *	  miscellaneous executor utility routines
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2005-2008, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -30,10 +34,6 @@
  *		ExecOpenScanRelation	Common code for scan node init routines.
  *		ExecCloseScanRelation
  *
- *		ExecOpenIndices			\
- *		ExecCloseIndices		 | referenced by InitPlan, EndPlan,
- *		ExecInsertIndexTuples	/  ExecInsert, ExecUpdate
- *
  *		RegisterExprContextCallback    Register function shutdown callback
  *		UnregisterExprContextCallback  Deregister function shutdown callback
  *
@@ -49,14 +49,17 @@
 #include "access/appendonlywriter.h"
 #include "access/relscan.h"
 #include "access/transam.h"
+<<<<<<< HEAD
 #include "catalog/index.h"
 #include "executor/execdebug.h"
 #include "executor/execUtils.h"
+=======
+#include "executor/executor.h"
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include "nodes/nodeFuncs.h"
 #include "parser/parsetree.h"
-#include "storage/lmgr.h"
 #include "utils/memutils.h"
-#include "utils/tqual.h"
+#include "utils/rel.h"
 
 #include "nodes/primnodes.h"
 #include "nodes/execnodes.h"
@@ -82,9 +85,6 @@
 #include "cdb/memquota.h"
 
 static bool get_last_attnums(Node *node, ProjectionInfo *projInfo);
-static bool index_recheck_constraint(Relation index, Oid *constr_procs,
-						 Datum *existing_values, bool *existing_isnull,
-						 Datum *new_values);
 static void ShutdownExprContext(ExprContext *econtext, bool isCommit);
 
 
@@ -138,7 +138,7 @@ CreateExecutorState(void)
 	 * Initialize all fields of the Executor State structure
 	 */
 	estate->es_direction = ForwardScanDirection;
-	estate->es_snapshot = SnapshotNow;
+	estate->es_snapshot = InvalidSnapshot;		/* caller must initialize this */
 	estate->es_crosscheck_snapshot = InvalidSnapshot;	/* no crosscheck */
 	estate->es_range_table = NIL;
 	estate->es_plannedstmt = NULL;
@@ -428,7 +428,7 @@ CreateStandaloneExprContext(void)
  * any previously computed pass-by-reference expression result will go away!
  *
  * If isCommit is false, we are being called in error cleanup, and should
- * not call callbacks but only release memory.	(It might be better to call
+ * not call callbacks but only release memory.  (It might be better to call
  * the callbacks and pass the isCommit flag to them, but that would require
  * more invasive code changes than currently seems justified.)
  *
@@ -457,7 +457,7 @@ FreeExprContext(ExprContext *econtext, bool isCommit)
  * ReScanExprContext
  *
  *		Reset an expression context in preparation for a rescan of its
- *		plan node.	This requires calling any registered shutdown callbacks,
+ *		plan node.  This requires calling any registered shutdown callbacks,
  *		since any partially complete set-returning-functions must be canceled.
  *
  * Note we make no assumption about the caller's memory context.
@@ -498,7 +498,7 @@ MakePerTupleExprContext(EState *estate)
 /* ----------------
  *		ExecAssignExprContext
  *
- *		This initializes the ps_ExprContext field.	It is only necessary
+ *		This initializes the ps_ExprContext field.  It is only necessary
  *		to do this for nodes which use ExecQual or ExecProject
  *		because those routines require an econtext. Other nodes that
  *		don't have to evaluate expressions don't need to do this.
@@ -544,7 +544,7 @@ ExecAssignResultTypeFromTL(PlanState *planstate)
 
 	/*
 	 * ExecTypeFromTL needs the parse-time representation of the tlist, not a
-	 * list of ExprStates.	This is good because some plan nodes don't bother
+	 * list of ExprStates.  This is good because some plan nodes don't bother
 	 * to set up planstate->targetlist ...
 	 */
 	tupDesc = ExecTypeFromTL(planstate->plan->targetlist, hasoid);
@@ -572,7 +572,7 @@ ExecGetResultType(PlanState *planstate)
  * the given tlist should be a list of ExprState nodes, not Expr nodes.
  *
  * inputDesc can be NULL, but if it is not, we check to see whether simple
- * Vars in the tlist match the descriptor.	It is important to provide
+ * Vars in the tlist match the descriptor.  It is important to provide
  * inputDesc for relation-scan plan nodes, as a cross check that the relation
  * hasn't been changed since the plan was made.  At higher levels of a plan,
  * there is no need to recheck.
@@ -610,8 +610,8 @@ ExecBuildProjectionInfo(List *targetList,
 	 * We separate the target list elements into simple Var references and
 	 * expressions which require the full ExecTargetList machinery.  To be a
 	 * simple Var, a Var has to be a user attribute and not mismatch the
-	 * inputDesc.  (Note: if there is a type mismatch then ExecEvalVar will
-	 * probably throw an error at runtime, but we leave that to it.)
+	 * inputDesc.  (Note: if there is a type mismatch then ExecEvalScalarVar
+	 * will probably throw an error at runtime, but we leave that to it.)
 	 */
 	exprlist = NIL;
 	numSimpleVars = 0;
@@ -735,13 +735,16 @@ get_last_attnums(Node *node, ProjectionInfo *projInfo)
 	}
 
 	/*
-	 * Don't examine the arguments of Aggrefs or WindowFuncs, because those do
-	 * not represent expressions to be evaluated within the overall
-	 * targetlist's econtext.
+	 * Don't examine the arguments or filters of Aggrefs or WindowFuncs,
+	 * because those do not represent expressions to be evaluated within the
+	 * overall targetlist's econtext.  GroupingFunc arguments are never
+	 * evaluated at all.
 	 */
 	if (IsA(node, Aggref))
 		return false;
 	if (IsA(node, WindowFunc))
+		return false;
+	if (IsA(node, GroupingFunc))
 		return false;
 	return expression_tree_walker(node, get_last_attnums,
 								  (void *) projInfo);
@@ -795,7 +798,7 @@ ExecAssignProjectionInfo(PlanState *planstate,
  *
  * However ... there is no particular need to do it during ExecEndNode,
  * because FreeExecutorState will free any remaining ExprContexts within
- * the EState.	Letting FreeExecutorState do it allows the ExprContexts to
+ * the EState.  Letting FreeExecutorState do it allows the ExprContexts to
  * be freed in reverse order of creation, rather than order of creation as
  * will happen if we delete them here, which saves O(N^2) work in the list
  * cleanup inside FreeExprContext.
@@ -815,7 +818,7 @@ ExecFreeExprContext(PlanState *planstate)
  *		the following scan type support functions are for
  *		those nodes which are stubborn and return tuples in
  *		their Scan tuple slot instead of their Result tuple
- *		slot..	luck fur us, these nodes do not do projections
+ *		slot..  luck fur us, these nodes do not do projections
  *		so we don't have to worry about getting the ProjectionInfo
  *		right for them...  -cim 6/3/91
  * ----------------------------------------------------------------
@@ -901,8 +904,9 @@ ExecRelationIsTargetRelation(EState *estate, Index scanrelid)
  * ----------------------------------------------------------------
  */
 Relation
-ExecOpenScanRelation(EState *estate, Index scanrelid)
+ExecOpenScanRelation(EState *estate, Index scanrelid, int eflags)
 {
+	Relation	rel;
 	Oid			reloid;
 	LOCKMODE	lockmode;
 
@@ -916,26 +920,38 @@ ExecOpenScanRelation(EState *estate, Index scanrelid)
 		lockmode = NoLock;
 	else
 	{
-		ListCell   *l;
+		/* Keep this check in sync with InitPlan! */
+		ExecRowMark *erm = ExecFindRowMark(estate, scanrelid, true);
 
-		foreach(l, estate->es_rowMarks)
-		{
-			ExecRowMark *erm = lfirst(l);
-
-			if (erm->rti == scanrelid)
-			{
-				lockmode = NoLock;
-				break;
-			}
-		}
+		if (erm != NULL && erm->relation != NULL)
+			lockmode = NoLock;
 	}
 
-	/* OK, open the relation and acquire lock as needed */
+	/* Open the relation and acquire lock as needed */
 	reloid = getrelid(scanrelid, estate->es_range_table);
+<<<<<<< HEAD
 
 	Assert(reloid != InvalidOid);
 	
 	return heap_open(reloid, lockmode);
+=======
+	rel = heap_open(reloid, lockmode);
+
+	/*
+	 * Complain if we're attempting a scan of an unscannable relation, except
+	 * when the query won't actually be run.  This is a slightly klugy place
+	 * to do this, perhaps, but there is no better place.
+	 */
+	if ((eflags & (EXEC_FLAG_EXPLAIN_ONLY | EXEC_FLAG_WITH_NO_DATA)) == 0 &&
+		!RelationIsScannable(rel))
+		ereport(ERROR,
+				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+				 errmsg("materialized view \"%s\" has not been populated",
+						RelationGetRelationName(rel)),
+				 errhint("Use the REFRESH MATERIALIZED VIEW command.")));
+
+	return rel;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 }
 
 /*
@@ -976,6 +992,7 @@ ExecCloseScanRelation(Relation scanrel)
 	heap_close(scanrel, NoLock);
 }
 
+<<<<<<< HEAD
 
 /* ----------------------------------------------------------------
  *				  ExecInsertIndexTuples support
@@ -1486,6 +1503,8 @@ index_recheck_constraint(Relation index, Oid *constr_procs,
 	return true;
 }
 
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /*
  * ExecUpdateAOtupCount
  *		Update the tuple count on the master for an append only relation segfile.

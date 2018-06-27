@@ -3,9 +3,13 @@
  * syscache.c
  *	  System cache management routines
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2007-2010, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -22,9 +26,13 @@
  */
 #include "postgres.h"
 
+<<<<<<< HEAD
 #include "miscadmin.h"
 
 #include "access/heapam.h"
+=======
+#include "access/htup_details.h"
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include "access/sysattr.h"
 #include "catalog/indexing.h"
 #include "catalog/pg_aggregate.h"
@@ -37,8 +45,12 @@
 #include "catalog/pg_constraint.h"
 #include "catalog/pg_conversion.h"
 #include "catalog/pg_database.h"
+#include "catalog/pg_db_role_setting.h"
 #include "catalog/pg_default_acl.h"
+#include "catalog/pg_depend.h"
+#include "catalog/pg_description.h"
 #include "catalog/pg_enum.h"
+#include "catalog/pg_event_trigger.h"
 #include "catalog/pg_foreign_data_wrapper.h"
 #include "catalog/pg_foreign_server.h"
 #include "catalog/pg_foreign_table.h"
@@ -52,8 +64,15 @@
 #include "catalog/pg_proc.h"
 #include "catalog/pg_range.h"
 #include "catalog/pg_rewrite.h"
+#include "catalog/pg_seclabel.h"
+#include "catalog/pg_shdepend.h"
+#include "catalog/pg_shdescription.h"
+#include "catalog/pg_shseclabel.h"
+#include "catalog/pg_replication_origin.h"
 #include "catalog/pg_statistic.h"
+#include "catalog/pg_tablesample_method.h"
 #include "catalog/pg_tablespace.h"
+#include "catalog/pg_transform.h"
 #include "catalog/pg_ts_config.h"
 #include "catalog/pg_ts_config_map.h"
 #include "catalog/pg_ts_dict.h"
@@ -63,6 +82,7 @@
 #include "catalog/pg_user_mapping.h"
 #include "catalog/pg_resgroup.h"
 #include "utils/rel.h"
+#include "utils/catcache.h"
 #include "utils/syscache.h"
 
 
@@ -120,7 +140,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		32
+		16
 	},
 	{AccessMethodRelationId,	/* AMNAME */
 		AmNameIndexId,
@@ -175,7 +195,7 @@ static const struct cachedesc cacheinfo[] = {
 			Anum_pg_amproc_amprocrighttype,
 			Anum_pg_amproc_amprocnum
 		},
-		64
+		16
 	},
 	{AttributeRelationId,		/* ATTNAME */
 		AttributeRelidNameIndexId,
@@ -186,7 +206,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		2048
+		32
 	},
 	{AttributeRelationId,		/* ATTNUM */
 		AttributeRelidNumIndexId,
@@ -197,7 +217,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		2048
+		128
 	},
 	{AuthMemRelationId,			/* AUTHMEMMEMROLE */
 		AuthMemMemRoleIndexId,
@@ -208,7 +228,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		128
+		8
 	},
 	{AuthMemRelationId,			/* AUTHMEMROLEMEM */
 		AuthMemRoleMemIndexId,
@@ -219,7 +239,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		128
+		8
 	},
 	{AuthIdRelationId,			/* AUTHNAME */
 		AuthIdRolnameIndexId,
@@ -230,7 +250,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		128
+		8
 	},
 	{AuthIdRelationId,			/* AUTHOID */
 		AuthIdOidIndexId,
@@ -241,7 +261,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		128
+		8
 	},
 	{CastRelationId,			/* CASTSOURCETARGET */
 		CastSourceTargetIndexId,
@@ -263,7 +283,7 @@ static const struct cachedesc cacheinfo[] = {
 			Anum_pg_opclass_opcnamespace,
 			0
 		},
-		64
+		8
 	},
 	{OperatorClassRelationId,	/* CLAOID */
 		OpclassOidIndexId,
@@ -274,7 +294,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		64
+		8
 	},
 	{CollationRelationId,		/* COLLNAMEENCNSP */
 		CollationNameEncNspIndexId,
@@ -285,7 +305,7 @@ static const struct cachedesc cacheinfo[] = {
 			Anum_pg_collation_collnamespace,
 			0
 		},
-		64
+		8
 	},
 	{CollationRelationId,		/* COLLOID */
 		CollationOidIndexId,
@@ -296,7 +316,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		64
+		8
 	},
 	{ConversionRelationId,		/* CONDEFAULT */
 		ConversionDefaultIndexId,
@@ -307,7 +327,7 @@ static const struct cachedesc cacheinfo[] = {
 			Anum_pg_conversion_contoencoding,
 			ObjectIdAttributeNumber
 		},
-		128
+		8
 	},
 	{ConversionRelationId,		/* CONNAMENSP */
 		ConversionNameNspIndexId,
@@ -318,7 +338,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		128
+		8
 	},
 	{ConstraintRelationId,		/* CONSTROID */
 		ConstraintOidIndexId,
@@ -329,7 +349,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		1024
+		16
 	},
 	{ConversionRelationId,		/* CONVOID */
 		ConversionOidIndexId,
@@ -340,7 +360,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		128
+		8
 	},
 	{DatabaseRelationId,		/* DATABASEOID */
 		DatabaseOidIndexId,
@@ -362,7 +382,7 @@ static const struct cachedesc cacheinfo[] = {
 			Anum_pg_default_acl_defaclobjtype,
 			0
 		},
-		256
+		8
 	},
 	{EnumRelationId,			/* ENUMOID */
 		EnumOidIndexId,
@@ -373,7 +393,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		256
+		8
 	},
 	{EnumRelationId,			/* ENUMTYPOIDNAME */
 		EnumTypIdLabelIndexId,
@@ -384,7 +404,29 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		256
+		8
+	},
+	{EventTriggerRelationId,	/* EVENTTRIGGERNAME */
+		EventTriggerNameIndexId,
+		1,
+		{
+			Anum_pg_event_trigger_evtname,
+			0,
+			0,
+			0
+		},
+		8
+	},
+	{EventTriggerRelationId,	/* EVENTTRIGGEROID */
+		EventTriggerOidIndexId,
+		1,
+		{
+			ObjectIdAttributeNumber,
+			0,
+			0,
+			0
+		},
+		8
 	},
 	{ForeignDataWrapperRelationId,		/* FOREIGNDATAWRAPPERNAME */
 		ForeignDataWrapperNameIndexId,
@@ -395,7 +437,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		8
+		2
 	},
 	{ForeignDataWrapperRelationId,		/* FOREIGNDATAWRAPPEROID */
 		ForeignDataWrapperOidIndexId,
@@ -406,7 +448,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		8
+		2
 	},
 	{ForeignServerRelationId,	/* FOREIGNSERVERNAME */
 		ForeignServerNameIndexId,
@@ -417,7 +459,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		32
+		2
 	},
 	{ForeignServerRelationId,	/* FOREIGNSERVEROID */
 		ForeignServerOidIndexId,
@@ -428,7 +470,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		32
+		2
 	},
 	{ForeignTableRelationId,	/* FOREIGNTABLEREL */
 		ForeignTableRelidIndexId,
@@ -439,7 +481,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		128
+		4
 	},
 	{GpPolicyRelationId,	/* GPPOLICYID */
 		GpPolicyLocalOidIndexId,
@@ -461,7 +503,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		1024
+		64
 	},
 	{LanguageRelationId,		/* LANGNAME */
 		LanguageNameIndexId,
@@ -494,7 +536,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		256
+		4
 	},
 	{NamespaceRelationId,		/* NAMESPACEOID */
 		NamespaceOidIndexId,
@@ -505,7 +547,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		256
+		16
 	},
 	{OperatorRelationId,		/* OPERNAMENSP */
 		OperatorNameNspIndexId,
@@ -516,7 +558,7 @@ static const struct cachedesc cacheinfo[] = {
 			Anum_pg_operator_oprright,
 			Anum_pg_operator_oprnamespace
 		},
-		1024
+		256
 	},
 	{OperatorRelationId,		/* OPEROID */
 		OperatorOidIndexId,
@@ -527,7 +569,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		1024
+		32
 	},
 	{OperatorFamilyRelationId,	/* OPFAMILYAMNAMENSP */
 		OpfamilyAmNameNspIndexId,
@@ -538,7 +580,7 @@ static const struct cachedesc cacheinfo[] = {
 			Anum_pg_opfamily_opfnamespace,
 			0
 		},
-		64
+		8
 	},
 	{OperatorFamilyRelationId,	/* OPFAMILYOID */
 		OpfamilyOidIndexId,
@@ -549,7 +591,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		64
+		8
 	},
 	{PartitionRelationId,		/* PARTOID */
 		PartitionOidIndexId,
@@ -582,7 +624,7 @@ static const struct cachedesc cacheinfo[] = {
 			Anum_pg_proc_pronamespace,
 			0
 		},
-		2048
+		128
 	},
 	{ProcedureRelationId,		/* PROCOID */
 		ProcedureOidIndexId,
@@ -593,7 +635,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		2048
+		128
 	},
 	{RangeRelationId,			/* RANGETYPE */
 		RangeTypidIndexId,
@@ -604,7 +646,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		64
+		4
 	},
 	{RelationRelationId,		/* RELNAMENSP */
 		ClassNameNspIndexId,
@@ -615,7 +657,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		1024
+		128
 	},
 	{RelationRelationId,		/* RELOID */
 		ClassOidIndexId,
@@ -626,7 +668,29 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		1024
+		128
+	},
+	{ReplicationOriginRelationId,		/* REPLORIGIDENT */
+		ReplicationOriginIdentIndex,
+		1,
+		{
+			Anum_pg_replication_origin_roident,
+			0,
+			0,
+			0
+		},
+		16
+	},
+	{ReplicationOriginRelationId,		/* REPLORIGNAME */
+		ReplicationOriginNameIndex,
+		1,
+		{
+			Anum_pg_replication_origin_roname,
+			0,
+			0,
+			0
+		},
+		16
 	},
 	{ResGroupRelationId,		/* RESGROUPOID */
 		ResGroupOidIndexId,
@@ -659,7 +723,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		1024
+		8
 	},
 	{StatisticRelationId,		/* STATRELATTINH */
 		StatisticRelidAttnumInhIndexId,
@@ -670,7 +734,29 @@ static const struct cachedesc cacheinfo[] = {
 			Anum_pg_statistic_stainherit,
 			0
 		},
-		1024
+		128
+	},
+	{TableSampleMethodRelationId,		/* TABLESAMPLEMETHODNAME */
+		TableSampleMethodNameIndexId,
+		1,
+		{
+			Anum_pg_tablesample_method_tsmname,
+			0,
+			0,
+			0,
+		},
+		2
+	},
+	{TableSampleMethodRelationId,		/* TABLESAMPLEMETHODOID */
+		TableSampleMethodOidIndexId,
+		1,
+		{
+			ObjectIdAttributeNumber,
+			0,
+			0,
+			0,
+		},
+		2
 	},
 	{TableSpaceRelationId,		/* TABLESPACEOID */
 		TablespaceOidIndexId,
@@ -678,6 +764,28 @@ static const struct cachedesc cacheinfo[] = {
 		{
 			ObjectIdAttributeNumber,
 			0,
+			0,
+			0,
+		},
+		4
+	},
+	{TransformRelationId,		/* TRFOID */
+		TransformOidIndexId,
+		1,
+		{
+			ObjectIdAttributeNumber,
+			0,
+			0,
+			0,
+		},
+		16
+	},
+	{TransformRelationId,		/* TRFTYPELANG */
+		TransformTypeLangIndexId,
+		2,
+		{
+			Anum_pg_transform_trftype,
+			Anum_pg_transform_trflang,
 			0,
 			0,
 		},
@@ -692,7 +800,7 @@ static const struct cachedesc cacheinfo[] = {
 			Anum_pg_ts_config_map_mapseqno,
 			0
 		},
-		4
+		2
 	},
 	{TSConfigRelationId,		/* TSCONFIGNAMENSP */
 		TSConfigNameNspIndexId,
@@ -703,7 +811,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		16
+		2
 	},
 	{TSConfigRelationId,		/* TSCONFIGOID */
 		TSConfigOidIndexId,
@@ -714,7 +822,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		16
+		2
 	},
 	{TSDictionaryRelationId,	/* TSDICTNAMENSP */
 		TSDictionaryNameNspIndexId,
@@ -725,7 +833,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		16
+		2
 	},
 	{TSDictionaryRelationId,	/* TSDICTOID */
 		TSDictionaryOidIndexId,
@@ -736,7 +844,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		16
+		2
 	},
 	{TSParserRelationId,		/* TSPARSERNAMENSP */
 		TSParserNameNspIndexId,
@@ -747,7 +855,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		4
+		2
 	},
 	{TSParserRelationId,		/* TSPARSEROID */
 		TSParserOidIndexId,
@@ -758,7 +866,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		4
+		2
 	},
 	{TSTemplateRelationId,		/* TSTEMPLATENAMENSP */
 		TSTemplateNameNspIndexId,
@@ -769,7 +877,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		16
+		2
 	},
 	{TSTemplateRelationId,		/* TSTEMPLATEOID */
 		TSTemplateOidIndexId,
@@ -780,7 +888,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		16
+		2
 	},
 	{TypeRelationId,			/* TYPENAMENSP */
 		TypeNameNspIndexId,
@@ -791,7 +899,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		1024
+		64
 	},
 	{TypeRelationId,			/* TYPEOID */
 		TypeOidIndexId,
@@ -802,7 +910,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		1024
+		64
 	},
 	{UserMappingRelationId,		/* USERMAPPINGOID */
 		UserMappingOidIndexId,
@@ -813,7 +921,7 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		128
+		2
 	},
 	{UserMappingRelationId,		/* USERMAPPINGUSERSERVER */
 		UserMappingUserServerIndexId,
@@ -824,21 +932,32 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0
 		},
-		128
+		2
 	}
 };
 
-static CatCache *SysCache[
-						  lengthof(cacheinfo)];
-static int	SysCacheSize = lengthof(cacheinfo);
+#define SysCacheSize	((int) lengthof(cacheinfo))
+
+static CatCache *SysCache[SysCacheSize];
+
 static bool CacheInitialized = false;
+
+/* Sorted array of OIDs of tables that have caches on them */
+static Oid	SysCacheRelationOid[SysCacheSize];
+static int	SysCacheRelationOidSize;
+
+/* Sorted array of OIDs of tables and indexes used by caches */
+static Oid	SysCacheSupportingRelOid[SysCacheSize * 2];
+static int	SysCacheSupportingRelOidSize;
+
+static int	oid_compare(const void *a, const void *b);
 
 
 /*
  * InitCatalogCache - initialize the caches
  *
  * Note that no database access is done here; we only allocate memory
- * and initialize the cache structure.	Interrogation of the database
+ * and initialize the cache structure.  Interrogation of the database
  * to complete initialization of a cache happens upon first use
  * of that cache.
  */
@@ -846,10 +965,12 @@ void
 InitCatalogCache(void)
 {
 	int			cacheId;
+	int			i,
+				j;
 
 	Assert(!CacheInitialized);
 
-	MemSet(SysCache, 0, sizeof(SysCache));
+	SysCacheRelationOidSize = SysCacheSupportingRelOidSize = 0;
 
 	for (cacheId = 0; cacheId < SysCacheSize; cacheId++)
 	{
@@ -862,10 +983,41 @@ InitCatalogCache(void)
 		if (!PointerIsValid(SysCache[cacheId]))
 			elog(ERROR, "could not initialize cache %u (%d)",
 				 cacheinfo[cacheId].reloid, cacheId);
+		/* Accumulate data for OID lists, too */
+		SysCacheRelationOid[SysCacheRelationOidSize++] =
+			cacheinfo[cacheId].reloid;
+		SysCacheSupportingRelOid[SysCacheSupportingRelOidSize++] =
+			cacheinfo[cacheId].reloid;
+		SysCacheSupportingRelOid[SysCacheSupportingRelOidSize++] =
+			cacheinfo[cacheId].indoid;
+		/* see comments for RelationInvalidatesSnapshotsOnly */
+		Assert(!RelationInvalidatesSnapshotsOnly(cacheinfo[cacheId].reloid));
 	}
+
+	Assert(SysCacheRelationOidSize <= lengthof(SysCacheRelationOid));
+	Assert(SysCacheSupportingRelOidSize <= lengthof(SysCacheSupportingRelOid));
+
+	/* Sort and de-dup OID arrays, so we can use binary search. */
+	pg_qsort(SysCacheRelationOid, SysCacheRelationOidSize,
+			 sizeof(Oid), oid_compare);
+	for (i = 1, j = 0; i < SysCacheRelationOidSize; i++)
+	{
+		if (SysCacheRelationOid[i] != SysCacheRelationOid[j])
+			SysCacheRelationOid[++j] = SysCacheRelationOid[i];
+	}
+	SysCacheRelationOidSize = j + 1;
+
+	pg_qsort(SysCacheSupportingRelOid, SysCacheSupportingRelOidSize,
+			 sizeof(Oid), oid_compare);
+	for (i = 1, j = 0; i < SysCacheSupportingRelOidSize; i++)
+	{
+		if (SysCacheSupportingRelOid[i] != SysCacheSupportingRelOid[j])
+			SysCacheSupportingRelOid[++j] = SysCacheSupportingRelOid[i];
+	}
+	SysCacheSupportingRelOidSize = j + 1;
+
 	CacheInitialized = true;
 }
-
 
 /*
  * InitCatalogCachePhase2 - finish initializing the caches
@@ -1075,7 +1227,7 @@ SearchSysCacheExistsAttName(Oid relid, const char *attname)
  *		extract a specific attribute.
  *
  * This is equivalent to using heap_getattr() on a tuple fetched
- * from a non-cached relation.	Usually, this is only used for attributes
+ * from a non-cached relation.  Usually, this is only used for attributes
  * that could be NULL or variable length; the fixed-size attributes in
  * a system table are accessed just by mapping the tuple onto the C struct
  * declarations from include/catalog/.
@@ -1149,4 +1301,99 @@ SearchSysCacheList(int cacheId, int nkeys,
 
 	return SearchCatCacheList(SysCache[cacheId], nkeys,
 							  key1, key2, key3, key4);
+}
+
+/*
+ * Certain relations that do not have system caches send snapshot invalidation
+ * messages in lieu of catcache messages.  This is for the benefit of
+ * GetCatalogSnapshot(), which can then reuse its existing MVCC snapshot
+ * for scanning one of those catalogs, rather than taking a new one, if no
+ * invalidation has been received.
+ *
+ * Relations that have syscaches need not (and must not) be listed here.  The
+ * catcache invalidation messages will also flush the snapshot.  If you add a
+ * syscache for one of these relations, remove it from this list.
+ */
+bool
+RelationInvalidatesSnapshotsOnly(Oid relid)
+{
+	switch (relid)
+	{
+		case DbRoleSettingRelationId:
+		case DependRelationId:
+		case SharedDependRelationId:
+		case DescriptionRelationId:
+		case SharedDescriptionRelationId:
+		case SecLabelRelationId:
+		case SharedSecLabelRelationId:
+			return true;
+		default:
+			break;
+	}
+
+	return false;
+}
+
+/*
+ * Test whether a relation has a system cache.
+ */
+bool
+RelationHasSysCache(Oid relid)
+{
+	int			low = 0,
+				high = SysCacheRelationOidSize - 1;
+
+	while (low <= high)
+	{
+		int			middle = low + (high - low) / 2;
+
+		if (SysCacheRelationOid[middle] == relid)
+			return true;
+		if (SysCacheRelationOid[middle] < relid)
+			low = middle + 1;
+		else
+			high = middle - 1;
+	}
+
+	return false;
+}
+
+/*
+ * Test whether a relation supports a system cache, ie it is either a
+ * cached table or the index used for a cache.
+ */
+bool
+RelationSupportsSysCache(Oid relid)
+{
+	int			low = 0,
+				high = SysCacheSupportingRelOidSize - 1;
+
+	while (low <= high)
+	{
+		int			middle = low + (high - low) / 2;
+
+		if (SysCacheSupportingRelOid[middle] == relid)
+			return true;
+		if (SysCacheSupportingRelOid[middle] < relid)
+			low = middle + 1;
+		else
+			high = middle - 1;
+	}
+
+	return false;
+}
+
+
+/*
+ * OID comparator for pg_qsort
+ */
+static int
+oid_compare(const void *a, const void *b)
+{
+	Oid			oa = *((const Oid *) a);
+	Oid			ob = *((const Oid *) b);
+
+	if (oa == ob)
+		return 0;
+	return (oa > ob) ? 1 : -1;
 }

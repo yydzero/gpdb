@@ -19,10 +19,13 @@ test: uuid
 test: enum
 test: money
 test: rangetypes
+test: pg_lsn
+test: regproc
 test: strings
 test: numerology
 test: point
 test: lseg
+test: line
 test: box
 test: path
 test: polygon
@@ -47,11 +50,11 @@ test: oidjoins
 test: type_sanity
 test: opr_sanity
 test: insert
+test: insert_conflict
 test: create_function_1
 test: create_type
 test: create_table
 test: create_function_2
-test: create_function_3
 test: copy
 test: copyselect
 test: create_misc
@@ -59,6 +62,7 @@ test: create_operator
 test: create_index
 test: create_view
 test: create_aggregate
+test: create_function_3
 test: create_cast
 test: constraints
 ignore: triggers
@@ -67,6 +71,8 @@ test: create_table_like
 test: typed_table
 test: vacuum
 test: drop_if_exists
+test: updatable_views
+test: rolenames
 test: sanity_check
 test: errors
 test: select
@@ -80,7 +86,12 @@ test: union
 test: case
 test: join
 test: aggregates
+<<<<<<< HEAD
 ignore: transactions
+=======
+test: groupingsets
+test: transactions
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 ignore: random
 test: random
 test: portals
@@ -90,12 +101,31 @@ test: hash_index
 test: update
 test: delete
 test: namespace
+<<<<<<< HEAD
 ignore: prepared_xacts
 test: privileges
 test: security_label
 test: collate
 test: lock
+=======
+test: prepared_xacts
+test: brin
+test: gin
+test: gist
+test: spgist
+test: privileges
+test: security_label
+test: collate
+test: matview
+test: lock
+test: replica_identity
+test: rowsecurity
+test: object_address
+test: alter_generic
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 test: misc
+test: psql
+test: async
 test: rules
 test: select_views
 test: portals_p2
@@ -113,6 +143,9 @@ test: xmlmap
 test: functional_deps
 test: advisory_lock
 test: json
+test: jsonb
+test: indirect_toast
+test: equivclass
 test: plancache
 test: json
 test: limit
@@ -134,4 +167,6 @@ test: returning
 ignore: largeobject
 test: with
 test: xml
+test: event_trigger
 test: stats
+test: tablesample

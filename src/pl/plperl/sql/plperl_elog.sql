@@ -47,6 +47,9 @@ select uses_global();
 -- make sure we don't choke on readonly values
 do language plperl $$ elog(NOTICE, ${^TAINT}); $$;
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 -- test recovery after "die"
 
@@ -77,6 +80,7 @@ return $a + $b;
 $$;
 
 select indirect_die_caller();
+<<<<<<< HEAD
 
 -- Test non-ASCII error messages
 --
@@ -94,3 +98,5 @@ $$;
 select error_with_nbsp();
 =======
 >>>>>>> 80edfd76591fdb9beec061de3c05ef4e9d96ce56
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8

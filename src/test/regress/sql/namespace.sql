@@ -24,6 +24,7 @@ INSERT INTO test_schema_1.abc DEFAULT VALUES;
 SELECT * FROM test_schema_1.abc;
 SELECT * FROM test_schema_1.abc_view;
 
+<<<<<<< HEAD
 -- Test GRANT/REVOKE 
 CREATE SCHEMA test_schema_2;
 CREATE TABLE test_schema_2.abc as select * from test_schema_1.abc DISTRIBUTED BY (a);
@@ -84,3 +85,23 @@ WHERE nspname ~ 'test_schema_[12]';
 SELECT rolname
 FROM pg_authid a
 WHERE rolname ~ 'tmp_test_schema_role'
+=======
+ALTER SCHEMA test_schema_1 RENAME TO test_schema_renamed;
+SELECT COUNT(*) FROM pg_class WHERE relnamespace =
+    (SELECT oid FROM pg_namespace WHERE nspname = 'test_schema_1');
+
+-- test IF NOT EXISTS cases
+CREATE SCHEMA test_schema_renamed; -- fail, already exists
+CREATE SCHEMA IF NOT EXISTS test_schema_renamed; -- ok with notice
+CREATE SCHEMA IF NOT EXISTS test_schema_renamed -- fail, disallowed
+       CREATE TABLE abc (
+              a serial,
+              b int UNIQUE
+       );
+
+DROP SCHEMA test_schema_renamed CASCADE;
+
+-- verify that the objects were dropped
+SELECT COUNT(*) FROM pg_class WHERE relnamespace =
+    (SELECT oid FROM pg_namespace WHERE nspname = 'test_schema_renamed');
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8

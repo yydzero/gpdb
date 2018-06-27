@@ -1,7 +1,7 @@
 /*
  * psql - the PostgreSQL interactive terminal
  *
- * Copyright (c) 2000-2012, PostgreSQL Global Development Group
+ * Copyright (c) 2000-2015, PostgreSQL Global Development Group
  *
  * src/bin/psql/copy.c
  */
@@ -19,7 +19,6 @@
 
 #include "libpq-fe.h"
 #include "pqexpbuffer.h"
-#include "pqsignal.h"
 #include "dumputils.h"
 
 #include "settings.h"
@@ -37,7 +36,11 @@
  *	\copy ( select stmt ) to filename [options]
  *
  * where 'filename' can be one of the following:
+<<<<<<< HEAD
  *  '<file path>' | PROGRAM '<command>' | stdin | stdout | pstdout | pstdout
+=======
+ *	'<file path>' | PROGRAM '<command>' | stdin | stdout | pstdout | pstdout
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  *
  * An undocumented fact is that you can still write BINARY before the
  * tablename; this is a hangover from the pre-7.3 syntax.  The options
@@ -47,7 +50,11 @@
  * table name can be double-quoted and can have a schema part.
  * column names can be double-quoted.
  * filename can be single-quoted like SQL literals.
+<<<<<<< HEAD
  * command must be single-quoted like SQL literals
+=======
+ * command must be single-quoted like SQL literals.
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  *
  * returns a malloc'ed structure with the options, or NULL on parsing error
  */
@@ -81,9 +88,7 @@ xstrcat(char **var, const char *more)
 {
 	char	   *newvar;
 
-	newvar = pg_malloc(strlen(*var) + strlen(more) + 1);
-	strcpy(newvar, *var);
-	strcat(newvar, more);
+	newvar = psprintf("%s%s", *var, more);
 	free(*var);
 	*var = newvar;
 }
@@ -103,7 +108,7 @@ parse_slash_copy(const char *args)
 		return NULL;
 	}
 
-	result = pg_calloc(1, sizeof(struct copy_options));
+	result = pg_malloc0(sizeof(struct copy_options));
 
 	result->before_tofrom = pg_strdup("");		/* initialize for appending */
 
@@ -198,23 +203,38 @@ parse_slash_copy(const char *args)
 		goto error;
 
 	/* { 'filename' | PROGRAM 'command' | STDIN | STDOUT | PSTDIN | PSTDOUT } */
+<<<<<<< HEAD
 	token = strtokx(NULL, whitespace, NULL, "'",
+=======
+	token = strtokx(NULL, whitespace, ";", "'",
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 					0, false, false, pset.encoding);
 	if (!token)
 		goto error;
 
 	if (pg_strcasecmp(token, "program") == 0)
 	{
+<<<<<<< HEAD
 		int toklen;
 
 		token = strtokx(NULL, whitespace, NULL, "'",
+=======
+		int			toklen;
+
+		token = strtokx(NULL, whitespace, ";", "'",
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 						0, false, false, pset.encoding);
 		if (!token)
 			goto error;
 
 		/*
+<<<<<<< HEAD
 		 * The shell command must be quoted. This isn't fool-proof, but catches
 		 * most quoting errors.
+=======
+		 * The shell command must be quoted. This isn't fool-proof, but
+		 * catches most quoting errors.
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		 */
 		toklen = strlen(token);
 		if (token[0] != '\'' || toklen < 2 || token[toklen - 1] != '\'')
@@ -226,7 +246,11 @@ parse_slash_copy(const char *args)
 		result->file = pg_strdup(token);
 	}
 	else if (pg_strcasecmp(token, "stdin") == 0 ||
+<<<<<<< HEAD
 		pg_strcasecmp(token, "stdout") == 0)
+=======
+			 pg_strcasecmp(token, "stdout") == 0)
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	{
 		result->file = NULL;
 	}
@@ -312,20 +336,17 @@ is_on_segment(char * after_tofrom)
 
 
 /*
- * Execute a \copy command (frontend copy). We have to open a file, then
- * submit a COPY query to the backend and either feed it data from the
- * file or route its response into the file.
+ * Execute a \copy command (frontend copy). We have to open a file (or execute
+ * a command), then submit a COPY query to the backend and either feed it data
+ * from the file or route its response into the file.
  */
 bool
 do_copy(const char *args)
 {
 	PQExpBufferData query;
 	FILE	   *copystream;
-	FILE	   *save_file;
-	FILE	  **override_file;
 	struct copy_options *options;
 	bool		success;
-	struct stat st;
 
 	/* parse options */
 	options = parse_slash_copy(args);
@@ -345,8 +366,6 @@ do_copy(const char *args)
 
 	if (options->from)
 	{
-		override_file = &pset.cur_cmd_source;
-
 		if (options->file)
 		{
 			if (options->program)
@@ -366,8 +385,6 @@ do_copy(const char *args)
 	}
 	else
 	{
-		override_file = &pset.queryFout;
-
 		if (options->file)
 		{
 			if (options->program)
@@ -393,16 +410,24 @@ do_copy(const char *args)
 	{
 		if (options->program)
 			psql_error("could not execute command \"%s\": %s\n",
+<<<<<<< HEAD
 					options->file, strerror(errno));
 		else
 			psql_error("%s: %s\n",
 					options->file, strerror(errno));
+=======
+					   options->file, strerror(errno));
+		else
+			psql_error("%s: %s\n",
+					   options->file, strerror(errno));
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		free_copy_options(options);
 		return false;
 	}
 
 	if (!options->program)
 	{
+<<<<<<< HEAD
 		/* make sure the specified file is not a directory */
 		fstat(fileno(copystream), &st);
 		if (S_ISDIR(st.st_mode))
@@ -410,6 +435,23 @@ do_copy(const char *args)
 			fclose(copystream);
 			psql_error("%s: cannot copy from/to a directory\n",
 					   options->file);
+=======
+		struct stat st;
+		int			result;
+
+		/* make sure the specified file is not a directory */
+		if ((result = fstat(fileno(copystream), &st)) < 0)
+			psql_error("could not stat file \"%s\": %s\n",
+					   options->file, strerror(errno));
+
+		if (result == 0 && S_ISDIR(st.st_mode))
+			psql_error("%s: cannot copy from/to a directory\n",
+					   options->file);
+
+		if (result < 0 || S_ISDIR(st.st_mode))
+		{
+			fclose(copystream);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			free_copy_options(options);
 			return false;
 		}
@@ -420,24 +462,28 @@ do_copy(const char *args)
 	printfPQExpBuffer(&query, "COPY ");
 	appendPQExpBufferStr(&query, options->before_tofrom);
 	if (options->from)
-		appendPQExpBuffer(&query, " FROM STDIN ");
+		appendPQExpBufferStr(&query, " FROM STDIN ");
 	else
-		appendPQExpBuffer(&query, " TO STDOUT ");
+		appendPQExpBufferStr(&query, " TO STDOUT ");
 	if (options->after_tofrom)
 		appendPQExpBufferStr(&query, options->after_tofrom);
 
-	/* Run it like a user command, interposing the data source or sink. */
-	save_file = *override_file;
-	*override_file = copystream;
+	/* run it like a user command, but with copystream as data source/sink */
+	pset.copyStream = copystream;
 	success = SendQuery(query.data);
-	*override_file = save_file;
+	pset.copyStream = NULL;
 	termPQExpBuffer(&query);
 
 	if (options->file != NULL)
 	{
 		if (options->program)
 		{
+<<<<<<< HEAD
 			int pclose_rc = pclose(copystream);
+=======
+			int			pclose_rc = pclose(copystream);
+
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			if (pclose_rc != 0)
 			{
 				if (pclose_rc < 0)
@@ -445,7 +491,12 @@ do_copy(const char *args)
 							   strerror(errno));
 				else
 				{
+<<<<<<< HEAD
 					char *reason = wait_result_to_str(pclose_rc);
+=======
+					char	   *reason = wait_result_to_str(pclose_rc);
+
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 					psql_error("%s: %s\n", options->file,
 							   reason ? reason : "");
 					if (reason)
@@ -485,31 +536,32 @@ do_copy(const char *args)
  * conn should be a database connection that you just issued COPY TO on
  * and got back a PGRES_COPY_OUT result.
  * copystream is the file stream for the data to go to.
+ * The final status for the COPY is returned into *res (but note
+ * we already reported the error, if it's not a success result).
  *
  * result is true if successful, false if not.
  */
 bool
-handleCopyOut(PGconn *conn, FILE *copystream)
+handleCopyOut(PGconn *conn, FILE *copystream, PGresult **res)
 {
 	bool		OK = true;
 	char	   *buf;
 	int			ret;
-	PGresult   *res;
 
 	for (;;)
 	{
 		ret = PQgetCopyData(conn, &buf, 0);
 
 		if (ret < 0)
-			break;				/* done or error */
+			break;				/* done or server/connection error */
 
 		if (buf)
 		{
-			if (fwrite(buf, 1, ret, copystream) != ret)
+			if (OK && fwrite(buf, 1, ret, copystream) != ret)
 			{
-				if (OK)			/* complain only once, keep reading data */
-					psql_error("could not write COPY data: %s\n",
-							   strerror(errno));
+				psql_error("could not write COPY data: %s\n",
+						   strerror(errno));
+				/* complain only once, keep reading data from server */
 				OK = false;
 			}
 			PQfreemem(buf);
@@ -530,35 +582,23 @@ handleCopyOut(PGconn *conn, FILE *copystream)
 	}
 
 	/*
-	 * Check command status and return to normal libpq state.  After a
-	 * client-side error, the server will remain ready to deliver data.  The
-	 * cleanest thing is to fully drain and discard that data.	If the
-	 * client-side error happened early in a large file, this takes a long
-	 * time.  Instead, take advantage of the fact that PQexec() will silently
-	 * end any ongoing PGRES_COPY_OUT state.  This does cause us to lose the
-	 * results of any commands following the COPY in a single command string.
-	 * It also only works for protocol version 3.  XXX should we clean up
-	 * using the slow way when the connection is using protocol version 2?
+	 * Check command status and return to normal libpq state.
 	 *
-	 * We must not ever return with the status still PGRES_COPY_OUT.  Our
-	 * caller is unable to distinguish that situation from reaching the next
-	 * COPY in a command string that happened to contain two consecutive COPY
-	 * TO STDOUT commands.	We trust that no condition can make PQexec() fail
-	 * indefinitely while retaining status PGRES_COPY_OUT.
+	 * If for some reason libpq is still reporting PGRES_COPY_OUT state, we
+	 * would like to forcibly exit that state, since our caller would be
+	 * unable to distinguish that situation from reaching the next COPY in a
+	 * command string that happened to contain two consecutive COPY TO STDOUT
+	 * commands.  However, libpq provides no API for doing that, and in
+	 * principle it's a libpq bug anyway if PQgetCopyData() returns -1 or -2
+	 * but hasn't exited COPY_OUT state internally.  So we ignore the
+	 * possibility here.
 	 */
-	while (res = PQgetResult(conn), PQresultStatus(res) == PGRES_COPY_OUT)
-	{
-		OK = false;
-		PQclear(res);
-
-		PQexec(conn, "-- clear PGRES_COPY_OUT state");
-	}
-	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+	*res = PQgetResult(conn);
+	if (PQresultStatus(*res) != PGRES_COMMAND_OK)
 	{
 		psql_error("%s", PQerrorMessage(conn));
 		OK = false;
 	}
-	PQclear(res);
 
 	return OK;
 }
@@ -571,6 +611,8 @@ handleCopyOut(PGconn *conn, FILE *copystream)
  * and got back a PGRES_COPY_IN result.
  * copystream is the file stream to read the data from.
  * isbinary can be set from PQbinaryTuples().
+ * The final status for the COPY is returned into *res (but note
+ * we already reported the error, if it's not a success result).
  *
  * result is true if successful, false if not.
  */
@@ -579,12 +621,11 @@ handleCopyOut(PGconn *conn, FILE *copystream)
 #define COPYBUFSIZ 8192
 
 bool
-handleCopyIn(PGconn *conn, FILE *copystream, bool isbinary)
+handleCopyIn(PGconn *conn, FILE *copystream, bool isbinary, PGresult **res)
 {
 	bool		OK;
-	const char *prompt;
 	char		buf[COPYBUFSIZ];
-	PGresult   *res;
+	bool		showprompt;
 
 	/*
 	 * Establish longjmp destination for exiting from wait-for-input. (This is
@@ -595,7 +636,9 @@ handleCopyIn(PGconn *conn, FILE *copystream, bool isbinary)
 		/* got here with longjmp */
 
 		/* Terminate data transfer */
-		PQputCopyEnd(conn, _("canceled by user"));
+		PQputCopyEnd(conn,
+					 (PQprotocolVersion(conn) < 3) ? NULL :
+					 _("canceled by user"));
 
 		OK = false;
 		goto copyin_cleanup;
@@ -604,21 +647,23 @@ handleCopyIn(PGconn *conn, FILE *copystream, bool isbinary)
 	/* Prompt if interactive input */
 	if (isatty(fileno(copystream)))
 	{
+		showprompt = true;
 		if (!pset.quiet)
 			puts(_("Enter data to be copied followed by a newline.\n"
 				   "End with a backslash and a period on a line by itself."));
-		prompt = get_prompt(PROMPT_COPY);
 	}
 	else
-		prompt = NULL;
+		showprompt = false;
 
 	OK = true;
 
 	if (isbinary)
 	{
 		/* interactive input probably silly, but give one prompt anyway */
-		if (prompt)
+		if (showprompt)
 		{
+			const char *prompt = get_prompt(PROMPT_COPY);
+
 			fputs(prompt, stdout);
 			fflush(stdout);
 		}
@@ -653,8 +698,10 @@ handleCopyIn(PGconn *conn, FILE *copystream, bool isbinary)
 			bool		firstload;
 			bool		linedone;
 
-			if (prompt)
+			if (showprompt)
 			{
+				const char *prompt = get_prompt(PROMPT_COPY);
+
 				fputs(prompt, stdout);
 				fflush(stdout);
 			}
@@ -689,6 +736,12 @@ handleCopyIn(PGconn *conn, FILE *copystream, bool isbinary)
 				/* check for EOF marker, but not on a partial line */
 				if (firstload)
 				{
+					/*
+					 * This code erroneously assumes '\.' on a line alone
+					 * inside a quoted CSV string terminates the \copy.
+					 * http://www.postgresql.org/message-id/E1TdNVQ-0001ju-GO@w
+					 * rigleys.postgresql.org
+					 */
 					if (strcmp(buf, "\\.\n") == 0 ||
 						strcmp(buf, "\\.\r\n") == 0)
 					{
@@ -708,7 +761,10 @@ handleCopyIn(PGconn *conn, FILE *copystream, bool isbinary)
 			}
 
 			if (copystream == pset.cur_cmd_source)
+			{
 				pset.lineno++;
+				pset.stmt_lineno++;
+			}
 		}
 	}
 
@@ -716,36 +772,43 @@ handleCopyIn(PGconn *conn, FILE *copystream, bool isbinary)
 	if (ferror(copystream))
 		OK = false;
 
-	/* Terminate data transfer */
+	/*
+	 * Terminate data transfer.  We can't send an error message if we're using
+	 * protocol version 2.
+	 */
 	if (PQputCopyEnd(conn,
-					 OK ? NULL : _("aborted because of read failure")) <= 0)
+					 (OK || PQprotocolVersion(conn) < 3) ? NULL :
+					 _("aborted because of read failure")) <= 0)
 		OK = false;
 
 copyin_cleanup:
 
 	/*
-	 * Check command status and return to normal libpq state
+	 * Check command status and return to normal libpq state.
 	 *
-	 * We must not ever return with the status still PGRES_COPY_IN.  Our
-	 * caller is unable to distinguish that situation from reaching the next
-	 * COPY in a command string that happened to contain two consecutive COPY
-	 * FROM STDIN commands.  XXX if something makes PQputCopyEnd() fail
-	 * indefinitely while retaining status PGRES_COPY_IN, we get an infinite
-	 * loop.  This is more realistic than handleCopyOut()'s counterpart risk.
+	 * We do not want to return with the status still PGRES_COPY_IN: our
+	 * caller would be unable to distinguish that situation from reaching the
+	 * next COPY in a command string that happened to contain two consecutive
+	 * COPY FROM STDIN commands.  We keep trying PQputCopyEnd() in the hope
+	 * it'll work eventually.  (What's actually likely to happen is that in
+	 * attempting to flush the data, libpq will eventually realize that the
+	 * connection is lost.  But that's fine; it will get us out of COPY_IN
+	 * state, which is what we need.)
 	 */
-	while (res = PQgetResult(conn), PQresultStatus(res) == PGRES_COPY_IN)
+	while (*res = PQgetResult(conn), PQresultStatus(*res) == PGRES_COPY_IN)
 	{
 		OK = false;
-		PQclear(res);
-
-		PQputCopyEnd(pset.db, _("trying to exit copy mode"));
+		PQclear(*res);
+		/* We can't send an error message if we're using protocol version 2 */
+		PQputCopyEnd(conn,
+					 (PQprotocolVersion(conn) < 3) ? NULL :
+					 _("trying to exit copy mode"));
 	}
-	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+	if (PQresultStatus(*res) != PGRES_COMMAND_OK)
 	{
 		psql_error("%s", PQerrorMessage(conn));
 		OK = false;
 	}
-	PQclear(res);
 
 	return OK;
 }

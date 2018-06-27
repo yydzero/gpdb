@@ -3,7 +3,7 @@
  * nodeModifyTable.c
  *	  routines to handle ModifyTable nodes.
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -30,20 +30,23 @@
  *
  *		If the query specifies RETURNING, then the ModifyTable returns a
  *		RETURNING tuple after completing each row insert, update, or delete.
- *		It must be called again to continue the operation.	Without RETURNING,
+ *		It must be called again to continue the operation.  Without RETURNING,
  *		we just loop within the node until all the work is done, then
  *		return NULL.  This avoids useless call/return overhead.
  */
 
 #include "postgres.h"
 
+#include "access/htup_details.h"
 #include "access/xact.h"
 #include "commands/trigger.h"
 #include "executor/executor.h"
 #include "executor/nodeModifyTable.h"
+#include "foreign/fdwapi.h"
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
 #include "storage/bufmgr.h"
+#include "storage/lmgr.h"
 #include "utils/builtins.h"
 #include "utils/memutils.h"
 #include "utils/rel.h"
@@ -60,6 +63,15 @@
 #include "utils/lsyscache.h"
 #include "utils/snapmgr.h"
 
+
+static bool ExecOnConflictUpdate(ModifyTableState *mtstate,
+					 ResultRelInfo *resultRelInfo,
+					 ItemPointer conflictTid,
+					 TupleTableSlot *planSlot,
+					 TupleTableSlot *excludedSlot,
+					 EState *estate,
+					 bool canSetTag,
+					 TupleTableSlot **returning);
 
 /*
  * Verify that the tuples to be produced by INSERT or UPDATE match the
@@ -160,6 +172,51 @@ ExecProcessReturning(ProjectionInfo *projectReturning,
 	return ExecProject(projectReturning, NULL);
 }
 
+/*
+ * ExecCheckHeapTupleVisible -- verify heap tuple is visible
+ *
+ * It would not be consistent with guarantees of the higher isolation levels to
+ * proceed with avoiding insertion (taking speculative insertion's alternative
+ * path) on the basis of another tuple that is not visible to MVCC snapshot.
+ * Check for the need to raise a serialization failure, and do so as necessary.
+ */
+static void
+ExecCheckHeapTupleVisible(EState *estate,
+						  HeapTuple tuple,
+						  Buffer buffer)
+{
+	if (!IsolationUsesXactSnapshot())
+		return;
+
+	if (!HeapTupleSatisfiesVisibility(tuple, estate->es_snapshot, buffer))
+		ereport(ERROR,
+				(errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
+			 errmsg("could not serialize access due to concurrent update")));
+}
+
+/*
+ * ExecCheckTIDVisible -- convenience variant of ExecCheckHeapTupleVisible()
+ */
+static void
+ExecCheckTIDVisible(EState *estate,
+					ResultRelInfo *relinfo,
+					ItemPointer tid)
+{
+	Relation	rel = relinfo->ri_RelationDesc;
+	Buffer		buffer;
+	HeapTupleData tuple;
+
+	/* Redundantly check isolation level */
+	if (!IsolationUsesXactSnapshot())
+		return;
+
+	tuple.t_self = *tid;
+	if (!heap_fetch(rel, SnapshotAny, &tuple, &buffer, false, NULL))
+		elog(ERROR, "failed to fetch conflicting tuple for ON CONFLICT");
+	ExecCheckHeapTupleVisible(estate, &tuple, buffer);
+	ReleaseBuffer(buffer);
+}
+
 /* ----------------------------------------------------------------
  *		ExecInsert
  *
@@ -169,9 +226,17 @@ ExecProcessReturning(ProjectionInfo *projectReturning,
  *		Returns RETURNING result if any, otherwise NULL.
  * ----------------------------------------------------------------
  */
+<<<<<<< HEAD
 TupleTableSlot *
 ExecInsert(TupleTableSlot *slot,
+=======
+static TupleTableSlot *
+ExecInsert(ModifyTableState *mtstate,
+		   TupleTableSlot *slot,
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		   TupleTableSlot *planSlot,
+		   List *arbiterIndexes,
+		   OnConflictAction onconflict,
 		   EState *estate,
 		   bool canSetTag,
 		   PlanGenerator planGen,
@@ -338,7 +403,15 @@ ExecInsert(TupleTableSlot *slot,
 
 	Assert(slot != NULL);
 
-	/* BEFORE ROW INSERT Triggers */
+	/*
+	 * BEFORE ROW INSERT Triggers.
+	 *
+	 * Note: We fire BEFORE ROW TRIGGERS for every attempted insertion in an
+	 * INSERT ... ON CONFLICT statement.  We cannot check for constraint
+	 * violations before firing these triggers, because they can change the
+	 * values to insert.  Also, they can run arbitrary user-defined code with
+	 * side-effects that we can't cancel by just not inserting the tuple.
+	 */
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_insert_before_row &&
 		!isUpdate)
@@ -371,14 +444,49 @@ ExecInsert(TupleTableSlot *slot,
 
 		newId = InvalidOid;
 	}
+	else if (resultRelInfo->ri_FdwRoutine)
+	{
+		/*
+		 * insert into foreign table: let the FDW do it
+		 */
+		slot = resultRelInfo->ri_FdwRoutine->ExecForeignInsert(estate,
+															   resultRelInfo,
+															   slot,
+															   planSlot);
+
+		if (slot == NULL)		/* "do nothing" */
+			return NULL;
+
+		/* FDW might have changed tuple */
+		tuple = ExecMaterializeSlot(slot);
+
+		newId = InvalidOid;
+	}
 	else
 	{
+		/*
+		 * Constraints might reference the tableoid column, so initialize
+		 * t_tableOid before evaluating them.
+		 */
+		tuple->t_tableOid = RelationGetRelid(resultRelationDesc);
+
+		/*
+		 * Check any RLS INSERT WITH CHECK policies
+		 *
+		 * ExecWithCheckOptions() will skip any WCOs which are not of the kind
+		 * we are looking for at this point.
+		 */
+		if (resultRelInfo->ri_WithCheckOptions != NIL)
+			ExecWithCheckOptions(WCO_RLS_INSERT_CHECK,
+								 resultRelInfo, slot, estate);
+
 		/*
 		 * Check the constraints of the tuple
 		 */
 		if (resultRelationDesc->rd_att->constr)
 			ExecConstraints(resultRelInfo, slot, estate);
 
+<<<<<<< HEAD
 		/*
 		 * insert the tuple
 		 *
@@ -465,6 +573,134 @@ ExecInsert(TupleTableSlot *slot,
 		if (resultRelInfo->ri_NumIndices > 0)
 			recheckIndexes = ExecInsertIndexTuples(slot, &lastTid,
 												   estate);
+=======
+		if (onconflict != ONCONFLICT_NONE && resultRelInfo->ri_NumIndices > 0)
+		{
+			/* Perform a speculative insertion. */
+			uint32		specToken;
+			ItemPointerData conflictTid;
+			bool		specConflict;
+
+			/*
+			 * Do a non-conclusive check for conflicts first.
+			 *
+			 * We're not holding any locks yet, so this doesn't guarantee that
+			 * the later insert won't conflict.  But it avoids leaving behind
+			 * a lot of canceled speculative insertions, if you run a lot of
+			 * INSERT ON CONFLICT statements that do conflict.
+			 *
+			 * We loop back here if we find a conflict below, either during
+			 * the pre-check, or when we re-check after inserting the tuple
+			 * speculatively.  See the executor README for a full discussion
+			 * of speculative insertion.
+			 */
+	vlock:
+			specConflict = false;
+			if (!ExecCheckIndexConstraints(slot, estate, &conflictTid,
+										   arbiterIndexes))
+			{
+				/* committed conflict tuple found */
+				if (onconflict == ONCONFLICT_UPDATE)
+				{
+					/*
+					 * In case of ON CONFLICT DO UPDATE, execute the UPDATE
+					 * part.  Be prepared to retry if the UPDATE fails because
+					 * of another concurrent UPDATE/DELETE to the conflict
+					 * tuple.
+					 */
+					TupleTableSlot *returning = NULL;
+
+					if (ExecOnConflictUpdate(mtstate, resultRelInfo,
+											 &conflictTid, planSlot, slot,
+											 estate, canSetTag, &returning))
+					{
+						InstrCountFiltered2(&mtstate->ps, 1);
+						return returning;
+					}
+					else
+						goto vlock;
+				}
+				else
+				{
+					/*
+					 * In case of ON CONFLICT DO NOTHING, do nothing. However,
+					 * verify that the tuple is visible to the executor's MVCC
+					 * snapshot at higher isolation levels.
+					 */
+					Assert(onconflict == ONCONFLICT_NOTHING);
+					ExecCheckTIDVisible(estate, resultRelInfo, &conflictTid);
+					InstrCountFiltered2(&mtstate->ps, 1);
+					return NULL;
+				}
+			}
+
+			/*
+			 * Before we start insertion proper, acquire our "speculative
+			 * insertion lock".  Others can use that to wait for us to decide
+			 * if we're going to go ahead with the insertion, instead of
+			 * waiting for the whole transaction to complete.
+			 */
+			specToken = SpeculativeInsertionLockAcquire(GetCurrentTransactionId());
+			HeapTupleHeaderSetSpeculativeToken(tuple->t_data, specToken);
+
+			/* insert the tuple, with the speculative token */
+			newId = heap_insert(resultRelationDesc, tuple,
+								estate->es_output_cid,
+								HEAP_INSERT_SPECULATIVE,
+								NULL);
+
+			/* insert index entries for tuple */
+			recheckIndexes = ExecInsertIndexTuples(slot, &(tuple->t_self),
+												 estate, true, &specConflict,
+												   arbiterIndexes);
+
+			/* adjust the tuple's state accordingly */
+			if (!specConflict)
+				heap_finish_speculative(resultRelationDesc, tuple);
+			else
+				heap_abort_speculative(resultRelationDesc, tuple);
+
+			/*
+			 * Wake up anyone waiting for our decision.  They will re-check
+			 * the tuple, see that it's no longer speculative, and wait on our
+			 * XID as if this was a regularly inserted tuple all along.  Or if
+			 * we killed the tuple, they will see it's dead, and proceed as if
+			 * the tuple never existed.
+			 */
+			SpeculativeInsertionLockRelease(GetCurrentTransactionId());
+
+			/*
+			 * If there was a conflict, start from the beginning.  We'll do
+			 * the pre-check again, which will now find the conflicting tuple
+			 * (unless it aborts before we get there).
+			 */
+			if (specConflict)
+			{
+				list_free(recheckIndexes);
+				goto vlock;
+			}
+
+			/* Since there was no insertion conflict, we're done */
+		}
+		else
+		{
+			/*
+			 * insert the tuple normally.
+			 *
+			 * Note: heap_insert returns the tid (location) of the new tuple
+			 * in the t_self field.
+			 */
+			newId = heap_insert(resultRelationDesc, tuple,
+								estate->es_output_cid,
+								0, NULL);
+
+			/* insert index entries for tuple */
+			if (resultRelInfo->ri_NumIndices > 0)
+				recheckIndexes = ExecInsertIndexTuples(slot, &(tuple->t_self),
+													   estate, false, NULL,
+													   arbiterIndexes);
+		}
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	}
 	if (canSetTag)
 	{
@@ -495,6 +731,21 @@ ExecInsert(TupleTableSlot *slot,
 
 	list_free(recheckIndexes);
 
+	/*
+	 * Check any WITH CHECK OPTION constraints from parent views.  We are
+	 * required to do this after testing all constraints and uniqueness
+	 * violations per the SQL spec, so we do it after actually inserting the
+	 * record into the heap and all indexes.
+	 *
+	 * ExecWithCheckOptions will elog(ERROR) if a violation is found, so the
+	 * tuple will never be seen, if it violates the WITH CHECK OPTION.
+	 *
+	 * ExecWithCheckOptions() will skip any WCOs which are not of the kind we
+	 * are looking for at this point.
+	 */
+	if (resultRelInfo->ri_WithCheckOptions != NIL)
+		ExecWithCheckOptions(WCO_VIEW_CHECK, resultRelInfo, slot, estate);
+
 	/* Process RETURNING if present */
 	if (resultRelInfo->ri_projectReturning)
 		return ExecProcessReturning(resultRelInfo->ri_projectReturning,
@@ -512,7 +763,11 @@ ExecInsert(TupleTableSlot *slot,
  *		When deleting from a table, tupleid identifies the tuple to
  *		delete and oldtuple is NULL.  When deleting from a view,
  *		oldtuple is passed to the INSTEAD OF triggers and identifies
- *		what to delete, and tupleid is invalid.
+ *		what to delete, and tupleid is invalid.  When deleting from a
+ *		foreign table, tupleid is invalid; the FDW has to figure out
+ *		which row to delete using data from the planSlot.  oldtuple is
+ *		passed to foreign table triggers; it is NULL when the foreign
+ *		table has no relevant triggers.
  *
  *		In GPDB, DELETE can be part of an update operation when
  *		there is a preceding SplitUpdate node. 
@@ -522,7 +777,7 @@ ExecInsert(TupleTableSlot *slot,
  */
 TupleTableSlot *
 ExecDelete(ItemPointer tupleid,
-		   HeapTupleHeader oldtuple,
+		   HeapTuple oldtuple,
 		   TupleTableSlot *planSlot,
 		   EPQState *epqstate,
 		   EState *estate,
@@ -533,8 +788,13 @@ ExecDelete(ItemPointer tupleid,
 	ResultRelInfo *resultRelInfo;
 	Relation	resultRelationDesc;
 	HTSU_Result result;
+<<<<<<< HEAD
 	ItemPointerData update_ctid;
 	TransactionId update_xmax = InvalidTransactionId;
+=======
+	HeapUpdateFailureData hufd;
+	TupleTableSlot *slot = NULL;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/*
 	 * get information on the (current) result relation
@@ -571,8 +831,13 @@ ExecDelete(ItemPointer tupleid,
 		{
 			bool		dodelete;
 
+<<<<<<< HEAD
 			dodelete = ExecBRDeleteTriggers(estate, epqstate, resultRelInfo,
 											tupleid);
+=======
+		dodelete = ExecBRDeleteTriggers(estate, epqstate, resultRelInfo,
+										tupleid, oldtuple);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 			if (!dodelete)			/* "do nothing" */
 				return NULL;
@@ -596,17 +861,41 @@ ExecDelete(ItemPointer tupleid,
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_delete_instead_row)
 	{
-		HeapTupleData tuple;
 		bool		dodelete;
 
 		Assert(oldtuple != NULL);
+<<<<<<< HEAD
 		tuple.t_data = oldtuple;
 		tuple.t_len = HeapTupleHeaderGetDatumLength(oldtuple);
 		ItemPointerSetInvalid(&(tuple.t_self));
 
 		dodelete = ExecIRDeleteTriggers(estate, resultRelInfo, &tuple);
+=======
+		dodelete = ExecIRDeleteTriggers(estate, resultRelInfo, oldtuple);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 		if (!dodelete)			/* "do nothing" */
+			return NULL;
+	}
+	else if (resultRelInfo->ri_FdwRoutine)
+	{
+		/*
+		 * delete from foreign table: let the FDW do it
+		 *
+		 * We offer the trigger tuple slot as a place to store RETURNING data,
+		 * although the FDW can return some other slot if it wants.  Set up
+		 * the slot's tupdesc so the FDW doesn't need to do that for itself.
+		 */
+		slot = estate->es_trig_tuple_slot;
+		if (slot->tts_tupleDescriptor != RelationGetDescr(resultRelationDesc))
+			ExecSetSlotDescriptor(slot, RelationGetDescr(resultRelationDesc));
+
+		slot = resultRelInfo->ri_FdwRoutine->ExecForeignDelete(estate,
+															   resultRelInfo,
+															   slot,
+															   planSlot);
+
+		if (slot == NULL)		/* "do nothing" */
 			return NULL;
 	}
 	else
@@ -621,6 +910,7 @@ ExecDelete(ItemPointer tupleid,
 		 * mode transactions.
 		 */
 ldelete:;
+<<<<<<< HEAD
 		if (isHeapTable)
 		{
 			result = heap_delete(resultRelationDesc, tupleid,
@@ -711,6 +1001,48 @@ ldelete:;
 							(errcode(ERRCODE_IN_FAILED_SQL_TRANSACTION ),
 							 errmsg("multiple updates to a row by the same query is not allowed")));
 				}
+=======
+		result = heap_delete(resultRelationDesc, tupleid,
+							 estate->es_output_cid,
+							 estate->es_crosscheck_snapshot,
+							 true /* wait for commit */ ,
+							 &hufd);
+		switch (result)
+		{
+			case HeapTupleSelfUpdated:
+
+				/*
+				 * The target tuple was already updated or deleted by the
+				 * current command, or by a later command in the current
+				 * transaction.  The former case is possible in a join DELETE
+				 * where multiple tuples join to the same target tuple. This
+				 * is somewhat questionable, but Postgres has always allowed
+				 * it: we just ignore additional deletion attempts.
+				 *
+				 * The latter case arises if the tuple is modified by a
+				 * command in a BEFORE trigger, or perhaps by a command in a
+				 * volatile function used in the query.  In such situations we
+				 * should not ignore the deletion, but it is equally unsafe to
+				 * proceed.  We don't want to discard the original DELETE
+				 * while keeping the triggered actions based on its deletion;
+				 * and it would be no better to allow the original DELETE
+				 * while discarding updates that it triggered.  The row update
+				 * carries some information that might be important according
+				 * to business rules; so throwing an error is the only safe
+				 * course.
+				 *
+				 * If a trigger actually intends this type of interaction, it
+				 * can re-execute the DELETE and then return NULL to cancel
+				 * the outer delete.
+				 */
+				if (hufd.cmax != estate->es_output_cid)
+					ereport(ERROR,
+							(errcode(ERRCODE_TRIGGERED_DATA_CHANGE_VIOLATION),
+							 errmsg("tuple to be updated was already modified by an operation triggered by the current command"),
+							 errhint("Consider using an AFTER trigger instead of a BEFORE trigger to propagate changes to other rows.")));
+
+				/* Else, already deleted by self; nothing to do */
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 				return NULL;
 
 			case HeapTupleMayBeUpdated:
@@ -721,7 +1053,7 @@ ldelete:;
 					ereport(ERROR,
 							(errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
 							 errmsg("could not serialize access due to concurrent update")));
-				if (!ItemPointerEquals(tupleid, &update_ctid))
+				if (!ItemPointerEquals(tupleid, &hufd.ctid))
 				{
 					TupleTableSlot *epqslot;
 
@@ -729,11 +1061,12 @@ ldelete:;
 										   epqstate,
 										   resultRelationDesc,
 										   resultRelInfo->ri_RangeTableIndex,
-										   &update_ctid,
-										   update_xmax);
+										   LockTupleExclusive,
+										   &hufd.ctid,
+										   hufd.xmax);
 					if (!TupIsNull(epqslot))
 					{
-						*tupleid = update_ctid;
+						*tupleid = hufd.ctid;
 						goto ldelete;
 					}
 				}
@@ -758,6 +1091,7 @@ ldelete:;
 	if (canSetTag)
 		(estate->es_processed)++;
 
+<<<<<<< HEAD
 	if (!isUpdate)
 	{
 		/*
@@ -771,19 +1105,23 @@ ldelete:;
 		/* AFTER ROW DELETE Triggers */
 		ExecARDeleteTriggers(estate, resultRelInfo, tupleid);
 	}
+=======
+	/* AFTER ROW DELETE Triggers */
+	ExecARDeleteTriggers(estate, resultRelInfo, tupleid, oldtuple);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/* Process RETURNING if present */
 	if (resultRelInfo->ri_projectReturning)
 	{
 		/*
 		 * We have to put the target tuple into a slot, which means first we
-		 * gotta fetch it.	We can use the trigger tuple slot.
+		 * gotta fetch it.  We can use the trigger tuple slot.
 		 */
-		TupleTableSlot *slot = estate->es_trig_tuple_slot;
 		TupleTableSlot *rslot;
 		HeapTupleData deltuple;
 		Buffer		delbuffer;
 
+<<<<<<< HEAD
 		// GPDB_91_MERGE_FIXME: What if it's an AO table?
 
 		if (oldtuple != NULL)
@@ -791,22 +1129,49 @@ ldelete:;
 			deltuple.t_data = oldtuple;
 			deltuple.t_len = HeapTupleHeaderGetDatumLength(oldtuple);
 			ItemPointerSetInvalid(&(deltuple.t_self));
+=======
+		if (resultRelInfo->ri_FdwRoutine)
+		{
+			/* FDW must have provided a slot containing the deleted row */
+			Assert(!TupIsNull(slot));
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			delbuffer = InvalidBuffer;
 		}
 		else
 		{
-			deltuple.t_self = *tupleid;
-			if (!heap_fetch(resultRelationDesc, SnapshotAny,
-							&deltuple, &delbuffer, false, NULL))
-				elog(ERROR, "failed to fetch deleted tuple for DELETE RETURNING");
-		}
+			slot = estate->es_trig_tuple_slot;
+			if (oldtuple != NULL)
+			{
+				deltuple = *oldtuple;
+				delbuffer = InvalidBuffer;
+			}
+			else
+			{
+				deltuple.t_self = *tupleid;
+				if (!heap_fetch(resultRelationDesc, SnapshotAny,
+								&deltuple, &delbuffer, false, NULL))
+					elog(ERROR, "failed to fetch deleted tuple for DELETE RETURNING");
+			}
 
+<<<<<<< HEAD
 		if (slot->tts_tupleDescriptor != RelationGetDescr(resultRelationDesc))
 			ExecSetSlotDescriptor(slot, RelationGetDescr(resultRelationDesc));
 		ExecStoreHeapTuple(&deltuple, slot, InvalidBuffer, false);
+=======
+			if (slot->tts_tupleDescriptor != RelationGetDescr(resultRelationDesc))
+				ExecSetSlotDescriptor(slot, RelationGetDescr(resultRelationDesc));
+			ExecStoreTuple(&deltuple, slot, InvalidBuffer, false);
+		}
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 		rslot = ExecProcessReturning(resultRelInfo->ri_projectReturning,
 									 slot, planSlot);
+
+		/*
+		 * Before releasing the target tuple again, make sure rslot has a
+		 * local copy of any pass-by-reference values.
+		 */
+		ExecMaterializeSlot(rslot);
 
 		ExecClearTuple(slot);
 		if (BufferIsValid(delbuffer))
@@ -1001,21 +1366,25 @@ checkPartitionUpdate(EState *estate, TupleTableSlot *partslot,
  *		note: we can't run UPDATE queries with transactions
  *		off because UPDATEs are actually INSERTs and our
  *		scan will mistakenly loop forever, updating the tuple
- *		it just inserted..	This should be fixed but until it
+ *		it just inserted..  This should be fixed but until it
  *		is, we don't want to get stuck in an infinite loop
  *		which corrupts your database..
  *
  *		When updating a table, tupleid identifies the tuple to
  *		update and oldtuple is NULL.  When updating a view, oldtuple
  *		is passed to the INSTEAD OF triggers and identifies what to
- *		update, and tupleid is invalid.
+ *		update, and tupleid is invalid.  When updating a foreign table,
+ *		tupleid is invalid; the FDW has to figure out which row to
+ *		update using data from the planSlot.  oldtuple is passed to
+ *		foreign table triggers; it is NULL when the foreign table has
+ *		no relevant triggers.
  *
  *		Returns RETURNING result if any, otherwise NULL.
  * ----------------------------------------------------------------
  */
 TupleTableSlot *
 ExecUpdate(ItemPointer tupleid,
-		   HeapTupleHeader oldtuple,
+		   HeapTuple oldtuple,
 		   TupleTableSlot *slot,
 		   TupleTableSlot *planSlot,
 		   EPQState *epqstate,
@@ -1025,8 +1394,12 @@ ExecUpdate(ItemPointer tupleid,
 	ResultRelInfo *resultRelInfo;
 	Relation	resultRelationDesc;
 	HTSU_Result result;
+<<<<<<< HEAD
 	ItemPointerData update_ctid;
 	TransactionId update_xmax = InvalidTransactionId;
+=======
+	HeapUpdateFailureData hufd;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	List	   *recheckIndexes = NIL;
 	ItemPointerData lastTid;
 	bool		wasHotUpdate;
@@ -1083,7 +1456,7 @@ ExecUpdate(ItemPointer tupleid,
 		resultRelInfo->ri_TrigDesc->trig_update_before_row)
 	{
 		slot = ExecBRUpdateTriggers(estate, epqstate, resultRelInfo,
-									tupleid, slot);
+									tupleid, oldtuple, slot);
 
 		if (slot == NULL)		/* "do nothing" */
 			return NULL;
@@ -1093,6 +1466,7 @@ ExecUpdate(ItemPointer tupleid,
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_update_instead_row)
 	{
+<<<<<<< HEAD
 		HeapTupleData oldtup;
 
 		Assert(oldtuple != NULL);
@@ -1100,26 +1474,62 @@ ExecUpdate(ItemPointer tupleid,
 		oldtup.t_len = HeapTupleHeaderGetDatumLength(oldtuple);
 		ItemPointerSetInvalid(&(oldtup.t_self));
 
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		slot = ExecIRUpdateTriggers(estate, resultRelInfo,
-									&oldtup, slot);
+									oldtuple, slot);
 
 		if (slot == NULL)		/* "do nothing" */
 			return NULL;
 
 		/* trigger might have changed tuple */
 	}
-	else
+	else if (resultRelInfo->ri_FdwRoutine)
 	{
 		/*
-		 * Check the constraints of the tuple
+		 * update in foreign table: let the FDW do it
+		 */
+		slot = resultRelInfo->ri_FdwRoutine->ExecForeignUpdate(estate,
+															   resultRelInfo,
+															   slot,
+															   planSlot);
+
+		if (slot == NULL)		/* "do nothing" */
+			return NULL;
+
+		/* FDW might have changed tuple */
+		tuple = ExecMaterializeSlot(slot);
+	}
+	else
+	{
+		LockTupleMode lockmode;
+
+		/*
+		 * Constraints might reference the tableoid column, so initialize
+		 * t_tableOid before evaluating them.
+		 */
+		tuple->t_tableOid = RelationGetRelid(resultRelationDesc);
+
+		/*
+		 * Check any RLS UPDATE WITH CHECK policies
 		 *
 		 * If we generate a new candidate tuple after EvalPlanQual testing, we
-		 * must loop back here and recheck constraints.  (We don't need to
-		 * redo triggers, however.	If there are any BEFORE triggers then
-		 * trigger.c will have done heap_lock_tuple to lock the correct tuple,
-		 * so there's no need to do them again.)
+		 * must loop back here and recheck any RLS policies and constraints.
+		 * (We don't need to redo triggers, however.  If there are any BEFORE
+		 * triggers then trigger.c will have done heap_lock_tuple to lock the
+		 * correct tuple, so there's no need to do them again.)
+		 *
+		 * ExecWithCheckOptions() will skip any WCOs which are not of the kind
+		 * we are looking for at this point.
 		 */
 lreplace:;
+		if (resultRelInfo->ri_WithCheckOptions != NIL)
+			ExecWithCheckOptions(WCO_RLS_UPDATE_CHECK,
+								 resultRelInfo, slot, estate);
+
+		/*
+		 * Check the constraints of the tuple
+		 */
 		if (resultRelationDesc->rd_att->constr)
 			ExecConstraints(resultRelInfo, slot, estate);
 
@@ -1132,6 +1542,7 @@ lreplace:;
 		 * needed for referential integrity updates in transaction-snapshot
 		 * mode transactions.
 		 */
+<<<<<<< HEAD
 		if (rel_is_heap)
 		{
 			HeapTuple tuple;
@@ -1197,10 +1608,47 @@ lreplace:;
 			elog(ERROR, "invalid relation type");
 		}
 
+=======
+		result = heap_update(resultRelationDesc, tupleid, tuple,
+							 estate->es_output_cid,
+							 estate->es_crosscheck_snapshot,
+							 true /* wait for commit */ ,
+							 &hufd, &lockmode);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		switch (result)
 		{
 			case HeapTupleSelfUpdated:
-				/* already deleted by self; nothing to do */
+
+				/*
+				 * The target tuple was already updated or deleted by the
+				 * current command, or by a later command in the current
+				 * transaction.  The former case is possible in a join UPDATE
+				 * where multiple tuples join to the same target tuple. This
+				 * is pretty questionable, but Postgres has always allowed it:
+				 * we just execute the first update action and ignore
+				 * additional update attempts.
+				 *
+				 * The latter case arises if the tuple is modified by a
+				 * command in a BEFORE trigger, or perhaps by a command in a
+				 * volatile function used in the query.  In such situations we
+				 * should not ignore the update, but it is equally unsafe to
+				 * proceed.  We don't want to discard the original UPDATE
+				 * while keeping the triggered actions based on it; and we
+				 * have no principled way to merge this update with the
+				 * previous ones.  So throwing an error is the only safe
+				 * course.
+				 *
+				 * If a trigger actually intends this type of interaction, it
+				 * can re-execute the UPDATE (assuming it can figure out how)
+				 * and then return NULL to cancel the outer update.
+				 */
+				if (hufd.cmax != estate->es_output_cid)
+					ereport(ERROR,
+							(errcode(ERRCODE_TRIGGERED_DATA_CHANGE_VIOLATION),
+							 errmsg("tuple to be updated was already modified by an operation triggered by the current command"),
+							 errhint("Consider using an AFTER trigger instead of a BEFORE trigger to propagate changes to other rows.")));
+
+				/* Else, already updated by self; nothing to do */
 				return NULL;
 
 			case HeapTupleMayBeUpdated:
@@ -1211,7 +1659,7 @@ lreplace:;
 					ereport(ERROR,
 							(errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
 							 errmsg("could not serialize access due to concurrent update")));
-				if (!ItemPointerEquals(tupleid, &update_ctid))
+				if (!ItemPointerEquals(tupleid, &hufd.ctid))
 				{
 					TupleTableSlot *epqslot;
 
@@ -1219,11 +1667,12 @@ lreplace:;
 										   epqstate,
 										   resultRelationDesc,
 										   resultRelInfo->ri_RangeTableIndex,
-										   &update_ctid,
-										   update_xmax);
+										   lockmode,
+										   &hufd.ctid,
+										   hufd.xmax);
 					if (!TupIsNull(epqslot))
 					{
-						*tupleid = update_ctid;
+						*tupleid = hufd.ctid;
 						slot = ExecFilterJunk(resultRelInfo->ri_junkFilter, epqslot);
 						goto lreplace;
 					}
@@ -1252,15 +1701,22 @@ lreplace:;
 		 *
 		 * If it's a HOT update, we mustn't insert new index entries.
 		 */
+<<<<<<< HEAD
 		if (resultRelInfo->ri_NumIndices > 0 && !wasHotUpdate)
 			recheckIndexes = ExecInsertIndexTuples(slot, &lastTid,
 												   estate);
+=======
+		if (resultRelInfo->ri_NumIndices > 0 && !HeapTupleIsHeapOnly(tuple))
+			recheckIndexes = ExecInsertIndexTuples(slot, &(tuple->t_self),
+												   estate, false, NULL, NIL);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	}
 
 	if (canSetTag)
 		(estate->es_processed)++;
 
 	/* AFTER ROW UPDATE Triggers */
+<<<<<<< HEAD
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_update_after_row &&
 		rel_is_heap)
@@ -1268,10 +1724,25 @@ lreplace:;
 		HeapTuple tuple = ExecMaterializeSlot(slot);
 
 		ExecARUpdateTriggers(estate, resultRelInfo, tupleid, tuple,
+=======
+	ExecARUpdateTriggers(estate, resultRelInfo, tupleid, oldtuple, tuple,
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 						 recheckIndexes);
 	}
 
 	list_free(recheckIndexes);
+
+	/*
+	 * Check any WITH CHECK OPTION constraints from parent views.  We are
+	 * required to do this after testing all constraints and uniqueness
+	 * violations per the SQL spec, so we do it after actually updating the
+	 * record in the heap and all indexes.
+	 *
+	 * ExecWithCheckOptions() will skip any WCOs which are not of the kind we
+	 * are looking for at this point.
+	 */
+	if (resultRelInfo->ri_WithCheckOptions != NIL)
+		ExecWithCheckOptions(WCO_VIEW_CHECK, resultRelInfo, slot, estate);
 
 	/* Process RETURNING if present */
 	if (resultRelInfo->ri_projectReturning)
@@ -1279,6 +1750,190 @@ lreplace:;
 									slot, planSlot);
 
 	return NULL;
+}
+
+/*
+ * ExecOnConflictUpdate --- execute UPDATE of INSERT ON CONFLICT DO UPDATE
+ *
+ * Try to lock tuple for update as part of speculative insertion.  If
+ * a qual originating from ON CONFLICT DO UPDATE is satisfied, update
+ * (but still lock row, even though it may not satisfy estate's
+ * snapshot).
+ *
+ * Returns true if if we're done (with or without an update), or false if
+ * the caller must retry the INSERT from scratch.
+ */
+static bool
+ExecOnConflictUpdate(ModifyTableState *mtstate,
+					 ResultRelInfo *resultRelInfo,
+					 ItemPointer conflictTid,
+					 TupleTableSlot *planSlot,
+					 TupleTableSlot *excludedSlot,
+					 EState *estate,
+					 bool canSetTag,
+					 TupleTableSlot **returning)
+{
+	ExprContext *econtext = mtstate->ps.ps_ExprContext;
+	Relation	relation = resultRelInfo->ri_RelationDesc;
+	List	   *onConflictSetWhere = resultRelInfo->ri_onConflictSetWhere;
+	HeapTupleData tuple;
+	HeapUpdateFailureData hufd;
+	LockTupleMode lockmode;
+	HTSU_Result test;
+	Buffer		buffer;
+
+	/* Determine lock mode to use */
+	lockmode = ExecUpdateLockMode(estate, resultRelInfo);
+
+	/*
+	 * Lock tuple for update.  Don't follow updates when tuple cannot be
+	 * locked without doing so.  A row locking conflict here means our
+	 * previous conclusion that the tuple is conclusively committed is not
+	 * true anymore.
+	 */
+	tuple.t_self = *conflictTid;
+	test = heap_lock_tuple(relation, &tuple, estate->es_output_cid,
+						   lockmode, LockWaitBlock, false, &buffer,
+						   &hufd);
+	switch (test)
+	{
+		case HeapTupleMayBeUpdated:
+			/* success! */
+			break;
+
+		case HeapTupleInvisible:
+
+			/*
+			 * This can occur when a just inserted tuple is updated again in
+			 * the same command. E.g. because multiple rows with the same
+			 * conflicting key values are inserted.
+			 *
+			 * This is somewhat similar to the ExecUpdate()
+			 * HeapTupleSelfUpdated case.  We do not want to proceed because
+			 * it would lead to the same row being updated a second time in
+			 * some unspecified order, and in contrast to plain UPDATEs
+			 * there's no historical behavior to break.
+			 *
+			 * It is the user's responsibility to prevent this situation from
+			 * occurring.  These problems are why SQL-2003 similarly specifies
+			 * that for SQL MERGE, an exception must be raised in the event of
+			 * an attempt to update the same row twice.
+			 */
+			if (TransactionIdIsCurrentTransactionId(HeapTupleHeaderGetXmin(tuple.t_data)))
+				ereport(ERROR,
+						(errcode(ERRCODE_CARDINALITY_VIOLATION),
+						 errmsg("ON CONFLICT DO UPDATE command cannot affect row a second time"),
+						 errhint("Ensure that no rows proposed for insertion within the same command have duplicate constrained values.")));
+
+			/* This shouldn't happen */
+			elog(ERROR, "attempted to lock invisible tuple");
+
+		case HeapTupleSelfUpdated:
+
+			/*
+			 * This state should never be reached. As a dirty snapshot is used
+			 * to find conflicting tuples, speculative insertion wouldn't have
+			 * seen this row to conflict with.
+			 */
+			elog(ERROR, "unexpected self-updated tuple");
+
+		case HeapTupleUpdated:
+			if (IsolationUsesXactSnapshot())
+				ereport(ERROR,
+						(errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
+						 errmsg("could not serialize access due to concurrent update")));
+
+			/*
+			 * Tell caller to try again from the very start.
+			 *
+			 * It does not make sense to use the usual EvalPlanQual() style
+			 * loop here, as the new version of the row might not conflict
+			 * anymore, or the conflicting tuple has actually been deleted.
+			 */
+			ReleaseBuffer(buffer);
+			return false;
+
+		default:
+			elog(ERROR, "unrecognized heap_lock_tuple status: %u", test);
+	}
+
+	/*
+	 * Success, the tuple is locked.
+	 *
+	 * Reset per-tuple memory context to free any expression evaluation
+	 * storage allocated in the previous cycle.
+	 */
+	ResetExprContext(econtext);
+
+	/*
+	 * Verify that the tuple is visible to our MVCC snapshot if the current
+	 * isolation level mandates that.
+	 *
+	 * It's not sufficient to rely on the check within ExecUpdate() as e.g.
+	 * CONFLICT ... WHERE clause may prevent us from reaching that.
+	 *
+	 * This means we only ever continue when a new command in the current
+	 * transaction could see the row, even though in READ COMMITTED mode the
+	 * tuple will not be visible according to the current statement's
+	 * snapshot.  This is in line with the way UPDATE deals with newer tuple
+	 * versions.
+	 */
+	ExecCheckHeapTupleVisible(estate, &tuple, buffer);
+
+	/* Store target's existing tuple in the state's dedicated slot */
+	ExecStoreTuple(&tuple, mtstate->mt_existing, buffer, false);
+
+	/*
+	 * Make tuple and any needed join variables available to ExecQual and
+	 * ExecProject.  The EXCLUDED tuple is installed in ecxt_innertuple, while
+	 * the target's existing tuple is installed in the scantuple.  EXCLUDED
+	 * has been made to reference INNER_VAR in setrefs.c, but there is no
+	 * other redirection.
+	 */
+	econtext->ecxt_scantuple = mtstate->mt_existing;
+	econtext->ecxt_innertuple = excludedSlot;
+	econtext->ecxt_outertuple = NULL;
+
+	if (!ExecQual(onConflictSetWhere, econtext, false))
+	{
+		ReleaseBuffer(buffer);
+		InstrCountFiltered1(&mtstate->ps, 1);
+		return true;			/* done with the tuple */
+	}
+
+	if (resultRelInfo->ri_WithCheckOptions != NIL)
+	{
+		/*
+		 * Check target's existing tuple against UPDATE-applicable USING
+		 * security barrier quals (if any), enforced here as RLS checks/WCOs.
+		 *
+		 * The rewriter creates UPDATE RLS checks/WCOs for UPDATE security
+		 * quals, and stores them as WCOs of "kind" WCO_RLS_CONFLICT_CHECK,
+		 * but that's almost the extent of its special handling for ON
+		 * CONFLICT DO UPDATE.
+		 *
+		 * The rewriter will also have associated UPDATE applicable straight
+		 * RLS checks/WCOs for the benefit of the ExecUpdate() call that
+		 * follows.  INSERTs and UPDATEs naturally have mutually exclusive WCO
+		 * kinds, so there is no danger of spurious over-enforcement in the
+		 * INSERT or UPDATE path.
+		 */
+		ExecWithCheckOptions(WCO_RLS_CONFLICT_CHECK, resultRelInfo,
+							 mtstate->mt_existing,
+							 mtstate->ps.state);
+	}
+
+	/* Project the new tuple version */
+	ExecProject(resultRelInfo->ri_onConflictSetProj, NULL);
+
+	/* Execute UPDATE with projection */
+	*returning = ExecUpdate(&tuple.t_data->t_ctid, NULL,
+							mtstate->mt_conflproj, planSlot,
+							&mtstate->mt_epqstate, mtstate->ps.state,
+							canSetTag);
+
+	ReleaseBuffer(buffer);
+	return true;
 }
 
 
@@ -1292,6 +1947,9 @@ fireBSTriggers(ModifyTableState *node)
 	{
 		case CMD_INSERT:
 			ExecBSInsertTriggers(node->ps.state, node->resultRelInfo);
+			if (node->mt_onconflict == ONCONFLICT_UPDATE)
+				ExecBSUpdateTriggers(node->ps.state,
+									 node->resultRelInfo);
 			break;
 		case CMD_UPDATE:
 			ExecBSUpdateTriggers(node->ps.state, node->resultRelInfo);
@@ -1314,6 +1972,9 @@ fireASTriggers(ModifyTableState *node)
 	switch (node->operation)
 	{
 		case CMD_INSERT:
+			if (node->mt_onconflict == ONCONFLICT_UPDATE)
+				ExecASUpdateTriggers(node->ps.state,
+									 node->resultRelInfo);
 			ExecASInsertTriggers(node->ps.state, node->resultRelInfo);
 			break;
 		case CMD_UPDATE:
@@ -1349,7 +2010,8 @@ ExecModifyTable(ModifyTableState *node)
 	TupleTableSlot *planSlot;
 	ItemPointer tupleid = NULL;
 	ItemPointerData tuple_ctid;
-	HeapTupleHeader oldtuple = NULL;
+	HeapTupleData oldtupdata;
+	HeapTuple	oldtuple;
 
 	/*
 	 * This should NOT get called during EvalPlanQual; we should have passed a
@@ -1393,7 +2055,7 @@ ExecModifyTable(ModifyTableState *node)
 
 	/*
 	 * es_result_relation_info must point to the currently active result
-	 * relation while we are within this ModifyTable node.	Even though
+	 * relation while we are within this ModifyTable node.  Even though
 	 * ModifyTable nodes can't be nested statically, they can be nested
 	 * dynamically (since our subplan could include a reference to a modifying
 	 * CTE).  So we have to save and restore the caller's value.
@@ -1409,7 +2071,7 @@ ExecModifyTable(ModifyTableState *node)
 	for (;;)
 	{
 		/*
-		 * Reset the per-output-tuple exprcontext.	This is needed because
+		 * Reset the per-output-tuple exprcontext.  This is needed because
 		 * triggers expect to use that context as workspace.  It's a bit ugly
 		 * to do this below the top level of the plan, however.  We might need
 		 * to rethink this later.
@@ -1439,6 +2101,7 @@ ExecModifyTable(ModifyTableState *node)
 		EvalPlanQualSetSlot(&node->mt_epqstate, planSlot);
 		slot = planSlot;
 
+		oldtuple = NULL;
 		if (junkfilter != NULL)
 		{
 			/*
@@ -1446,10 +2109,12 @@ ExecModifyTable(ModifyTableState *node)
 			 */
 			if (operation == CMD_UPDATE || operation == CMD_DELETE)
 			{
+				char		relkind;
 				Datum		datum;
 				bool		isNull;
 
-				if (resultRelInfo->ri_RelationDesc->rd_rel->relkind == RELKIND_RELATION)
+				relkind = resultRelInfo->ri_RelationDesc->rd_rel->relkind;
+				if (relkind == RELKIND_RELATION || relkind == RELKIND_MATVIEW)
 				{
 					datum = ExecGetJunkAttribute(slot,
 												 junkfilter->jf_junkAttNo,
@@ -1463,7 +2128,22 @@ ExecModifyTable(ModifyTableState *node)
 												 * ctid!! */
 					tupleid = &tuple_ctid;
 				}
-				else
+
+				/*
+				 * Use the wholerow attribute, when available, to reconstruct
+				 * the old relation tuple.
+				 *
+				 * Foreign table updates have a wholerow attribute when the
+				 * relation has an AFTER ROW trigger.  Note that the wholerow
+				 * attribute does not carry system columns.  Foreign table
+				 * triggers miss seeing those, except that we know enough here
+				 * to set t_tableOid.  Quite separately from this, the FDW may
+				 * fetch its own junk attrs to identify the row.
+				 *
+				 * Other relevant relkinds, currently limited to views, always
+				 * have a wholerow attribute.
+				 */
+				else if (AttributeNumberIsValid(junkfilter->jf_junkAttNo))
 				{
 					datum = ExecGetJunkAttribute(slot,
 												 junkfilter->jf_junkAttNo,
@@ -1472,8 +2152,19 @@ ExecModifyTable(ModifyTableState *node)
 					if (isNull)
 						elog(ERROR, "wholerow is NULL");
 
-					oldtuple = DatumGetHeapTupleHeader(datum);
+					oldtupdata.t_data = DatumGetHeapTupleHeader(datum);
+					oldtupdata.t_len =
+						HeapTupleHeaderGetDatumLength(oldtupdata.t_data);
+					ItemPointerSetInvalid(&(oldtupdata.t_self));
+					/* Historically, view triggers see invalid t_tableOid. */
+					oldtupdata.t_tableOid =
+						(relkind == RELKIND_VIEW) ? InvalidOid :
+						RelationGetRelid(resultRelInfo->ri_RelationDesc);
+
+					oldtuple = &oldtupdata;
 				}
+				else
+					Assert(relkind == RELKIND_FOREIGN_TABLE);
 			}
 
 			/*
@@ -1486,8 +2177,14 @@ ExecModifyTable(ModifyTableState *node)
 		switch (operation)
 		{
 			case CMD_INSERT:
+<<<<<<< HEAD
 				slot = ExecInsert(slot, planSlot, estate, node->canSetTag,
 								  PLANGEN_PLANNER, false /* isUpdate */);
+=======
+				slot = ExecInsert(node, slot, planSlot,
+								node->mt_arbiterindexes, node->mt_onconflict,
+								  estate, node->canSetTag);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 				break;
 			case CMD_UPDATE:
 				slot = ExecUpdate(tupleid, oldtuple, slot, planSlot,
@@ -1574,6 +2271,12 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
 	mtstate->resultRelInfo = estate->es_result_relations + node->resultRelIndex;
 	mtstate->mt_arowmarks = (List **) palloc0(sizeof(List *) * nplans);
 	mtstate->mt_nplans = nplans;
+<<<<<<< HEAD
+=======
+	mtstate->mt_onconflict = node->onConflictAction;
+	mtstate->mt_arbiterindexes = node->arbiterIndexes;
+
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	/* set up epqstate with dummy subplan data for the moment */
 	EvalPlanQualInit(&mtstate->mt_epqstate, estate, NULL, NIL, node->epqParam);
 
@@ -1585,7 +2288,7 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
 	 * call ExecInitNode on each of the plans to be executed and save the
 	 * results into the array "mt_plans".  This is also a convenient place to
 	 * verify that the proposed target relations are valid and open their
-	 * indexes for insertion of new index entries.	Note we *must* set
+	 * indexes for insertion of new index entries.  Note we *must* set
 	 * estate->es_result_relation_info correctly while we initialize each
 	 * sub-plan; ExecContextForcesOids depends on that!
 	 */
@@ -1605,7 +2308,7 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
 		/*
 		 * If there are indices on the result relation, open them and save
 		 * descriptors in the result relation info, so that we can add new
-		 * index entries for the tuples we add/update.	We need not do this
+		 * index entries for the tuples we add/update.  We need not do this
 		 * for a DELETE, however, since deletion doesn't affect indexes. Also,
 		 * inside an EvalPlanQual operation, the indexes might be open
 		 * already, since we share the resultrel state with the original
@@ -1614,17 +2317,56 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
 		if (resultRelInfo->ri_RelationDesc->rd_rel->relhasindex &&
 			operation != CMD_DELETE &&
 			resultRelInfo->ri_IndexRelationDescs == NULL)
-			ExecOpenIndices(resultRelInfo);
+			ExecOpenIndices(resultRelInfo, mtstate->mt_onconflict != ONCONFLICT_NONE);
 
 		/* Now init the plan for this result rel */
 		estate->es_result_relation_info = resultRelInfo;
 		mtstate->mt_plans[i] = ExecInitNode(subplan, estate, eflags);
+
+		/* Also let FDWs init themselves for foreign-table result rels */
+		if (resultRelInfo->ri_FdwRoutine != NULL &&
+			resultRelInfo->ri_FdwRoutine->BeginForeignModify != NULL)
+		{
+			List	   *fdw_private = (List *) list_nth(node->fdwPrivLists, i);
+
+			resultRelInfo->ri_FdwRoutine->BeginForeignModify(mtstate,
+															 resultRelInfo,
+															 fdw_private,
+															 i,
+															 eflags);
+		}
 
 		resultRelInfo++;
 		i++;
 	}
 
 	estate->es_result_relation_info = saved_resultRelInfo;
+
+	/*
+	 * Initialize any WITH CHECK OPTION constraints if needed.
+	 */
+	resultRelInfo = mtstate->resultRelInfo;
+	i = 0;
+	foreach(l, node->withCheckOptionLists)
+	{
+		List	   *wcoList = (List *) lfirst(l);
+		List	   *wcoExprs = NIL;
+		ListCell   *ll;
+
+		foreach(ll, wcoList)
+		{
+			WithCheckOption *wco = (WithCheckOption *) lfirst(ll);
+			ExprState  *wcoExpr = ExecInitExpr((Expr *) wco->qual,
+											   mtstate->mt_plans[i]);
+
+			wcoExprs = lappend(wcoExprs, wcoExpr);
+		}
+
+		resultRelInfo->ri_WithCheckOptions = wcoList;
+		resultRelInfo->ri_WithCheckOptionExprs = wcoExprs;
+		resultRelInfo++;
+		i++;
+	}
 
 	/*
 	 * Initialize RETURNING projections if needed.
@@ -1636,7 +2378,7 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
 
 		/*
 		 * Initialize result tuple slot and assign its rowtype using the first
-		 * RETURNING list.	We assume the rest will look the same.
+		 * RETURNING list.  We assume the rest will look the same.
 		 */
 		tupDesc = ExecTypeFromTL((List *) linitial(node->returningLists),
 								 false);
@@ -1680,9 +2422,62 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
 	}
 
 	/*
+	 * If needed, Initialize target list, projection and qual for ON CONFLICT
+	 * DO UPDATE.
+	 */
+	resultRelInfo = mtstate->resultRelInfo;
+	if (node->onConflictAction == ONCONFLICT_UPDATE)
+	{
+		ExprContext *econtext;
+		ExprState  *setexpr;
+		TupleDesc	tupDesc;
+
+		/* insert may only have one plan, inheritance is not expanded */
+		Assert(nplans == 1);
+
+		/* already exists if created by RETURNING processing above */
+		if (mtstate->ps.ps_ExprContext == NULL)
+			ExecAssignExprContext(estate, &mtstate->ps);
+
+		econtext = mtstate->ps.ps_ExprContext;
+
+		/* initialize slot for the existing tuple */
+		mtstate->mt_existing = ExecInitExtraTupleSlot(mtstate->ps.state);
+		ExecSetSlotDescriptor(mtstate->mt_existing,
+							  resultRelInfo->ri_RelationDesc->rd_att);
+
+		/* carried forward solely for the benefit of explain */
+		mtstate->mt_excludedtlist = node->exclRelTlist;
+
+		/* create target slot for UPDATE SET projection */
+		tupDesc = ExecTypeFromTL((List *) node->onConflictSet,
+								 false);
+		mtstate->mt_conflproj = ExecInitExtraTupleSlot(mtstate->ps.state);
+		ExecSetSlotDescriptor(mtstate->mt_conflproj, tupDesc);
+
+		/* build UPDATE SET expression and projection state */
+		setexpr = ExecInitExpr((Expr *) node->onConflictSet, &mtstate->ps);
+		resultRelInfo->ri_onConflictSetProj =
+			ExecBuildProjectionInfo((List *) setexpr, econtext,
+									mtstate->mt_conflproj,
+									resultRelInfo->ri_RelationDesc->rd_att);
+
+		/* build DO UPDATE WHERE clause expression */
+		if (node->onConflictWhere)
+		{
+			ExprState  *qualexpr;
+
+			qualexpr = ExecInitExpr((Expr *) node->onConflictWhere,
+									&mtstate->ps);
+
+			resultRelInfo->ri_onConflictSetWhere = (List *) qualexpr;
+		}
+	}
+
+	/*
 	 * If we have any secondary relations in an UPDATE or DELETE, they need to
 	 * be treated like non-locked relations in SELECT FOR UPDATE, ie, the
-	 * EvalPlanQual mechanism needs to be told about them.	Locate the
+	 * EvalPlanQual mechanism needs to be told about them.  Locate the
 	 * relevant ExecRowMarks.
 	 */
 	foreach(l, node->rowMarks)
@@ -1730,7 +2525,7 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
 		}
 
 		/* find ExecRowMark (same for all subplans) */
-		erm = ExecFindRowMark(estate, rc->rti);
+		erm = ExecFindRowMark(estate, rc->rti, false);
 
 		/* build ExecAuxRowMark for each subplan */
 		for (i = 0; i < nplans; i++)
@@ -1764,7 +2559,7 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
 	 * attribute present --- no need to look first.
 	 *
 	 * If there are multiple result relations, each one needs its own junk
-	 * filter.	Note multiple rels are only possible for UPDATE/DELETE, so we
+	 * filter.  Note multiple rels are only possible for UPDATE/DELETE, so we
 	 * can't be fooled by some needing a filter and some not.
 	 *
 	 * This section of code is also a convenient place to verify that the
@@ -1815,11 +2610,23 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
 				if (operation == CMD_UPDATE || operation == CMD_DELETE)
 				{
 					/* For UPDATE/DELETE, find the appropriate junk attr now */
-					if (resultRelInfo->ri_RelationDesc->rd_rel->relkind == RELKIND_RELATION)
+					char		relkind;
+
+					relkind = resultRelInfo->ri_RelationDesc->rd_rel->relkind;
+					if (relkind == RELKIND_RELATION ||
+						relkind == RELKIND_MATVIEW)
 					{
 						j->jf_junkAttNo = ExecFindJunkAttribute(j, "ctid");
 						if (!AttributeNumberIsValid(j->jf_junkAttNo))
 							elog(ERROR, "could not find junk ctid column");
+					}
+					else if (relkind == RELKIND_FOREIGN_TABLE)
+					{
+						/*
+						 * When there is an AFTER trigger, there should be a
+						 * wholerow attribute.
+						 */
+						j->jf_junkAttNo = ExecFindJunkAttribute(j, "wholerow");
 					}
 					else
 					{
@@ -1885,6 +2692,19 @@ void
 ExecEndModifyTable(ModifyTableState *node)
 {
 	int			i;
+
+	/*
+	 * Allow any FDWs to shut down
+	 */
+	for (i = 0; i < node->mt_nplans; i++)
+	{
+		ResultRelInfo *resultRelInfo = node->resultRelInfo + i;
+
+		if (resultRelInfo->ri_FdwRoutine != NULL &&
+			resultRelInfo->ri_FdwRoutine->EndForeignModify != NULL)
+			resultRelInfo->ri_FdwRoutine->EndForeignModify(node->ps.state,
+														   resultRelInfo);
+	}
 
 	/*
 	 * Free the exprcontext

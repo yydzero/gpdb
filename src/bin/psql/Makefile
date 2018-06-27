@@ -2,7 +2,7 @@
 #
 # Makefile for src/bin/psql
 #
-# Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+# Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
 # Portions Copyright (c) 1994, Regents of the University of California
 #
 # src/bin/psql/Makefile
@@ -35,10 +35,13 @@ OBJS=	command.o common.o help.o input.o stringutils.o mainloop.o copy.o \
 	sql_help.o \
 	$(WIN32RES)
 
+<<<<<<< HEAD
 FLEXFLAGS = -Cfe -b -p -p
 
 # The frontend doesn't need everything that's in LIBS, some are backend only
 LIBS := $(filter-out -lresolv -lbz2, $(LIBS))
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 all: psql
 
@@ -60,12 +63,17 @@ sql_help.h: create_help.pl $(wildcard $(REFDOCDIR)/*.sgml)
 # psqlscan is compiled as part of mainloop
 mainloop.o: psqlscan.c
 
+<<<<<<< HEAD
 psqlscan.c: psqlscan.l
 ifdef FLEX
 	$(FLEX) $(FLEXFLAGS) -o'$(srcdir)/psqlscan.c' $<
 else
 	@$(missing) flex $< $@
 endif
+=======
+psqlscan.c: FLEXFLAGS = -Cfe -p -p
+psqlscan.c: FLEX_NO_BACKUP=yes
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 distprep: sql_help.h psqlscan.c
 
@@ -74,7 +82,7 @@ install: all installdirs
 	$(INSTALL_DATA) $(srcdir)/psqlrc.sample '$(DESTDIR)$(datadir)/psqlrc.sample'
 
 installdirs:
-	$(MKDIR_P) '$(DESTDIR)$(bindir)'
+	$(MKDIR_P) '$(DESTDIR)$(bindir)' '$(DESTDIR)$(datadir)'
 
 uninstall:
 	rm -f '$(DESTDIR)$(bindir)/psql$(X)' '$(DESTDIR)$(datadir)/psqlrc.sample'

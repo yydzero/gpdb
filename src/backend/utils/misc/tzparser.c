@@ -4,14 +4,14 @@
  *	  Functions for parsing timezone offset files
  *
  * Note: this code is invoked from the check_hook for the GUC variable
- * timezone_abbreviations.	Therefore, it should report problems using
+ * timezone_abbreviations.  Therefore, it should report problems using
  * GUC_check_errmsg() and related functions, and try to avoid throwing
  * elog(ERROR).  This is not completely bulletproof at present --- in
  * particular out-of-memory will throw an error.  Could probably fix with
  * PG_TRY if necessary.
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
@@ -63,13 +63,6 @@ validateTzEntry(tzEntry *tzentry)
 						 tzentry->filename, tzentry->lineno);
 		return false;
 	}
-	if (tzentry->offset % 900 != 0)
-	{
-		GUC_check_errmsg("time zone offset %d is not a multiple of 900 sec (15 min) in time zone file \"%s\", line %d",
-						 tzentry->offset,
-						 tzentry->filename, tzentry->lineno);
-		return false;
-	}
 
 	/*
 	 * Sanity-check the offset: shouldn't exceed 14 hours
@@ -93,7 +86,11 @@ validateTzEntry(tzEntry *tzentry)
 }
 
 /*
- * Attempt to parse the line as a timezone abbrev spec (name, offset, dst)
+ * Attempt to parse the line as a timezone abbrev spec
+ *
+ * Valid formats are:
+ *	name  zone
+ *	name  offset  dst
  *
  * Returns TRUE if OK, else false; data is stored in *tzentry
  */
@@ -197,7 +194,7 @@ addToArray(tzEntry **base, int *arraysize, int n,
 
 	/*
 	 * Search the array for a duplicate; as a useful side effect, the array is
-	 * maintained in sorted order.	We use strcmp() to ensure we match the
+	 * maintained in sorted order.  We use strcmp() to ensure we match the
 	 * sort order datetime.c expects.
 	 */
 	arrayptr = *base;
@@ -219,8 +216,11 @@ addToArray(tzEntry **base, int *arraysize, int n,
 			/*
 			 * Found a duplicate entry; complain unless it's the same.
 			 */
-			if (midptr->offset == entry->offset &&
-				midptr->is_dst == entry->is_dst)
+			if ((midptr->zone == NULL && entry->zone == NULL &&
+				 midptr->offset == entry->offset &&
+				 midptr->is_dst == entry->is_dst) ||
+				(midptr->zone != NULL && entry->zone != NULL &&
+				 strcmp(midptr->zone, entry->zone) == 0))
 			{
 				/* return unchanged array */
 				return n;
@@ -228,6 +228,7 @@ addToArray(tzEntry **base, int *arraysize, int n,
 			if (override)
 			{
 				/* same abbrev but something is different, override */
+				midptr->zone = entry->zone;
 				midptr->offset = entry->offset;
 				midptr->is_dst = entry->is_dst;
 				return n;
@@ -461,15 +462,12 @@ load_tzoffsets(const char *filename)
 	/* Parse the file(s) */
 	n = ParseTzFile(filename, 0, &array, &arraysize, 0);
 
-	/* If no errors so far, allocate result and let datetime.c convert data */
+	/* If no errors so far, let datetime.c allocate memory & convert format */
 	if (n >= 0)
 	{
-		result = malloc(offsetof(TimeZoneAbbrevTable, abbrevs) +
-						n * sizeof(datetkn));
+		result = ConvertTimeZoneAbbrevs(array, n);
 		if (!result)
 			GUC_check_errmsg("out of memory");
-		else
-			ConvertTimeZoneAbbrevs(result, array, n);
 	}
 
 	/* Clean up */

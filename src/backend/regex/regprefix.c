@@ -4,7 +4,11 @@
  *	  Extract a common prefix, if any, from a compiled regex.
  *
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2012, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 2012-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1998, 1999 Henry Spencer
  *
  * IDENTIFICATION
@@ -20,7 +24,11 @@
  * forward declarations
  */
 static int findprefix(struct cnfa * cnfa, struct colormap * cm,
+<<<<<<< HEAD
 					  chr *string, size_t *slength);
+=======
+		   chr *string, size_t *slength);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 
 /*
@@ -61,6 +69,12 @@ pg_regprefix(regex_t *re,
 	if (re->re_csize != sizeof(chr))
 		return REG_MIXED;
 
+<<<<<<< HEAD
+=======
+	/* Initialize locale-dependent support */
+	pg_set_regex_collation(re->re_collation);
+
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	/* setup */
 	g = (struct guts *) re->re_guts;
 	if (g->info & REG_UIMPOSSIBLE)
@@ -76,8 +90,13 @@ pg_regprefix(regex_t *re,
 
 	/*
 	 * Since a correct NFA should never contain any exit-free loops, it should
+<<<<<<< HEAD
 	 * not be possible for our traversal to return to a previously visited
 	 * NFA state.  Hence we need at most nstates chrs in the output string.
+=======
+	 * not be possible for our traversal to return to a previously visited NFA
+	 * state.  Hence we need at most nstates chrs in the output string.
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	 */
 	*string = (chr *) MALLOC(cnfa->nstates * sizeof(chr));
 	if (*string == NULL)
@@ -119,8 +138,13 @@ findprefix(struct cnfa * cnfa,
 
 	/*
 	 * The "pre" state must have only BOS/BOL outarcs, else pattern isn't
+<<<<<<< HEAD
 	 * anchored left.  If we have both BOS and BOL, they must go to the
 	 * same next state.
+=======
+	 * anchored left.  If we have both BOS and BOL, they must go to the same
+	 * next state.
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	 */
 	st = cnfa->pre;
 	nextst = -1;

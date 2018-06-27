@@ -4,9 +4,13 @@
  *	  Support routines for scanning Values lists
  *	  ("VALUES (...), (...), ..." in rangetable).
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2006-2008, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -28,8 +32,11 @@
 #include "cdb/cdbvars.h"
 #include "executor/executor.h"
 #include "executor/nodeValuesscan.h"
+<<<<<<< HEAD
 #include "optimizer/var.h"              /* CDB: contain_var_reference() */
 #include "parser/parsetree.h"
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 
 static TupleTableSlot *ValuesNext(ValuesScanState *node);
@@ -203,8 +210,6 @@ ValuesScanState *
 ExecInitValuesScan(ValuesScan *node, EState *estate, int eflags)
 {
 	ValuesScanState *scanstate;
-	RangeTblEntry *rte = rt_fetch(node->scan.scanrelid,
-								  estate->es_range_table);
 	TupleDesc	tupdesc;
 	ListCell   *vtl;
 	int			i;
@@ -229,7 +234,7 @@ ExecInitValuesScan(ValuesScan *node, EState *estate, int eflags)
 	planstate = &scanstate->ss.ps;
 
 	/*
-	 * Create expression contexts.	We need two, one for per-sublist
+	 * Create expression contexts.  We need two, one for per-sublist
 	 * processing and one for execScan.c to use for quals and projections. We
 	 * cheat a little by using ExecAssignExprContext() to build both.
 	 */
@@ -259,15 +264,13 @@ ExecInitValuesScan(ValuesScan *node, EState *estate, int eflags)
 	/*
 	 * get info about values list
 	 */
-	tupdesc = ExecTypeFromExprList((List *) linitial(node->values_lists),
-								   rte->eref->colnames);
+	tupdesc = ExecTypeFromExprList((List *) linitial(node->values_lists));
 
 	ExecAssignScanType(&scanstate->ss, tupdesc);
 
 	/*
 	 * Other node-specific setup
 	 */
-	scanstate->marked_idx = -1;
 	scanstate->curr_idx = -1;
 	scanstate->array_len = list_length(node->values_lists);
 
@@ -312,30 +315,6 @@ ExecEndValuesScan(ValuesScanState *node)
 	ExecClearTuple(node->ss.ss_ScanTupleSlot);
 
 	EndPlanStateGpmonPkt(&node->ss.ps);
-}
-
-/* ----------------------------------------------------------------
- *		ExecValuesMarkPos
- *
- *		Marks scan position.
- * ----------------------------------------------------------------
- */
-void
-ExecValuesMarkPos(ValuesScanState *node)
-{
-	node->marked_idx = node->curr_idx;
-}
-
-/* ----------------------------------------------------------------
- *		ExecValuesRestrPos
- *
- *		Restores scan position.
- * ----------------------------------------------------------------
- */
-void
-ExecValuesRestrPos(ValuesScanState *node)
-{
-	node->curr_idx = node->marked_idx;
 }
 
 /* ----------------------------------------------------------------

@@ -424,6 +424,7 @@ DO $do$ use strict; my $name = "foo"; my $ref = $$name; $do$ LANGUAGE plperl;
 DO $do$ use warnings FATAL => qw(void) ; my @y; my $x = sort @y; 1; $do$ LANGUAGE plperl;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 --
 -- Make sure strings are validated
@@ -435,6 +436,8 @@ $$ LANGUAGE plperl;
 SELECT perl_zerob();
 
 >>>>>>> 80edfd76591fdb9beec061de3c05ef4e9d96ce56
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 -- make sure functions marked as VOID without an explicit return work
 CREATE OR REPLACE FUNCTION myfuncs() RETURNS void AS $$
    $_SHARED{myquote} = sub {
@@ -475,6 +478,9 @@ $$ LANGUAGE plperl;
 
 SELECT text_scalarref();
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 -- check safe behavior when a function body is replaced during execution
 CREATE OR REPLACE FUNCTION self_modify(INTEGER) RETURNS INTEGER AS $$
@@ -485,5 +491,8 @@ $$ LANGUAGE plperl;
 
 SELECT self_modify(42);
 SELECT self_modify(42);
+<<<<<<< HEAD
 =======
 >>>>>>> 80edfd76591fdb9beec061de3c05ef4e9d96ce56
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8

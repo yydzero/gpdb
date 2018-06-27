@@ -3,7 +3,7 @@
  * ipci.c
  *	  POSTGRES inter-process communication initialization code.
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -17,6 +17,7 @@
 #include <signal.h>
 
 #include "access/clog.h"
+#include "access/commit_ts.h"
 #include "access/heapam.h"
 #include "access/multixact.h"
 #include "access/nbtree.h"
@@ -30,16 +31,24 @@
 #include "miscadmin.h"
 #include "pgstat.h"
 #include "postmaster/autovacuum.h"
+#include "postmaster/bgworker_internals.h"
 #include "postmaster/bgwriter.h"
 #include "postmaster/postmaster.h"
+<<<<<<< HEAD
 #include "postmaster/seqserver.h"
+=======
+#include "replication/slot.h"
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include "replication/walreceiver.h"
 #include "replication/walsender.h"
+#include "replication/origin.h"
 #include "storage/bufmgr.h"
+#include "storage/dsm.h"
 #include "storage/ipc.h"
 #include "storage/pg_shmem.h"
 #include "storage/pmsignal.h"
 #include "storage/predicate.h"
+#include "storage/proc.h"
 #include "storage/procarray.h"
 #include "storage/procsignal.h"
 #include "storage/sinvaladt.h"
@@ -73,7 +82,7 @@ static bool addin_request_allowed = true;
  *		a loadable module.
  *
  * This is only useful if called from the _PG_init hook of a library that
- * is loaded into the postmaster via shared_preload_libraries.	Once
+ * is loaded into the postmaster via shared_preload_libraries.  Once
  * shared memory has been allocated, calls will be ignored.  (We could
  * raise an error, but it seems better to make it a no-op, so that
  * libraries containing such calls can be reloaded if needed.)
@@ -103,11 +112,13 @@ RequestAddinShmemSpace(Size size)
  * This is a bit code-wasteful and could be cleaned up.)
  *
  * If "makePrivate" is true then we only need private memory, not shared
- * memory.	This is true for a standalone backend, false for a postmaster.
+ * memory.  This is true for a standalone backend, false for a postmaster.
  */
 void
 CreateSharedMemoryAndSemaphores(bool makePrivate, int port)
 {
+	PGShmemHeader *shim = NULL;
+
 	if (!IsUnderPostmaster)
 	{
 		PGShmemHeader *seghdr;
@@ -123,7 +134,12 @@ CreateSharedMemoryAndSemaphores(bool makePrivate, int port)
 		 * request doesn't overflow size_t.  If this gets through, we don't
 		 * need to be so careful during the actual allocation phase.
 		 */
+<<<<<<< HEAD
 		size = 150000;
+=======
+		size = 100000;
+		size = add_size(size, SpinlockSemaSize());
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		size = add_size(size, hash_estimate_size(SHMEM_INDEX_SIZE,
 												 sizeof(ShmemIndexEnt)));
 		size = add_size(size, BufferShmemSize());
@@ -145,8 +161,10 @@ CreateSharedMemoryAndSemaphores(bool makePrivate, int port)
 		size = add_size(size, XLOGShmemSize());
 		size = add_size(size, DistributedLog_ShmemSize());
 		size = add_size(size, CLOGShmemSize());
+		size = add_size(size, CommitTsShmemSize());
 		size = add_size(size, SUBTRANSShmemSize());
 		size = add_size(size, TwoPhaseShmemSize());
+		size = add_size(size, BackgroundWorkerShmemSize());
 		size = add_size(size, MultiXactShmemSize());
 		size = add_size(size, LWLockShmemSize());
 		size = add_size(size, ProcArrayShmemSize());
@@ -156,6 +174,8 @@ CreateSharedMemoryAndSemaphores(bool makePrivate, int port)
 		size = add_size(size, ProcSignalShmemSize());
 		size = add_size(size, CheckpointerShmemSize());
 		size = add_size(size, AutoVacuumShmemSize());
+		size = add_size(size, ReplicationSlotsShmemSize());
+		size = add_size(size, ReplicationOriginShmemSize());
 		size = add_size(size, WalSndShmemSize());
 		size = add_size(size, WalRcvShmemSize());
 		size = add_size(size, BTreeShmemSize());
@@ -187,16 +207,20 @@ CreateSharedMemoryAndSemaphores(bool makePrivate, int port)
 		/* might as well round it off to a multiple of a typical page size */
 		size = add_size(size, BLCKSZ - (size % BLCKSZ));
 
+<<<<<<< HEAD
 		/* Consider the size of the SessionState array */
 		size = add_size(size, SessionState_ShmemSize());
 
 		/* size of Instrumentation slots */
 		size = add_size(size, InstrShmemSize());
+=======
+		elog(DEBUG3, "invoking IpcMemoryCreate(size=%zu)", size);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 		/*
 		 * Create the shmem segment
 		 */
-		seghdr = PGSharedMemoryCreate(size, makePrivate, port);
+		seghdr = PGSharedMemoryCreate(size, makePrivate, port, &shim);
 
 		InitShmemAccess(seghdr);
 
@@ -234,8 +258,7 @@ CreateSharedMemoryAndSemaphores(bool makePrivate, int port)
 	 * Now initialize LWLocks, which do shared memory allocation and are
 	 * needed for InitShmemIndex.
 	 */
-	if (!IsUnderPostmaster)
-		CreateLWLocks();
+	CreateLWLocks();
 
 	/*
 	 * Set up shmem.c index hashtable
@@ -247,7 +270,11 @@ CreateSharedMemoryAndSemaphores(bool makePrivate, int port)
 	 */
 	XLOGShmemInit();
 	CLOGShmemInit();
+<<<<<<< HEAD
 	DistributedLog_ShmemInit();
+=======
+	CommitTsShmemInit();
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	SUBTRANSShmemInit();
 	MultiXactShmemInit();
     FtsShmemInit();
@@ -299,6 +326,7 @@ CreateSharedMemoryAndSemaphores(bool makePrivate, int port)
 	 */
 	CreateSharedSnapshotArray();
 	TwoPhaseShmemInit();
+	BackgroundWorkerShmemInit();
 
 	/*
 	 * Set up shared-inval messaging
@@ -312,6 +340,8 @@ CreateSharedMemoryAndSemaphores(bool makePrivate, int port)
 	ProcSignalShmemInit();
 	CheckpointerShmemInit();
 	AutoVacuumShmemInit();
+	ReplicationSlotsShmemInit();
+	ReplicationOriginShmemInit();
 	WalSndShmemInit();
 	WalRcvShmemInit();
 	SeqServerShmemInit();
@@ -344,8 +374,14 @@ CreateSharedMemoryAndSemaphores(bool makePrivate, int port)
 		ShmemBackendArrayAllocation();
 #endif
 
+<<<<<<< HEAD
 	if (gp_enable_resqueue_priority)
 		BackoffStateInit();
+=======
+	/* Initialize dynamic shared memory facilities. */
+	if (!IsUnderPostmaster)
+		dsm_postmaster_startup(shim);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/*
 	 * Now give loadable modules a chance to set up their shmem allocations

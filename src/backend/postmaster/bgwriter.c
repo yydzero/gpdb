@@ -24,7 +24,7 @@
  * should be killed by SIGQUIT and then a recovery cycle started.
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  *
  *
  * IDENTIFICATION
@@ -36,9 +36,9 @@
 
 #include <signal.h>
 #include <sys/time.h>
-#include <time.h>
 #include <unistd.h>
 
+#include "access/xlog.h"
 #include "access/xlog_internal.h"
 #include "libpq/pqsignal.h"
 #include "miscadmin.h"
@@ -46,16 +46,22 @@
 #include "postmaster/bgwriter.h"
 #include "storage/bufmgr.h"
 #include "storage/buf_internals.h"
+#include "storage/fd.h"
 #include "storage/ipc.h"
 #include "storage/lwlock.h"
 #include "storage/proc.h"
 #include "storage/shmem.h"
 #include "storage/smgr.h"
 #include "storage/spin.h"
+#include "storage/standby.h"
 #include "utils/guc.h"
 #include "utils/memutils.h"
 #include "utils/resowner.h"
+<<<<<<< HEAD
 #include "utils/faultinjector.h"
+=======
+#include "utils/timestamp.h"
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #include "tcop/tcopprot.h" /* quickdie() */
 
@@ -71,15 +77,24 @@ int			BgWriterDelay = 200;
 #define HIBERNATE_FACTOR			50
 
 /*
+ * Interval in which standby snapshots are logged into the WAL stream, in
+ * milliseconds.
+ */
+#define LOG_SNAPSHOT_INTERVAL_MS 15000
+
+/*
+ * LSN and timestamp at which we last issued a LogStandbySnapshot(), to avoid
+ * doing so too often or repeatedly if there has been no other write activity
+ * in the system.
+ */
+static TimestampTz last_snapshot_ts;
+static XLogRecPtr last_snapshot_lsn = InvalidXLogRecPtr;
+
+/*
  * Flags set by interrupt handlers for later service in the main loop.
  */
 static volatile sig_atomic_t got_SIGHUP = false;
 static volatile sig_atomic_t shutdown_requested = false;
-
-/*
- * Private state
- */
-static bool am_bg_writer = false;
 
 /* Signal handlers */
 
@@ -100,6 +115,7 @@ BackgroundWriterMain(void)
 	MemoryContext bgwriter_context;
 	bool		prev_hibernate;
 
+<<<<<<< HEAD
 	am_bg_writer = true;
 
 	/*
@@ -113,6 +129,8 @@ BackgroundWriterMain(void)
 		elog(FATAL, "setsid() failed: %m");
 #endif
 
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	/*
 	 * Properly accept or ignore signals the postmaster might send us.
 	 *
@@ -145,6 +163,12 @@ BackgroundWriterMain(void)
 	 * buffer pins).
 	 */
 	CurrentResourceOwner = ResourceOwnerCreate(NULL, "Background Writer");
+
+	/*
+	 * We just started, assume there has been either a shutdown or
+	 * end-of-recovery snapshot.
+	 */
+	last_snapshot_ts = GetCurrentTimestamp();
 
 	/*
 	 * Create a memory context that we will do all our work in.  We do this so
@@ -189,6 +213,7 @@ BackgroundWriterMain(void)
 							 false, true);
 		/* we needn't bother with the other ResourceOwnerRelease phases */
 		AtEOXact_Buffers(false);
+		AtEOXact_SMgr();
 		AtEOXact_Files();
 		AtEOXact_HashTables(false);
 
@@ -229,12 +254,6 @@ BackgroundWriterMain(void)
 	PG_SETMASK(&UnBlockSig);
 
 	/*
-	 * Use the recovery target timeline ID during recovery
-	 */
-	if (RecoveryInProgress())
-		ThisTimeLineID = GetRecoveryTargetTLI();
-
-	/*
 	 * Reset hibernation state after any error.
 	 */
 	prev_hibernate = false;
@@ -252,7 +271,7 @@ BackgroundWriterMain(void)
 #endif
 
 		/* Clear any already-pending wakeups */
-		ResetLatch(&MyProc->procLatch);
+		ResetLatch(MyLatch);
 
 		if (got_SIGHUP)
 		{
@@ -290,6 +309,47 @@ BackgroundWriterMain(void)
 		}
 
 		/*
+		 * Log a new xl_running_xacts every now and then so replication can
+		 * get into a consistent state faster (think of suboverflowed
+		 * snapshots) and clean up resources (locks, KnownXids*) more
+		 * frequently. The costs of this are relatively low, so doing it 4
+		 * times (LOG_SNAPSHOT_INTERVAL_MS) a minute seems fine.
+		 *
+		 * We assume the interval for writing xl_running_xacts is
+		 * significantly bigger than BgWriterDelay, so we don't complicate the
+		 * overall timeout handling but just assume we're going to get called
+		 * often enough even if hibernation mode is active. It's not that
+		 * important that log_snap_interval_ms is met strictly. To make sure
+		 * we're not waking the disk up unnecessarily on an idle system we
+		 * check whether there has been any WAL inserted since the last time
+		 * we've logged a running xacts.
+		 *
+		 * We do this logging in the bgwriter as its the only process thats
+		 * run regularly and returns to its mainloop all the time. E.g.
+		 * Checkpointer, when active, is barely ever in its mainloop and thus
+		 * makes it hard to log regularly.
+		 */
+		if (XLogStandbyInfoActive() && !RecoveryInProgress())
+		{
+			TimestampTz timeout = 0;
+			TimestampTz now = GetCurrentTimestamp();
+
+			timeout = TimestampTzPlusMilliseconds(last_snapshot_ts,
+												  LOG_SNAPSHOT_INTERVAL_MS);
+
+			/*
+			 * only log if enough time has passed and some xlog record has
+			 * been inserted.
+			 */
+			if (now >= timeout &&
+				last_snapshot_lsn != GetXLogInsertRecPtr())
+			{
+				last_snapshot_lsn = LogStandbySnapshot();
+				last_snapshot_ts = now;
+			}
+		}
+
+		/*
 		 * Sleep until we are signaled or BgWriterDelay has elapsed.
 		 *
 		 * Note: the feedback control loop in BgBufferSync() expects that we
@@ -299,7 +359,7 @@ BackgroundWriterMain(void)
 		 * down with latch events that are likely to happen frequently during
 		 * normal operation.
 		 */
-		rc = WaitLatch(&MyProc->procLatch,
+		rc = WaitLatch(MyLatch,
 					   WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
 					   BgWriterDelay /* ms */ );
 
@@ -318,19 +378,19 @@ BackgroundWriterMain(void)
 		 * and the time we call StrategyNotifyBgWriter.  While it's not
 		 * critical that we not hibernate anyway, we try to reduce the odds of
 		 * that by only hibernating when BgBufferSync says nothing's happening
-		 * for two consecutive cycles.	Also, we mitigate any possible
+		 * for two consecutive cycles.  Also, we mitigate any possible
 		 * consequences of a missed wakeup by not hibernating forever.
 		 */
 		if (rc == WL_TIMEOUT && can_hibernate && prev_hibernate)
 		{
 			/* Ask for notification at next buffer allocation */
-			StrategyNotifyBgWriter(&MyProc->procLatch);
+			StrategyNotifyBgWriter(MyProc->pgprocno);
 			/* Sleep ... */
-			rc = WaitLatch(&MyProc->procLatch,
+			rc = WaitLatch(MyLatch,
 						   WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
 						   BgWriterDelay * HIBERNATE_FACTOR);
 			/* Reset the notification request in case we timed out */
-			StrategyNotifyBgWriter(NULL);
+			StrategyNotifyBgWriter(-1);
 		}
 
 		/*
@@ -350,6 +410,41 @@ BackgroundWriterMain(void)
  * --------------------------------
  */
 
+<<<<<<< HEAD
+=======
+/*
+ * bg_quickdie() occurs when signalled SIGQUIT by the postmaster.
+ *
+ * Some backend has bought the farm,
+ * so we need to stop what we're doing and exit.
+ */
+static void
+bg_quickdie(SIGNAL_ARGS)
+{
+	PG_SETMASK(&BlockSig);
+
+	/*
+	 * We DO NOT want to run proc_exit() callbacks -- we're here because
+	 * shared memory may be corrupted, so we don't want to try to clean up our
+	 * transaction.  Just nail the windows shut and get out of town.  Now that
+	 * there's an atexit callback to prevent third-party code from breaking
+	 * things by calling exit() directly, we have to reset the callbacks
+	 * explicitly to make this work as intended.
+	 */
+	on_exit_reset();
+
+	/*
+	 * Note we do exit(2) not exit(0).  This is to force the postmaster into a
+	 * system reset cycle if some idiot DBA sends a manual SIGQUIT to a random
+	 * backend.  This is necessary precisely because we don't clean up our
+	 * shared memory state.  (The "dead man switch" mechanism in pmsignal.c
+	 * should ensure the postmaster sees this as a crash, too, but no harm in
+	 * being doubly sure.)
+	 */
+	exit(2);
+}
+
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /* SIGHUP: set flag to re-read config file at next convenient time */
 static void
 BgSigHupHandler(SIGNAL_ARGS)
@@ -357,8 +452,7 @@ BgSigHupHandler(SIGNAL_ARGS)
 	int			save_errno = errno;
 
 	got_SIGHUP = true;
-	if (MyProc)
-		SetLatch(&MyProc->procLatch);
+	SetLatch(MyLatch);
 
 	errno = save_errno;
 }
@@ -370,8 +464,7 @@ ReqShutdownHandler(SIGNAL_ARGS)
 	int			save_errno = errno;
 
 	shutdown_requested = true;
-	if (MyProc)
-		SetLatch(&MyProc->procLatch);
+	SetLatch(MyLatch);
 
 	errno = save_errno;
 }

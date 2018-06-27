@@ -12,6 +12,8 @@
  */
 
 
+#include "postgres_fe.h"
+
 #include <windows.h>
 #include <olectl.h>
 #include <string.h>
@@ -26,7 +28,7 @@ HANDLE		g_module = NULL;	/* hModule of DLL */
  * The maximum length of a registry key is 255 characters.
  * http://msdn.microsoft.com/en-us/library/ms724872(v=vs.85).aspx
  */
-char		event_source[256] = "PostgreSQL";
+char		event_source[256] = DEFAULT_EVENT_SOURCE;
 
 /* Prototypes */
 HRESULT		DllInstall(BOOL bInstall, LPCWSTR pszCmdLine);
@@ -42,7 +44,6 @@ HRESULT
 DllInstall(BOOL bInstall,
 		   LPCWSTR pszCmdLine)
 {
-
 	if (pszCmdLine && *pszCmdLine != '\0')
 		wcstombs(event_source, pszCmdLine, sizeof(event_source));
 

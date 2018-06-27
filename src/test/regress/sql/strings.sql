@@ -3,6 +3,7 @@
 -- Test various data entry syntaxes.
 --
 
+<<<<<<< HEAD
 -- create required tables
 CREATE TABLE CHAR_STRINGS_TBL(f1 char(4));
 INSERT INTO CHAR_STRINGS_TBL (f1) VALUES ('a'),
@@ -21,6 +22,9 @@ INSERT INTO TEXT_STRINGS_TBL VALUES ('doh!'),
 ('hi de ho neighbor');
 
 -- SQL92 string continuation syntax
+=======
+-- SQL string continuation syntax
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 -- E021-03 character string literals
 SELECT 'first line'
 ' - next line'
@@ -130,7 +134,7 @@ SELECT CAST(f1 AS varchar) AS "varchar(char)" FROM CHAR_STRINGS_TBL;
 SELECT CAST(name 'namefield' AS varchar) AS "varchar(name)";
 
 --
--- test SQL92 string functions
+-- test SQL string functions
 -- E### and T### are feature reference numbers from SQL99
 --
 
@@ -196,35 +200,42 @@ SELECT regexp_matches('foobarbequebaz', $re$(bar)(.+)?(beque)$re$);
 -- no capture groups
 SELECT regexp_matches('foobarbequebaz', $re$barbeque$re$);
 
+-- start/end-of-line matches are of zero length
+SELECT regexp_matches('foo' || chr(10) || 'bar' || chr(10) || 'bequq' || chr(10) || 'baz', '^', 'mg');
+SELECT regexp_matches('foo' || chr(10) || 'bar' || chr(10) || 'bequq' || chr(10) || 'baz', '$', 'mg');
+SELECT regexp_matches('1' || chr(10) || '2' || chr(10) || '3' || chr(10) || '4' || chr(10), '^.?', 'mg');
+SELECT regexp_matches(chr(10) || '1' || chr(10) || '2' || chr(10) || '3' || chr(10) || '4' || chr(10), '.?$', 'mg');
+SELECT regexp_matches(chr(10) || '1' || chr(10) || '2' || chr(10) || '3' || chr(10) || '4', '.?$', 'mg');
+
 -- give me errors
 SELECT regexp_matches('foobarbequebaz', $re$(bar)(beque)$re$, 'gz');
 SELECT regexp_matches('foobarbequebaz', $re$(barbeque$re$);
 SELECT regexp_matches('foobarbequebaz', $re$(bar)(beque){2,1}$re$);
 
 -- split string on regexp
-SELECT foo, length(foo) FROM regexp_split_to_table('the quick brown fox jumped over the lazy dog', $re$\s+$re$) AS foo;
-SELECT regexp_split_to_array('the quick brown fox jumped over the lazy dog', $re$\s+$re$);
+SELECT foo, length(foo) FROM regexp_split_to_table('the quick brown fox jumps over the lazy dog', $re$\s+$re$) AS foo;
+SELECT regexp_split_to_array('the quick brown fox jumps over the lazy dog', $re$\s+$re$);
 
-SELECT foo, length(foo) FROM regexp_split_to_table('the quick brown fox jumped over the lazy dog', $re$\s*$re$) AS foo;
-SELECT regexp_split_to_array('the quick brown fox jumped over the lazy dog', $re$\s*$re$);
-SELECT foo, length(foo) FROM regexp_split_to_table('the quick brown fox jumped over the lazy dog', '') AS foo;
-SELECT regexp_split_to_array('the quick brown fox jumped over the lazy dog', '');
+SELECT foo, length(foo) FROM regexp_split_to_table('the quick brown fox jumps over the lazy dog', $re$\s*$re$) AS foo;
+SELECT regexp_split_to_array('the quick brown fox jumps over the lazy dog', $re$\s*$re$);
+SELECT foo, length(foo) FROM regexp_split_to_table('the quick brown fox jumps over the lazy dog', '') AS foo;
+SELECT regexp_split_to_array('the quick brown fox jumps over the lazy dog', '');
 -- case insensitive
-SELECT foo, length(foo) FROM regexp_split_to_table('thE QUick bROWn FOx jUMPed ovEr THE lazy dOG', 'e', 'i') AS foo;
-SELECT regexp_split_to_array('thE QUick bROWn FOx jUMPed ovEr THE lazy dOG', 'e', 'i');
+SELECT foo, length(foo) FROM regexp_split_to_table('thE QUick bROWn FOx jUMPs ovEr The lazy dOG', 'e', 'i') AS foo;
+SELECT regexp_split_to_array('thE QUick bROWn FOx jUMPs ovEr The lazy dOG', 'e', 'i');
 -- no match of pattern
-SELECT foo, length(foo) FROM regexp_split_to_table('the quick brown fox jumped over the lazy dog', 'nomatch') AS foo;
-SELECT regexp_split_to_array('the quick brown fox jumped over the lazy dog', 'nomatch');
+SELECT foo, length(foo) FROM regexp_split_to_table('the quick brown fox jumps over the lazy dog', 'nomatch') AS foo;
+SELECT regexp_split_to_array('the quick brown fox jumps over the lazy dog', 'nomatch');
 -- some corner cases
 SELECT regexp_split_to_array('123456','1');
 SELECT regexp_split_to_array('123456','6');
 SELECT regexp_split_to_array('123456','.');
 -- errors
-SELECT foo, length(foo) FROM regexp_split_to_table('thE QUick bROWn FOx jUMPed ovEr THE lazy dOG', 'e', 'zippy') AS foo;
-SELECT regexp_split_to_array('thE QUick bROWn FOx jUMPed ovEr THE lazy dOG', 'e', 'iz');
+SELECT foo, length(foo) FROM regexp_split_to_table('thE QUick bROWn FOx jUMPs ovEr The lazy dOG', 'e', 'zippy') AS foo;
+SELECT regexp_split_to_array('thE QUick bROWn FOx jUMPs ovEr The lazy dOG', 'e', 'iz');
 -- global option meaningless for regexp_split
-SELECT foo, length(foo) FROM regexp_split_to_table('thE QUick bROWn FOx jUMPed ovEr THE lazy dOG', 'e', 'g') AS foo;
-SELECT regexp_split_to_array('thE QUick bROWn FOx jUMPed ovEr THE lazy dOG', 'e', 'g');
+SELECT foo, length(foo) FROM regexp_split_to_table('thE QUick bROWn FOx jUMPs ovEr The lazy dOG', 'e', 'g') AS foo;
+SELECT regexp_split_to_array('thE QUick bROWn FOx jUMPs ovEr The lazy dOG', 'e', 'g');
 
 -- change NULL-display back
 \pset null ''
@@ -417,7 +428,7 @@ insert into toasttest values(repeat('1234567890',10000));
 insert into toasttest values(repeat('1234567890',10000));
 
 -- If the starting position is zero or less, then return from the start of the string
--- adjusting the length to be consistent with the "negative start" per SQL92.
+-- adjusting the length to be consistent with the "negative start" per SQL.
 SELECT substr(f1, -1, 5) from toasttest;
 
 -- If the length is less than zero, an ERROR is thrown.
@@ -450,7 +461,7 @@ insert into toasttest values("decode"(repeat('1234567890',10000),'escape'));
 insert into toasttest values(pg_catalog.decode(repeat('1234567890',10000),'escape'));
 
 -- If the starting position is zero or less, then return from the start of the string
--- adjusting the length to be consistent with the "negative start" per SQL92.
+-- adjusting the length to be consistent with the "negative start" per SQL.
 SELECT substr(f1, -1, 5) from toasttest;
 
 -- If the length is less than zero, an ERROR is thrown.

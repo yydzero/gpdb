@@ -26,15 +26,15 @@
 #ifndef WILDABBR
 /*
  * Someone might make incorrect use of a time zone abbreviation:
- *	1.	They might reference tzname[0] before calling tzset (explicitly
+ *	1.  They might reference tzname[0] before calling tzset (explicitly
  *		or implicitly).
- *	2.	They might reference tzname[1] before calling tzset (explicitly
+ *	2.  They might reference tzname[1] before calling tzset (explicitly
  *		or implicitly).
- *	3.	They might reference tzname[1] after setting to a time zone
+ *	3.  They might reference tzname[1] after setting to a time zone
  *		in which Daylight Saving Time is never observed.
- *	4.	They might reference tzname[0] after setting to a time zone
+ *	4.  They might reference tzname[0] after setting to a time zone
  *		in which Standard Time is never observed.
- *	5.	They might reference tm.TM_ZONE after calling offtime.
+ *	5.  They might reference tm.TM_ZONE after calling offtime.
  * What's best to do in the above cases is open to debate;
  * for now, we just set things up so that in any of the five cases
  * WILDABBR is used. Another possibility: initialize tzname[0] to the
@@ -1697,8 +1697,13 @@ pg_next_dst_boundary(const pg_time_t *timep,
  * the meaning in use at or most recently before that time, or the meaning
  * in first use after that time if the abbrev was never used before that.
  *
+<<<<<<< HEAD
  * On success, returns true and sets *gmtoff and *isdst.  If the abbreviation
  * was never used at all in this zone, returns false.
+=======
+ * On success, returns TRUE and sets *gmtoff and *isdst.  If the abbreviation
+ * was never used at all in this zone, returns FALSE.
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  *
  * Note: abbrev is matched case-sensitively; it should be all-upper-case.
  */
@@ -1734,7 +1739,11 @@ pg_interpret_timezone_abbrev(const char *abbrev,
 		abbrind++;
 	}
 	if (abbrind >= sp->charcnt)
+<<<<<<< HEAD
 		return false;			/* not there! */
+=======
+		return FALSE;			/* not there! */
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/*
 	 * Unlike pg_next_dst_boundary, we needn't sweat about extrapolation
@@ -1771,7 +1780,11 @@ pg_interpret_timezone_abbrev(const char *abbrev,
 		{
 			*gmtoff = ttisp->tt_gmtoff;
 			*isdst = ttisp->tt_isdst;
+<<<<<<< HEAD
 			return true;
+=======
+			return TRUE;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		}
 	}
 
@@ -1785,11 +1798,19 @@ pg_interpret_timezone_abbrev(const char *abbrev,
 		{
 			*gmtoff = ttisp->tt_gmtoff;
 			*isdst = ttisp->tt_isdst;
+<<<<<<< HEAD
 			return true;
 		}
 	}
 
 	return false;				/* hm, not actually used in any interval? */
+=======
+			return TRUE;
+		}
+	}
+
+	return FALSE;				/* hm, not actually used in any interval? */
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 }
 
 /*
@@ -1801,7 +1822,11 @@ pg_get_timezone_offset(const pg_tz *tz, long int *gmtoff)
 {
 	/*
 	 * The zone could have more than one ttinfo, if it's historically used
+<<<<<<< HEAD
 	 * more than one abbreviation.  We return true as long as they all have
+=======
+	 * more than one abbreviation.  We return TRUE as long as they all have
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	 * the same gmtoff.
 	 */
 	const struct state *sp;

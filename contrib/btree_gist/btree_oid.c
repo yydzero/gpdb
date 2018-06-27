@@ -16,20 +16,13 @@ typedef struct
 ** OID ops
 */
 PG_FUNCTION_INFO_V1(gbt_oid_compress);
+PG_FUNCTION_INFO_V1(gbt_oid_fetch);
 PG_FUNCTION_INFO_V1(gbt_oid_union);
 PG_FUNCTION_INFO_V1(gbt_oid_picksplit);
 PG_FUNCTION_INFO_V1(gbt_oid_consistent);
 PG_FUNCTION_INFO_V1(gbt_oid_distance);
 PG_FUNCTION_INFO_V1(gbt_oid_penalty);
 PG_FUNCTION_INFO_V1(gbt_oid_same);
-
-Datum		gbt_oid_compress(PG_FUNCTION_ARGS);
-Datum		gbt_oid_union(PG_FUNCTION_ARGS);
-Datum		gbt_oid_picksplit(PG_FUNCTION_ARGS);
-Datum		gbt_oid_consistent(PG_FUNCTION_ARGS);
-Datum		gbt_oid_distance(PG_FUNCTION_ARGS);
-Datum		gbt_oid_penalty(PG_FUNCTION_ARGS);
-Datum		gbt_oid_same(PG_FUNCTION_ARGS);
 
 
 static bool
@@ -92,6 +85,7 @@ static const gbtree_ninfo tinfo =
 {
 	gbt_t_oid,
 	sizeof(Oid),
+	8,							/* sizeof(gbtreekey8) */
 	gbt_oidgt,
 	gbt_oidge,
 	gbt_oideq,
@@ -103,7 +97,6 @@ static const gbtree_ninfo tinfo =
 
 
 PG_FUNCTION_INFO_V1(oid_dist);
-Datum		oid_dist(PG_FUNCTION_ARGS);
 Datum
 oid_dist(PG_FUNCTION_ARGS)
 {
@@ -128,11 +121,17 @@ Datum
 gbt_oid_compress(PG_FUNCTION_ARGS)
 {
 	GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
-	GISTENTRY  *retval = NULL;
 
-	PG_RETURN_POINTER(gbt_num_compress(retval, entry, &tinfo));
+	PG_RETURN_POINTER(gbt_num_compress(entry, &tinfo));
 }
 
+Datum
+gbt_oid_fetch(PG_FUNCTION_ARGS)
+{
+	GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
+
+	PG_RETURN_POINTER(gbt_num_fetch(entry, &tinfo));
+}
 
 Datum
 gbt_oid_consistent(PG_FUNCTION_ARGS)

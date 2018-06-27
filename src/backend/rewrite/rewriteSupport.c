@@ -3,7 +3,7 @@
  * rewriteSupport.c
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -15,6 +15,7 @@
 #include "postgres.h"
 
 #include "access/heapam.h"
+#include "access/htup_details.h"
 #include "catalog/indexing.h"
 #include "catalog/pg_rewrite.h"
 #include "rewrite/rewriteSupport.h"
@@ -29,8 +30,7 @@
 
 /*
  * SetRelationRuleStatus
- *		Set the value of the relation's relhasrules field in pg_class;
- *		if the relation is becoming a view, also adjust its relkind.
+ *		Set the value of the relation's relhasrules field in pg_class.
  *
  * NOTE: caller must be holding an appropriate lock on the relation.
  *
@@ -41,8 +41,7 @@
  * row.
  */
 void
-SetRelationRuleStatus(Oid relationId, bool relHasRules,
-					  bool relIsBecomingView)
+SetRelationRuleStatus(Oid relationId, bool relHasRules)
 {
 	Relation	relationRelation;
 	HeapTuple	tuple;
@@ -57,17 +56,19 @@ SetRelationRuleStatus(Oid relationId, bool relHasRules,
 		elog(ERROR, "cache lookup failed for relation %u", relationId);
 	classForm = (Form_pg_class) GETSTRUCT(tuple);
 
-	if (classForm->relhasrules != relHasRules ||
-		(relIsBecomingView && classForm->relkind != RELKIND_VIEW))
+	if (classForm->relhasrules != relHasRules)
 	{
 		/* Do the update */
 		classForm->relhasrules = relHasRules;
+<<<<<<< HEAD
 		if (relIsBecomingView)
 		{
 			classForm->relkind = RELKIND_VIEW;
 			classForm->relstorage = RELSTORAGE_VIRTUAL;
 			classForm->relfrozenxid = InvalidTransactionId;
 		}
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 		simple_heap_update(relationRelation, &tuple->t_self, tuple);
 
@@ -119,7 +120,7 @@ get_rewrite_oid(Oid relid, const char *rulename, bool missing_ok)
  * Find rule oid, given only a rule name but no rel OID.
  *
  * If there's more than one, it's an error.  If there aren't any, that's an
- * error, too.	In general, this should be avoided - it is provided to support
+ * error, too.  In general, this should be avoided - it is provided to support
  * syntax that is compatible with pre-7.3 versions of PG, where rule names
  * were unique across the entire database.
  */
@@ -140,7 +141,7 @@ get_rewrite_oid_without_relid(const char *rulename,
 				CStringGetDatum(rulename));
 
 	RewriteRelation = heap_open(RewriteRelationId, AccessShareLock);
-	scanDesc = heap_beginscan(RewriteRelation, SnapshotNow, 1, &scanKeyData);
+	scanDesc = heap_beginscan_catalog(RewriteRelation, 1, &scanKeyData);
 
 	htup = heap_getnext(scanDesc, ForwardScanDirection);
 	if (!HeapTupleIsValid(htup))

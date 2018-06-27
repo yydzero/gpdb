@@ -4,9 +4,13 @@
  *	  prototypes for pathnode.c, relnode.c.
  *
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2005-2008, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/optimizer/pathnode.h
@@ -45,6 +49,13 @@ extern bool add_path_precheck(RelOptInfo *parent_rel,
 				  Cost startup_cost, Cost total_cost,
 				  List *pathkeys, Relids required_outer);
 
+<<<<<<< HEAD
+=======
+extern Path *create_seqscan_path(PlannerInfo *root, RelOptInfo *rel,
+					Relids required_outer);
+extern Path *create_samplescan_path(PlannerInfo *root, RelOptInfo *rel,
+					   Relids required_outer);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern IndexPath *create_index_path(PlannerInfo *root,
 				  IndexOptInfo *index,
 				  List *indexclauses,
@@ -79,10 +90,16 @@ extern BitmapOrPath *create_bitmap_or_path(PlannerInfo *root,
 					  RelOptInfo *rel,
 					  List *bitmapquals);
 extern TidPath *create_tidscan_path(PlannerInfo *root, RelOptInfo *rel,
+<<<<<<< HEAD
 					List *tidquals);
 extern AppendPath *create_append_path(PlannerInfo *root, RelOptInfo *rel,
 					List *subpaths,
 					Relids required_outer);
+=======
+					List *tidquals, Relids required_outer);
+extern AppendPath *create_append_path(RelOptInfo *rel, List *subpaths,
+				   Relids required_outer);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern MergeAppendPath *create_merge_append_path(PlannerInfo *root,
 						 RelOptInfo *rel,
 						 List *subpaths,
@@ -99,11 +116,22 @@ extern UniquePath *create_unique_rowid_path(PlannerInfo *root,
 						 Relids       required_outer);
 extern Path *create_subqueryscan_path(PlannerInfo *root, RelOptInfo *rel,
 						 List *pathkeys, Relids required_outer);
+<<<<<<< HEAD
 extern Path *create_functionscan_path(PlannerInfo *root, RelOptInfo *rel, RangeTblEntry *rte);
 extern Path *create_tablefunction_path(PlannerInfo *root, RelOptInfo *rel, RangeTblEntry *rte);
 extern Path *create_valuesscan_path(PlannerInfo *root, RelOptInfo *rel, RangeTblEntry *rte);
 extern Path *create_ctescan_path(PlannerInfo *root, RelOptInfo *rel, List *pathkeys);
 extern Path *create_worktablescan_path(PlannerInfo *root, RelOptInfo *rel, CdbLocusType ctelocus);
+=======
+extern Path *create_functionscan_path(PlannerInfo *root, RelOptInfo *rel,
+						 List *pathkeys, Relids required_outer);
+extern Path *create_valuesscan_path(PlannerInfo *root, RelOptInfo *rel,
+					   Relids required_outer);
+extern Path *create_ctescan_path(PlannerInfo *root, RelOptInfo *rel,
+					Relids required_outer);
+extern Path *create_worktablescan_path(PlannerInfo *root, RelOptInfo *rel,
+						  Relids required_outer);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern ForeignPath *create_foreignscan_path(PlannerInfo *root, RelOptInfo *rel,
 						double rows, Cost startup_cost, Cost total_cost,
 						List *pathkeys,
@@ -173,6 +201,7 @@ extern RelOptInfo *build_join_rel(PlannerInfo *root,
 			   RelOptInfo *inner_rel,
 			   SpecialJoinInfo *sjinfo,
 			   List **restrictlist_ptr);
+<<<<<<< HEAD
 extern void build_joinrel_tlist(PlannerInfo *root, RelOptInfo *joinrel, List *input_tlist);
 
 extern Var *cdb_define_pseudo_column(PlannerInfo   *root,
@@ -185,8 +214,13 @@ extern CdbRelColumnInfo *cdb_find_pseudo_column(PlannerInfo *root, Var *var);
 
 extern CdbRelColumnInfo *cdb_rte_find_pseudo_column(RangeTblEntry *rte, AttrNumber attno);
 
+=======
+extern RelOptInfo *build_empty_join_rel(PlannerInfo *root);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern AppendRelInfo *find_childrel_appendrelinfo(PlannerInfo *root,
 							RelOptInfo *rel);
+extern RelOptInfo *find_childrel_top_parent(PlannerInfo *root, RelOptInfo *rel);
+extern Relids find_childrel_parents(PlannerInfo *root, RelOptInfo *rel);
 extern ParamPathInfo *get_baserel_parampathinfo(PlannerInfo *root,
 						  RelOptInfo *baserel,
 						  Relids required_outer);

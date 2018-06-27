@@ -5,7 +5,7 @@
  *		bits of hard-wired knowledge
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -41,6 +41,7 @@
 #include "catalog/pg_resqueuecapability.h"
 #include "catalog/pg_resgroup.h"
 #include "catalog/pg_db_role_setting.h"
+#include "catalog/pg_replication_origin.h"
 #include "catalog/pg_shdepend.h"
 #include "catalog/pg_shdescription.h"
 #include "catalog/pg_shseclabel.h"
@@ -66,6 +67,7 @@
 
 #include "cdb/cdbvars.h"
 
+<<<<<<< HEAD
 #define FORKNAMECHARS	4		/* max chars for a fork name */
 
 /*
@@ -342,25 +344,30 @@ GetDatabasePath(Oid dbNode, Oid spcNode)
 	return path;
 }
 
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /*
  * IsSystemRelation
- *		True iff the relation is a system catalog relation.
+ *		True iff the relation is either a system catalog or toast table.
+ *		By a system catalog, we mean one that created in the pg_catalog schema
+ *		during initdb.  User-created relations in pg_catalog don't count as
+ *		system catalogs.
  *
  *		NB: TOAST relations are considered system relations by this test
  *		for compatibility with the old IsSystemRelationName function.
  *		This is appropriate in many places but not all.  Where it's not,
- *		also check IsToastRelation.
- *
- *		We now just test if the relation is in the system catalog namespace;
- *		so it's no longer necessary to forbid user relations from having
- *		names starting with pg_.
+ *		also check IsToastRelation or use IsCatalogRelation().
  */
 bool
 IsSystemRelation(Relation relation)
 {
+<<<<<<< HEAD
 	return IsSystemNamespace(RelationGetNamespace(relation)) ||
 		   IsToastNamespace(RelationGetNamespace(relation)) ||
 		   IsAoSegmentNamespace(RelationGetNamespace(relation));
+=======
+	return IsSystemClass(RelationGetRelid(relation), relation->rd_rel);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 }
 
 /*
@@ -370,13 +377,66 @@ IsSystemRelation(Relation relation)
  *		search pg_class directly.
  */
 bool
-IsSystemClass(Form_pg_class reltuple)
+IsSystemClass(Oid relid, Form_pg_class reltuple)
+{
+	return IsToastClass(reltuple) || IsCatalogClass(relid, reltuple);
+}
+
+/*
+ * IsCatalogRelation
+ *		True iff the relation is a system catalog, or the toast table for
+ *		a system catalog.  By a system catalog, we mean one that created
+ *		in the pg_catalog schema during initdb.  As with IsSystemRelation(),
+ *		user-created relations in pg_catalog don't count as system catalogs.
+ *
+ *		Note that IsSystemRelation() returns true for ALL toast relations,
+ *		but this function returns true only for toast relations of system
+ *		catalogs.
+ */
+bool
+IsCatalogRelation(Relation relation)
+{
+	return IsCatalogClass(RelationGetRelid(relation), relation->rd_rel);
+}
+
+/*
+ * IsCatalogClass
+ *		True iff the relation is a system catalog relation.
+ *
+ * Check IsCatalogRelation() for details.
+ */
+bool
+IsCatalogClass(Oid relid, Form_pg_class reltuple)
 {
 	Oid			relnamespace = reltuple->relnamespace;
 
+<<<<<<< HEAD
 	return IsSystemNamespace(relnamespace) ||
 		IsToastNamespace(relnamespace) ||
 		IsAoSegmentNamespace(relnamespace);
+=======
+	/*
+	 * Never consider relations outside pg_catalog/pg_toast to be catalog
+	 * relations.
+	 */
+	if (!IsSystemNamespace(relnamespace) && !IsToastNamespace(relnamespace))
+		return false;
+
+	/* ----
+	 * Check whether the oid was assigned during initdb, when creating the
+	 * initial template database. Minus the relations in information_schema
+	 * excluded above, these are integral part of the system.
+	 * We could instead check whether the relation is pinned in pg_depend, but
+	 * this is noticeably cheaper and doesn't require catalog access.
+	 *
+	 * This test is safe since even an oid wraparound will preserve this
+	 * property (c.f. GetNewObjectId()) and it has the advantage that it works
+	 * correctly even if a user decides to create a relation in the pg_catalog
+	 * namespace.
+	 * ----
+	 */
+	return relid < FirstNormalObjectId;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 }
 
 /*
@@ -489,20 +549,16 @@ GetReservedPrefix(const char *name)
  *		Given the OID of a relation, determine whether it's supposed to be
  *		shared across an entire database cluster.
  *
- * Hard-wiring this list is pretty grotty, but we really need it so that
- * we can compute the locktag for a relation (and then lock it) without
- * having already read its pg_class entry.	If we try to retrieve relisshared
- * from pg_class with no pre-existing lock, there is a race condition against
- * anyone who is concurrently committing a change to the pg_class entry:
- * since we read system catalog entries under SnapshotNow, it's possible
- * that both the old and new versions of the row are invalid at the instants
- * we scan them.  We fix this by insisting that updaters of a pg_class
- * row must hold exclusive lock on the corresponding rel, and that users
- * of a relation must hold at least AccessShareLock on the rel *before*
- * trying to open its relcache entry.  But to lock a rel, you have to
- * know if it's shared.  Fortunately, the set of shared relations is
- * fairly static, so a hand-maintained list of their OIDs isn't completely
- * impractical.
+ * In older releases, this had to be hard-wired so that we could compute the
+ * locktag for a relation and lock it before examining its catalog entry.
+ * Since we now have MVCC catalog access, the race conditions that made that
+ * a hard requirement are gone, so we could look at relaxing this restriction.
+ * However, if we scanned the pg_class entry to find relisshared, and only
+ * then locked the relation, pg_class could get updated in the meantime,
+ * forcing us to scan the relation again, which would definitely be complex
+ * and might have undesirable performance consequences.  Fortunately, the set
+ * of shared relations is fairly static, so a hand-maintained list of their
+ * OIDs isn't completely impractical.
  */
 bool
 IsSharedRelation(Oid relationId)
@@ -516,7 +572,8 @@ IsSharedRelation(Oid relationId)
 		relationId == SharedDependRelationId ||
 		relationId == SharedSecLabelRelationId ||
 		relationId == TableSpaceRelationId ||
-		relationId == DbRoleSettingRelationId)
+		relationId == DbRoleSettingRelationId ||
+		relationId == ReplicationOriginRelationId)
 		return true;
 
 	/* GPDB additions */
@@ -551,7 +608,9 @@ IsSharedRelation(Oid relationId)
 		relationId == SharedSecLabelObjectIndexId ||
 		relationId == TablespaceOidIndexId ||
 		relationId == TablespaceNameIndexId ||
-		relationId == DbRoleSettingDatidRolidIndexId)
+		relationId == DbRoleSettingDatidRolidIndexId ||
+		relationId == ReplicationOriginIdentIndex ||
+		relationId == ReplicationOriginNameIndex)
 		return true;
 
 	/* GPDB added indexes */
@@ -585,7 +644,9 @@ IsSharedRelation(Oid relationId)
 	if (relationId == PgShdescriptionToastTable ||
 		relationId == PgShdescriptionToastIndex ||
 		relationId == PgDbRoleSettingToastTable ||
-		relationId == PgDbRoleSettingToastIndex)
+		relationId == PgDbRoleSettingToastIndex ||
+		relationId == PgShseclabelToastTable ||
+		relationId == PgShseclabelToastIndex)
 		return true;
 
 	/* GPDB added toast tables and their indexes */
@@ -655,7 +716,7 @@ RelationNeedsSynchronizedOIDs(Relation relation)
  * Since the OID is not immediately inserted into the table, there is a
  * race condition here; but a problem could occur only if someone else
  * managed to cycle through 2^32 OIDs and generate the same OID before we
- * finish inserting our row.  This seems unlikely to be a problem.	Note
+ * finish inserting our row.  This seems unlikely to be a problem.  Note
  * that if we had to *commit* the row to end the race condition, the risk
  * would be rather higher; therefore we use SnapshotDirty in the test,
  * so that we will see uncommitted rows.
@@ -717,10 +778,10 @@ GetNewOid(Relation relation)
  *
  * This is exported separately because there are cases where we want to use
  * an index that will not be recognized by RelationGetOidIndex: TOAST tables
- * and pg_largeobject have indexes that are usable, but have multiple columns
- * and are on ordinary columns rather than a true OID column.  This code
- * will work anyway, so long as the OID is the index's first column.  The
- * caller must pass in the actual heap attnum of the OID column, however.
+ * have indexes that are usable, but have multiple columns and are on
+ * ordinary columns rather than a true OID column.  This code will work
+ * anyway, so long as the OID is the index's first column.  The caller must
+ * pass in the actual heap attnum of the OID column, however.
  *
  * Caller must have a suitable lock on the relation.
  */
@@ -897,8 +958,8 @@ GpCheckRelFileCollision(RelFileNodeBackend rnode)
 
 /*
  * GetNewRelFileNode
- *		Generate a new relfilenode number that is unique within the given
- *		tablespace.
+ *		Generate a new relfilenode number that is unique within the
+ *		database of the given tablespace.
  *
  * If the relfilenode will also be used as the relation's OID, pass the
  * opened pg_class catalog, and this routine will guarantee that the result

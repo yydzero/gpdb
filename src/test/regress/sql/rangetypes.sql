@@ -67,9 +67,13 @@ SELECT * FROM numrange_test WHERE 1.9 <@ nr;
 select * from numrange_test where nr = 'empty';
 select * from numrange_test where nr = '(1.1, 2.2)';
 select * from numrange_test where nr = '[1.1, 2.2)';
+select * from numrange_test where nr < 'empty';
 select * from numrange_test where nr < numrange(-1000.0, -1000.0,'[]');
 select * from numrange_test where nr < numrange(0.0, 1.0,'[]');
 select * from numrange_test where nr < numrange(1000.0, 1001.0,'[]');
+select * from numrange_test where nr <= 'empty';
+select * from numrange_test where nr >= 'empty';
+select * from numrange_test where nr > 'empty';
 select * from numrange_test where nr > numrange(-1001.0, -1000.0,'[]');
 select * from numrange_test where nr > numrange(0.0, 1.0,'[]');
 select * from numrange_test where nr > numrange(1000.0, 1000.0,'[]');
@@ -104,7 +108,11 @@ select numrange(1.1, 2.2) < numrange(1.1, 1.2);
 
 select numrange(1.0, 2.0) + numrange(2.0, 3.0);
 select numrange(1.0, 2.0) + numrange(1.5, 3.0);
-select numrange(1.0, 2.0) + numrange(2.5, 3.0);
+select numrange(1.0, 2.0) + numrange(2.5, 3.0); -- should fail
+
+select range_merge(numrange(1.0, 2.0), numrange(2.0, 3.0));
+select range_merge(numrange(1.0, 2.0), numrange(1.5, 3.0));
+select range_merge(numrange(1.0, 2.0), numrange(2.5, 3.0)); -- shouldn't fail
 
 select numrange(1.0, 2.0) * numrange(2.0, 3.0);
 select numrange(1.0, 2.0) * numrange(1.5, 3.0);
@@ -220,9 +228,85 @@ select count(*) from test_range_gist where ir &< int4range(100,500);
 select count(*) from test_range_gist where ir &> int4range(100,500);
 select count(*) from test_range_gist where ir -|- int4range(100,500);
 
+-- test SP-GiST index that's been built incrementally
+create table test_range_spgist(ir int4range);
+create index test_range_spgist_idx on test_range_spgist using spgist (ir);
+
+insert into test_range_spgist select int4range(g, g+10) from generate_series(1,2000) g;
+insert into test_range_spgist select 'empty'::int4range from generate_series(1,500) g;
+insert into test_range_spgist select int4range(g, g+10000) from generate_series(1,1000) g;
+insert into test_range_spgist select 'empty'::int4range from generate_series(1,500) g;
+insert into test_range_spgist select int4range(NULL,g*10,'(]') from generate_series(1,100) g;
+insert into test_range_spgist select int4range(g*10,NULL,'(]') from generate_series(1,100) g;
+insert into test_range_spgist select int4range(g, g+10) from generate_series(1,2000) g;
+
+-- first, verify non-indexed results
+SET enable_seqscan    = t;
+SET enable_indexscan  = f;
+SET enable_bitmapscan = f;
+
+select count(*) from test_range_spgist where ir @> 'empty'::int4range;
+select count(*) from test_range_spgist where ir = int4range(10,20);
+select count(*) from test_range_spgist where ir @> 10;
+select count(*) from test_range_spgist where ir @> int4range(10,20);
+select count(*) from test_range_spgist where ir && int4range(10,20);
+select count(*) from test_range_spgist where ir <@ int4range(10,50);
+select count(*) from test_range_spgist where ir << int4range(100,500);
+select count(*) from test_range_spgist where ir >> int4range(100,500);
+select count(*) from test_range_spgist where ir &< int4range(100,500);
+select count(*) from test_range_spgist where ir &> int4range(100,500);
+select count(*) from test_range_spgist where ir -|- int4range(100,500);
+
+-- now check same queries using index
+SET enable_seqscan    = f;
+SET enable_indexscan  = t;
+SET enable_bitmapscan = f;
+
+select count(*) from test_range_spgist where ir @> 'empty'::int4range;
+select count(*) from test_range_spgist where ir = int4range(10,20);
+select count(*) from test_range_spgist where ir @> 10;
+select count(*) from test_range_spgist where ir @> int4range(10,20);
+select count(*) from test_range_spgist where ir && int4range(10,20);
+select count(*) from test_range_spgist where ir <@ int4range(10,50);
+select count(*) from test_range_spgist where ir << int4range(100,500);
+select count(*) from test_range_spgist where ir >> int4range(100,500);
+select count(*) from test_range_spgist where ir &< int4range(100,500);
+select count(*) from test_range_spgist where ir &> int4range(100,500);
+select count(*) from test_range_spgist where ir -|- int4range(100,500);
+
+-- now check same queries using a bulk-loaded index
+drop index test_range_spgist_idx;
+create index test_range_spgist_idx on test_range_spgist using spgist (ir);
+
+select count(*) from test_range_spgist where ir @> 'empty'::int4range;
+select count(*) from test_range_spgist where ir = int4range(10,20);
+select count(*) from test_range_spgist where ir @> 10;
+select count(*) from test_range_spgist where ir @> int4range(10,20);
+select count(*) from test_range_spgist where ir && int4range(10,20);
+select count(*) from test_range_spgist where ir <@ int4range(10,50);
+select count(*) from test_range_spgist where ir << int4range(100,500);
+select count(*) from test_range_spgist where ir >> int4range(100,500);
+select count(*) from test_range_spgist where ir &< int4range(100,500);
+select count(*) from test_range_spgist where ir &> int4range(100,500);
+select count(*) from test_range_spgist where ir -|- int4range(100,500);
+
+-- test index-only scans
+explain (costs off)
+select ir from test_range_spgist where ir -|- int4range(10,20) order by ir;
+select ir from test_range_spgist where ir -|- int4range(10,20) order by ir;
+
 RESET enable_seqscan;
 RESET enable_indexscan;
 RESET enable_bitmapscan;
+
+-- test elem <@ range operator
+create table test_range_elem(i int4);
+create index test_range_elem_idx on test_range_elem (i);
+insert into test_range_elem select i from generate_series(1,100) i;
+
+select count(*) from test_range_elem where i <@ int4range(10,50);
+
+drop table test_range_elem;
 
 --
 -- Btree_gist is not included by default, so to test exclusion

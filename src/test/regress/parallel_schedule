@@ -13,7 +13,7 @@ test: tablespace
 # ----------
 # The first group of parallel tests
 # ----------
-test: boolean char name varchar text int2 int4 int8 oid float4 float8 bit numeric txid uuid enum money rangetypes
+test: boolean char name varchar text int2 int4 int8 oid float4 float8 bit numeric txid uuid enum money rangetypes pg_lsn regproc
 
 # Depends on things setup during char, varchar and text
 test: strings
@@ -23,7 +23,7 @@ test: numerology
 # ----------
 # The second group of parallel tests
 # ----------
-test: point lseg box path polygon circle date time timetz timestamp timestamptz interval abstime reltime tinterval inet macaddr tstypes comments
+test: point lseg line box path polygon circle date time timetz timestamp timestamptz interval abstime reltime tinterval inet macaddr tstypes comments
 
 # ----------
 # Another group of parallel tests
@@ -36,6 +36,7 @@ test: geometry horology regex oidjoins type_sanity opr_sanity
 # These four each depend on the previous one
 # ----------
 test: insert
+test: insert_conflict
 test: create_function_1
 test: create_type
 test: create_table
@@ -68,7 +69,11 @@ test: create_index create_view
 # ----------
 # Another group of parallel tests
 # ----------
+<<<<<<< HEAD
 test: create_aggregate create_function_3 create_cast constraints create_table_like typed_table vacuum drop_if_exists
+=======
+test: create_aggregate create_function_3 create_cast constraints triggers inherit create_table_like typed_table vacuum drop_if_exists updatable_views rolenames
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 # ----------
 # sanity_check does a vacuum, affecting the sort order of SELECT *
@@ -107,10 +112,18 @@ test: namespace
 # ----------
 # Another group of parallel tests
 # ----------
-test: privileges security_label collate
+test: brin gin gist spgist privileges security_label collate matview lock replica_identity rowsecurity object_address tablesample groupingsets
 
+# ----------
+# Another group of parallel tests
+# ----------
+test: alter_generic misc psql async
+
+<<<<<<< HEAD
 test: misc
 
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 # rules cannot run concurrently with any test that creates a view
 #
 # 'rules' test is disabled in GPDB. Maintaining the list of views in it is
@@ -125,6 +138,7 @@ test: misc
 # ----------
 # Another group of parallel tests
 # ----------
+<<<<<<< HEAD
 test: select_views portals_p2 cluster dependency guc bitmapops tsearch tsdicts foreign_data window xmlmap functional_deps advisory_lock json
 
 # Output of the 'combocid' test contains ctid and cmin values, which will
@@ -135,6 +149,9 @@ test: select_views portals_p2 cluster dependency guc bitmapops tsearch tsdicts f
 # multiple UNIQUE constraints, which is not supported in GPDB.
 #test: foreign_key
 
+=======
+test: select_views portals_p2 foreign_key cluster dependency guc bitmapops combocid tsearch tsdicts foreign_data window xmlmap functional_deps advisory_lock json jsonb indirect_toast equivclass
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 # ----------
 # Another group of parallel tests
 # NB: temp.sql does a reconnect which transiently uses 2 connections,
@@ -147,6 +164,9 @@ test: plancache limit plpgsql copy2 temp domain rangefuncs prepare without_oid c
 
 # INSERT RETURNING is not supported by GPDB
 test: returning
+
+# event triggers cannot run concurrently with any test that runs DDL
+test: event_trigger
 
 # run stats by itself because its delay may be insufficient under heavy load
 #

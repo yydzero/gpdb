@@ -3,7 +3,7 @@
  * pg_aggregate.c
  *	  routines to support manipulation of the pg_aggregate relation
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -15,6 +15,7 @@
 #include "postgres.h"
 
 #include "access/heapam.h"
+#include "access/htup_details.h"
 #include "catalog/dependency.h"
 #include "catalog/indexing.h"
 #include "catalog/pg_aggregate.h"
@@ -43,7 +44,7 @@ static Oid lookup_agg_function(List *fnName, int nargs, Oid *input_types,
 /*
  * AggregateCreate
  */
-void
+ObjectAddress
 AggregateCreate(const char *aggName,
 				Oid aggNamespace,
 				char aggKind,
@@ -58,10 +59,22 @@ AggregateCreate(const char *aggName,
 				List *aggtransfnName,
 				List *aggprelimfnName,
 				List *aggfinalfnName,
+<<<<<<< HEAD
 				bool finalfnExtraArgs,
+=======
+				List *aggmtransfnName,
+				List *aggminvtransfnName,
+				List *aggmfinalfnName,
+				bool finalfnExtraArgs,
+				bool mfinalfnExtraArgs,
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 				List *aggsortopName,
 				Oid aggTransType,
-				const char *agginitval)
+				int32 aggTransSpace,
+				Oid aggmTransType,
+				int32 aggmTransSpace,
+				const char *agginitval,
+				const char *aggminitval)
 {
 	Relation	aggdesc;
 	HeapTuple	tup;
@@ -73,13 +86,20 @@ AggregateCreate(const char *aggName,
 	Oid			prelimfn = InvalidOid;	/* if omitted, disables MPP 2-stage for this aggregate */
 	Oid			invprelimfn = InvalidOid; /* MPP windowing optimization */
 	Oid			finalfn = InvalidOid;	/* can be omitted */
+	Oid			mtransfn = InvalidOid;	/* can be omitted */
+	Oid			minvtransfn = InvalidOid;		/* can be omitted */
+	Oid			mfinalfn = InvalidOid;	/* can be omitted */
 	Oid			sortop = InvalidOid;	/* can be omitted */
 	Oid		   *aggArgTypes = parameterTypes->values;
 	bool		hasPolyArg;
 	bool		hasInternalArg;
+	bool		mtransIsStrict = false;
 	Oid			rettype;
 	Oid			finaltype;
+<<<<<<< HEAD
 	Oid			prelimrettype;
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	Oid			fnArgs[FUNC_MAX_ARGS];
 	int			nargs_transfn;
 	int			nargs_finalfn;
@@ -135,10 +155,27 @@ AggregateCreate(const char *aggName,
 				 errdetail("An aggregate using a polymorphic transition type must have at least one polymorphic argument.")));
 
 	/*
+<<<<<<< HEAD
 	 * An ordered-set aggregate that is VARIADIC must be VARIADIC ANY.	In
 	 * principle we could support regular variadic types, but it would make
 	 * things much more complicated because we'd have to assemble the correct
 	 * subsets of arguments into array values.	Since no standard aggregates
+=======
+	 * Likewise for moving-aggregate transtype, if any
+	 */
+	if (OidIsValid(aggmTransType) &&
+		IsPolymorphicType(aggmTransType) && !hasPolyArg)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
+				 errmsg("cannot determine transition data type"),
+				 errdetail("An aggregate using a polymorphic transition type must have at least one polymorphic argument.")));
+
+	/*
+	 * An ordered-set aggregate that is VARIADIC must be VARIADIC ANY.  In
+	 * principle we could support regular variadic types, but it would make
+	 * things much more complicated because we'd have to assemble the correct
+	 * subsets of arguments into array values.  Since no standard aggregates
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	 * have use for such a case, we aren't bothering for now.
 	 */
 	if (AGGKIND_IS_ORDERED_SET(aggKind) && OidIsValid(variadicArgType) &&
@@ -150,7 +187,11 @@ AggregateCreate(const char *aggName,
 	/*
 	 * If it's a hypothetical-set aggregate, there must be at least as many
 	 * direct arguments as aggregated ones, and the last N direct arguments
+<<<<<<< HEAD
 	 * must match the aggregated ones in type.	(We have to check this again
+=======
+	 * must match the aggregated ones in type.  (We have to check this again
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	 * when the aggregate is called, in case ANY is involved, but it makes
 	 * sense to reject the aggregate definition now if the declared arg types
 	 * don't match up.)  It's unconditionally OK if numDirectArgs == numArgs,
@@ -240,6 +281,7 @@ AggregateCreate(const char *aggName,
 					(errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
 					 errmsg("must not omit initial value when transition function is strict and transition type is not compatible with input type")));
 	}
+
 	ReleaseSysCache(tup);
 	
 	/* handle prelimfn, if supplied */
@@ -276,6 +318,92 @@ AggregateCreate(const char *aggName,
 					 errmsg("return type of preliminary function %s is not %s",
 							NameListToString(aggprelimfnName),
 							format_type_be(rettype))));		
+	}
+
+	/* handle moving-aggregate transfn, if supplied */
+	if (aggmtransfnName)
+	{
+		/*
+		 * The arguments are the same as for the regular transfn, except that
+		 * the transition data type might be different.  So re-use the fnArgs
+		 * values set up above, except for that one.
+		 */
+		Assert(OidIsValid(aggmTransType));
+		fnArgs[0] = aggmTransType;
+
+		mtransfn = lookup_agg_function(aggmtransfnName, nargs_transfn,
+									   fnArgs, variadicArgType,
+									   &rettype);
+
+		/* As above, return type must exactly match declared mtranstype. */
+		if (rettype != aggmTransType)
+			ereport(ERROR,
+					(errcode(ERRCODE_DATATYPE_MISMATCH),
+					 errmsg("return type of transition function %s is not %s",
+							NameListToString(aggmtransfnName),
+							format_type_be(aggmTransType))));
+
+		tup = SearchSysCache1(PROCOID, ObjectIdGetDatum(mtransfn));
+		if (!HeapTupleIsValid(tup))
+			elog(ERROR, "cache lookup failed for function %u", mtransfn);
+		proc = (Form_pg_proc) GETSTRUCT(tup);
+
+		/*
+		 * If the mtransfn is strict and the minitval is NULL, check first
+		 * input type and mtranstype are binary-compatible.
+		 */
+		if (proc->proisstrict && aggminitval == NULL)
+		{
+			if (numArgs < 1 ||
+				!IsBinaryCoercible(aggArgTypes[0], aggmTransType))
+				ereport(ERROR,
+						(errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
+						 errmsg("must not omit initial value when transition function is strict and transition type is not compatible with input type")));
+		}
+
+		/* Remember if mtransfn is strict; we may need this below */
+		mtransIsStrict = proc->proisstrict;
+
+		ReleaseSysCache(tup);
+	}
+
+	/* handle minvtransfn, if supplied */
+	if (aggminvtransfnName)
+	{
+		/*
+		 * This must have the same number of arguments with the same types as
+		 * the forward transition function, so just re-use the fnArgs data.
+		 */
+		Assert(aggmtransfnName);
+
+		minvtransfn = lookup_agg_function(aggminvtransfnName, nargs_transfn,
+										  fnArgs, variadicArgType,
+										  &rettype);
+
+		/* As above, return type must exactly match declared mtranstype. */
+		if (rettype != aggmTransType)
+			ereport(ERROR,
+					(errcode(ERRCODE_DATATYPE_MISMATCH),
+			errmsg("return type of inverse transition function %s is not %s",
+				   NameListToString(aggminvtransfnName),
+				   format_type_be(aggmTransType))));
+
+		tup = SearchSysCache1(PROCOID, ObjectIdGetDatum(minvtransfn));
+		if (!HeapTupleIsValid(tup))
+			elog(ERROR, "cache lookup failed for function %u", minvtransfn);
+		proc = (Form_pg_proc) GETSTRUCT(tup);
+
+		/*
+		 * We require the strictness settings of the forward and inverse
+		 * transition functions to agree.  This saves having to handle
+		 * assorted special cases at execution time.
+		 */
+		if (proc->proisstrict != mtransIsStrict)
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
+					 errmsg("strictness of aggregate's forward and inverse transition functions must match")));
+
+		ReleaseSysCache(tup);
 	}
 
 	/* handle finalfn, if supplied */
@@ -355,6 +483,62 @@ AggregateCreate(const char *aggName,
 				 errmsg("unsafe use of pseudo-type \"internal\""),
 				 errdetail("A function returning \"internal\" must have at least one \"internal\" argument.")));
 
+	/*
+	 * If a moving-aggregate implementation is supplied, look up its finalfn
+	 * if any, and check that the implied aggregate result type matches the
+	 * plain implementation.
+	 */
+	if (OidIsValid(aggmTransType))
+	{
+		/* handle finalfn, if supplied */
+		if (aggmfinalfnName)
+		{
+			/*
+			 * The arguments are figured the same way as for the regular
+			 * finalfn, but using aggmTransType and mfinalfnExtraArgs.
+			 */
+			Oid			ffnVariadicArgType = variadicArgType;
+
+			fnArgs[0] = aggmTransType;
+			memcpy(fnArgs + 1, aggArgTypes, numArgs * sizeof(Oid));
+			if (mfinalfnExtraArgs)
+				nargs_finalfn = numArgs + 1;
+			else
+			{
+				nargs_finalfn = numDirectArgs + 1;
+				if (numDirectArgs < numArgs)
+				{
+					/* variadic argument doesn't affect finalfn */
+					ffnVariadicArgType = InvalidOid;
+				}
+			}
+
+			mfinalfn = lookup_agg_function(aggmfinalfnName, nargs_finalfn,
+										   fnArgs, ffnVariadicArgType,
+										   &rettype);
+
+			/* As above, check strictness if mfinalfnExtraArgs is given */
+			if (mfinalfnExtraArgs && func_strict(mfinalfn))
+				ereport(ERROR,
+						(errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
+						 errmsg("final function with extra arguments must not be declared STRICT")));
+		}
+		else
+		{
+			/*
+			 * If no finalfn, aggregate result type is type of the state value
+			 */
+			rettype = aggmTransType;
+		}
+		Assert(OidIsValid(rettype));
+		if (rettype != finaltype)
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
+					 errmsg("moving-aggregate implementation returns type %s, but plain implementation returns type %s",
+							format_type_be(aggmTransType),
+							format_type_be(aggTransType))));
+	}
+
 	/* handle sortop, if supplied */
 	if (aggsortopName)
 	{
@@ -374,19 +558,23 @@ AggregateCreate(const char *aggName,
 	{
 		aclresult = pg_type_aclcheck(aggArgTypes[i], GetUserId(), ACL_USAGE);
 		if (aclresult != ACLCHECK_OK)
-			aclcheck_error(aclresult, ACL_KIND_TYPE,
-						   format_type_be(aggArgTypes[i]));
+			aclcheck_error_type(aclresult, aggArgTypes[i]);
 	}
 
 	aclresult = pg_type_aclcheck(aggTransType, GetUserId(), ACL_USAGE);
 	if (aclresult != ACLCHECK_OK)
-		aclcheck_error(aclresult, ACL_KIND_TYPE,
-					   format_type_be(aggTransType));
+		aclcheck_error_type(aclresult, aggTransType);
+
+	if (OidIsValid(aggmTransType))
+	{
+		aclresult = pg_type_aclcheck(aggmTransType, GetUserId(), ACL_USAGE);
+		if (aclresult != ACLCHECK_OK)
+			aclcheck_error_type(aclresult, aggmTransType);
+	}
 
 	aclresult = pg_type_aclcheck(finaltype, GetUserId(), ACL_USAGE);
 	if (aclresult != ACLCHECK_OK)
-		aclcheck_error(aclresult, ACL_KIND_TYPE,
-					   format_type_be(finaltype));
+		aclcheck_error_type(aclresult, finaltype);
 
 
 	/*
@@ -394,6 +582,7 @@ AggregateCreate(const char *aggName,
 	 * aggregate.  (This could fail if there's already a conflicting entry.)
 	 */
 
+<<<<<<< HEAD
 	procOid = ProcedureCreate(aggName,
 							  aggNamespace,
 							  false,	/* no replacement */
@@ -408,11 +597,27 @@ AggregateCreate(const char *aggName,
 							  true,		/* isAgg */
 							  false,	/* isWindowFunc */
 							  false,	/* security invoker (currently not
+=======
+	myself = ProcedureCreate(aggName,
+							 aggNamespace,
+							 false,		/* no replacement */
+							 false,		/* doesn't return a set */
+							 finaltype, /* returnType */
+							 GetUserId(),		/* proowner */
+							 INTERNALlanguageId,		/* languageObjectId */
+							 InvalidOid,		/* no validator */
+							 "aggregate_dummy", /* placeholder proc */
+							 NULL,		/* probin */
+							 true,		/* isAgg */
+							 false,		/* isWindowFunc */
+							 false,		/* security invoker (currently not
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 										 * definable for agg) */
-							  false,	/* isLeakProof */
-							  false,	/* isStrict (not needed for agg) */
-							  PROVOLATILE_IMMUTABLE,	/* volatility (not
+							 false,		/* isLeakProof */
+							 false,		/* isStrict (not needed for agg) */
+							 PROVOLATILE_IMMUTABLE,		/* volatility (not
 														 * needed for agg) */
+<<<<<<< HEAD
 							  parameterTypes,	/* paramTypes */
 							  allParameterTypes,		/* allParamTypes */
 							  parameterModes,	/* parameterModes */
@@ -423,6 +628,18 @@ AggregateCreate(const char *aggName,
 							  0,				/* prorows */
 							  PRODATAACCESS_NONE,		/* prodataaccess */
 							  PROEXECLOCATION_ANY);		/* proexeclocation */
+=======
+							 parameterTypes,	/* paramTypes */
+							 allParameterTypes, /* allParamTypes */
+							 parameterModes,	/* parameterModes */
+							 parameterNames,	/* parameterNames */
+							 parameterDefaults, /* parameterDefaults */
+							 PointerGetDatum(NULL),		/* trftypes */
+							 PointerGetDatum(NULL),		/* proconfig */
+							 1, /* procost */
+							 0);	/* prorows */
+	procOid = myself.objectId;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/*
 	 * Okay to create the pg_aggregate entry.
@@ -442,13 +659,28 @@ AggregateCreate(const char *aggName,
 	values[Anum_pg_aggregate_aggprelimfn - 1] = ObjectIdGetDatum(prelimfn);
 	values[Anum_pg_aggregate_agginvprelimfn - 1] = ObjectIdGetDatum(invprelimfn);
 	values[Anum_pg_aggregate_aggfinalfn - 1] = ObjectIdGetDatum(finalfn);
+<<<<<<< HEAD
 	values[Anum_pg_aggregate_aggfinalextra - 1] = BoolGetDatum(finalfnExtraArgs);
+=======
+	values[Anum_pg_aggregate_aggmtransfn - 1] = ObjectIdGetDatum(mtransfn);
+	values[Anum_pg_aggregate_aggminvtransfn - 1] = ObjectIdGetDatum(minvtransfn);
+	values[Anum_pg_aggregate_aggmfinalfn - 1] = ObjectIdGetDatum(mfinalfn);
+	values[Anum_pg_aggregate_aggfinalextra - 1] = BoolGetDatum(finalfnExtraArgs);
+	values[Anum_pg_aggregate_aggmfinalextra - 1] = BoolGetDatum(mfinalfnExtraArgs);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	values[Anum_pg_aggregate_aggsortop - 1] = ObjectIdGetDatum(sortop);
 	values[Anum_pg_aggregate_aggtranstype - 1] = ObjectIdGetDatum(aggTransType);
+	values[Anum_pg_aggregate_aggtransspace - 1] = Int32GetDatum(aggTransSpace);
+	values[Anum_pg_aggregate_aggmtranstype - 1] = ObjectIdGetDatum(aggmTransType);
+	values[Anum_pg_aggregate_aggmtransspace - 1] = Int32GetDatum(aggmTransSpace);
 	if (agginitval)
 		values[Anum_pg_aggregate_agginitval - 1] = CStringGetTextDatum(agginitval);
 	else
 		nulls[Anum_pg_aggregate_agginitval - 1] = true;
+	if (aggminitval)
+		values[Anum_pg_aggregate_aggminitval - 1] = CStringGetTextDatum(aggminitval);
+	else
+		nulls[Anum_pg_aggregate_aggminitval - 1] = true;
 
 	aggdesc = heap_open(AggregateRelationId, RowExclusiveLock);
 	tupDesc = aggdesc->rd_att;
@@ -464,10 +696,8 @@ AggregateCreate(const char *aggName,
 	 * Create dependencies for the aggregate (above and beyond those already
 	 * made by ProcedureCreate).  Note: we don't need an explicit dependency
 	 * on aggTransType since we depend on it indirectly through transfn.
+	 * Likewise for aggmTransType if any.
 	 */
-	myself.classId = ProcedureRelationId;
-	myself.objectId = procOid;
-	myself.objectSubId = 0;
 
 	/* Depends on transition function */
 	referenced.classId = ProcedureRelationId;
@@ -511,6 +741,33 @@ AggregateCreate(const char *aggName,
 		recordDependencyOn(&myself, &referenced, DEPENDENCY_NORMAL);
 	}
 
+	/* Depends on forward transition function, if any */
+	if (OidIsValid(mtransfn))
+	{
+		referenced.classId = ProcedureRelationId;
+		referenced.objectId = mtransfn;
+		referenced.objectSubId = 0;
+		recordDependencyOn(&myself, &referenced, DEPENDENCY_NORMAL);
+	}
+
+	/* Depends on inverse transition function, if any */
+	if (OidIsValid(minvtransfn))
+	{
+		referenced.classId = ProcedureRelationId;
+		referenced.objectId = minvtransfn;
+		referenced.objectSubId = 0;
+		recordDependencyOn(&myself, &referenced, DEPENDENCY_NORMAL);
+	}
+
+	/* Depends on final function, if any */
+	if (OidIsValid(mfinalfn))
+	{
+		referenced.classId = ProcedureRelationId;
+		referenced.objectId = mfinalfn;
+		referenced.objectSubId = 0;
+		recordDependencyOn(&myself, &referenced, DEPENDENCY_NORMAL);
+	}
+
 	/* Depends on sort operator, if any */
 	if (OidIsValid(sortop))
 	{
@@ -519,10 +776,21 @@ AggregateCreate(const char *aggName,
 		referenced.objectSubId = 0;
 		recordDependencyOn(&myself, &referenced, DEPENDENCY_NORMAL);
 	}
+
+	return myself;
 }
 
 /*
+<<<<<<< HEAD
  * lookup_agg_function -- common code for finding transfn, prelimfn and finalfn
+=======
+ * lookup_agg_function
+ * common code for finding transfn, invtransfn and finalfn
+ *
+ * Returns OID of function, and stores its return type into *rettype
+ *
+ * NB: must not scribble on input_types[], as we may re-use those
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  */
 static Oid
 lookup_agg_function(List *fnName,

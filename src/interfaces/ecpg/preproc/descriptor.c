@@ -175,6 +175,7 @@ output_get_descr(char *desc_name, char *index)
 	for (results = assignments; results != NULL; results = results->next)
 	{
 		const struct variable *v = find_variable(results->variable);
+		char *str_zero = mm_strdup("0");
 
 		switch (results->value)
 		{
@@ -188,7 +189,8 @@ output_get_descr(char *desc_name, char *index)
 				break;
 		}
 		fprintf(yyout, "%s,", get_dtype(results->value));
-		ECPGdump_a_type(yyout, v->name, v->type, v->brace_level, NULL, NULL, -1, NULL, NULL, mm_strdup("0"), NULL, NULL);
+		ECPGdump_a_type(yyout, v->name, v->type, v->brace_level, NULL, NULL, -1, NULL, NULL, str_zero, NULL, NULL);
+		free(str_zero);
 	}
 	drop_assignments();
 	fputs("ECPGd_EODT);\n", yyout);
@@ -274,7 +276,7 @@ output_set_descr(char *desc_name, char *index)
 			case ECPGd_di_precision:
 			case ECPGd_precision:
 			case ECPGd_scale:
-				mmerror(PARSE_ERROR, ET_FATAL, "descriptor item \"%s\" is not implemented",
+				mmfatal(PARSE_ERROR, "descriptor item \"%s\" is not implemented",
 						descriptor_item_name(results->value));
 				break;
 
@@ -284,7 +286,7 @@ output_set_descr(char *desc_name, char *index)
 			case ECPGd_octet:
 			case ECPGd_ret_length:
 			case ECPGd_ret_octet:
-				mmerror(PARSE_ERROR, ET_FATAL, "descriptor item \"%s\" cannot be set",
+				mmfatal(PARSE_ERROR, "descriptor item \"%s\" cannot be set",
 						descriptor_item_name(results->value));
 				break;
 
@@ -292,8 +294,12 @@ output_set_descr(char *desc_name, char *index)
 			case ECPGd_indicator:
 			case ECPGd_length:
 			case ECPGd_type:
-				fprintf(yyout, "%s,", get_dtype(results->value));
-				ECPGdump_a_type(yyout, v->name, v->type, v->brace_level, NULL, NULL, -1, NULL, NULL, mm_strdup("0"), NULL, NULL);
+				{
+					char *str_zero = mm_strdup("0");
+					fprintf(yyout, "%s,", get_dtype(results->value));
+					ECPGdump_a_type(yyout, v->name, v->type, v->brace_level, NULL, NULL, -1, NULL, NULL, str_zero, NULL, NULL);
+					free(str_zero);
+				}
 				break;
 
 			default:

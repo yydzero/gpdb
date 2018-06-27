@@ -4,7 +4,7 @@
  *	  POSTGRES heap access method definitions.
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/access/heapam.h
@@ -16,7 +16,7 @@
 
 #include "access/sdir.h"
 #include "access/skey.h"
-#include "access/xlog.h"
+#include "nodes/lockoptions.h"
 #include "nodes/primnodes.h"
 #include "storage/bufpage.h"
 #include "storage/lock.h"
@@ -27,14 +27,50 @@
 /* "options" flag bits for heap_insert */
 #define HEAP_INSERT_SKIP_WAL	0x0001
 #define HEAP_INSERT_SKIP_FSM	0x0002
+#define HEAP_INSERT_FROZEN		0x0004
+#define HEAP_INSERT_SPECULATIVE 0x0008
 
 typedef struct BulkInsertStateData *BulkInsertState;
 
-typedef enum
+/*
+ * Possible lock modes for a tuple.
+ */
+typedef enum LockTupleMode
 {
-	LockTupleShared,
+	/* SELECT FOR KEY SHARE */
+	LockTupleKeyShare,
+	/* SELECT FOR SHARE */
+	LockTupleShare,
+	/* SELECT FOR NO KEY UPDATE, and UPDATEs that don't modify key columns */
+	LockTupleNoKeyExclusive,
+	/* SELECT FOR UPDATE, UPDATEs that modify key columns, and DELETE */
 	LockTupleExclusive
 } LockTupleMode;
+
+#define MaxLockTupleMode	LockTupleExclusive
+
+/*
+ * When heap_update, heap_delete, or heap_lock_tuple fail because the target
+ * tuple is already outdated, they fill in this struct to provide information
+ * to the caller about what happened.
+ * ctid is the target's ctid link: it is the same as the target's TID if the
+ * target was deleted, or the location of the replacement tuple if the target
+ * was updated.
+ * xmax is the outdating transaction's XID.  If the caller wants to visit the
+ * replacement tuple, it must check that this matches before believing the
+ * replacement is really a match.
+ * cmax is the outdating command's CID, but only when the failure code is
+ * HeapTupleSelfUpdated (i.e., something in the current transaction outdated
+ * the tuple); otherwise cmax is zero.  (We make this restriction because
+ * HeapTupleHeaderGetCmax doesn't work for tuples outdated in other
+ * transactions.)
+ */
+typedef struct HeapUpdateFailureData
+{
+	ItemPointerData ctid;
+	TransactionId xmax;
+	CommandId	cmax;
+} HeapUpdateFailureData;
 
 
 /* ----------------
@@ -89,11 +125,19 @@ typedef struct HeapScanDescData *HeapScanDesc;
 
 extern HeapScanDesc heap_beginscan(Relation relation, Snapshot snapshot,
 			   int nkeys, ScanKey key);
+extern HeapScanDesc heap_beginscan_catalog(Relation relation, int nkeys,
+					   ScanKey key);
 extern HeapScanDesc heap_beginscan_strat(Relation relation, Snapshot snapshot,
 					 int nkeys, ScanKey key,
 					 bool allow_strat, bool allow_sync);
 extern HeapScanDesc heap_beginscan_bm(Relation relation, Snapshot snapshot,
 				  int nkeys, ScanKey key);
+extern HeapScanDesc heap_beginscan_sampling(Relation relation,
+						Snapshot snapshot, int nkeys, ScanKey key,
+						bool allow_strat, bool allow_pagemode);
+extern void heap_setscanlimits(HeapScanDesc scan, BlockNumber startBlk,
+				   BlockNumber endBlk);
+extern void heapgetpage(HeapScanDesc scan, BlockNumber page);
 extern void heap_rescan(HeapScanDesc scan, ScanKey key);
 extern void heap_endscan(HeapScanDesc scan);
 extern HeapTuple heap_getnext(HeapScanDesc scan, ScanDirection direction);
@@ -122,20 +166,29 @@ extern Oid heap_insert(Relation relation, HeapTuple tup, CommandId cid,
 extern void heap_multi_insert(Relation relation, HeapTuple *tuples, int ntuples,
 				  CommandId cid, int options, BulkInsertState bistate, TransactionId xid);
 extern HTSU_Result heap_delete(Relation relation, ItemPointer tid,
-			ItemPointer ctid, TransactionId *update_xmax,
-			CommandId cid, Snapshot crosscheck, bool wait);
+			CommandId cid, Snapshot crosscheck, bool wait,
+			HeapUpdateFailureData *hufd);
+extern void heap_finish_speculative(Relation relation, HeapTuple tuple);
+extern void heap_abort_speculative(Relation relation, HeapTuple tuple);
 extern HTSU_Result heap_update(Relation relation, ItemPointer otid,
 			HeapTuple newtup,
-			ItemPointer ctid, TransactionId *update_xmax,
-			CommandId cid, Snapshot crosscheck, bool wait);
+			CommandId cid, Snapshot crosscheck, bool wait,
+			HeapUpdateFailureData *hufd, LockTupleMode *lockmode);
 extern HTSU_Result heap_lock_tuple(Relation relation, HeapTuple tuple,
+<<<<<<< HEAD
 				Buffer *buffer, ItemPointer ctid,
 				TransactionId *update_xmax, CommandId cid,
 				LockTupleMode mode, LockTupleWaitType waittype);
+=======
+				CommandId cid, LockTupleMode mode, LockWaitPolicy wait_policy,
+				bool follow_update,
+				Buffer *buffer, HeapUpdateFailureData *hufd);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern void heap_inplace_update(Relation relation, HeapTuple tuple);
-extern bool heap_freeze_tuple(HeapTupleHeader tuple, TransactionId cutoff_xid);
+extern bool heap_freeze_tuple(HeapTupleHeader tuple, TransactionId cutoff_xid,
+				  TransactionId cutoff_multi);
 extern bool heap_tuple_needs_freeze(HeapTupleHeader tuple, TransactionId cutoff_xid,
-						Buffer buf);
+						MultiXactId cutoff_multi, Buffer buf);
 
 extern Oid	simple_heap_insert(Relation relation, HeapTuple tup);
 extern Oid frozen_heap_insert(Relation relation, HeapTuple tup);
@@ -143,6 +196,7 @@ extern void simple_heap_delete(Relation relation, ItemPointer tid);
 extern void simple_heap_update(Relation relation, ItemPointer otid,
 				   HeapTuple tup);
 
+<<<<<<< HEAD
 extern void heap_markpos(HeapScanDesc scan);
 extern void heap_markposx(HeapScanDesc scan, HeapTuple tuple);
 extern void heap_restrpos(HeapScanDesc scan);
@@ -188,9 +242,12 @@ extern XLogRecPtr log_heap_visible(RelFileNode rnode, BlockNumber block,
 extern XLogRecPtr log_newpage(RelFileNode *rnode, ForkNumber forkNum,
 			BlockNumber blk, Page page);
 
+=======
+extern void heap_sync(Relation relation);
+
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /* in heap/pruneheap.c */
-extern void heap_page_prune_opt(Relation relation, Buffer buffer,
-					TransactionId OldestXmin);
+extern void heap_page_prune_opt(Relation relation, Buffer buffer);
 extern int heap_page_prune(Relation relation, Buffer buffer,
 				TransactionId OldestXmin,
 				bool report_stats, TransactionId *latestRemovedXid);

@@ -18,7 +18,7 @@
  * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.	IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
  * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
@@ -33,6 +33,12 @@
 #include "c.h"
 
 #include <ctype.h>
+<<<<<<< HEAD
+=======
+#ifdef _MSC_VER
+#include <float.h>				/* for _isnan */
+#endif
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include <limits.h>
 #include <math.h>
 #ifndef WIN32
@@ -68,7 +74,7 @@
  * platforms.  This implementation is compatible with the Single Unix Spec:
  *
  * 1. -1 is returned only if processing is abandoned due to an invalid
- * parameter, such as incorrect format string.	(Although not required by
+ * parameter, such as incorrect format string.  (Although not required by
  * the spec, this happens only when no characters have yet been transmitted
  * to the destination.)
  *
@@ -89,7 +95,7 @@
  * Original:
  * Patrick Powell Tue Apr 11 09:48:21 PDT 1995
  * A bombproof version of doprnt (dopr) included.
- * Sigh.  This sort of thing is always nasty do deal with.	Note that
+ * Sigh.  This sort of thing is always nasty do deal with.  Note that
  * the version here does not include floating point. (now it does ... tgl)
  **************************************************************/
 
@@ -110,6 +116,7 @@ typedef struct
 	/* bufend == NULL is for sprintf, where we assume buf is big enough */
 	FILE	   *stream;			/* eventual output destination, or NULL */
 	int			nchars;			/* # chars already sent to stream */
+	bool		failed;			/* call is a failure; errno is set */
 } PrintfTarget;
 
 /*
@@ -139,7 +146,7 @@ typedef union
 
 
 static void flushbuffer(PrintfTarget *target);
-static int	dopr(PrintfTarget *target, const char *format, va_list args);
+static void dopr(PrintfTarget *target, const char *format, va_list args);
 
 
 int
@@ -153,14 +160,10 @@ pg_vsnprintf(char *str, size_t count, const char *fmt, va_list args)
 	target.bufend = str + count - 1;
 	target.stream = NULL;
 	/* target.nchars is unused in this case */
-	if (dopr(&target, fmt, args))
-	{
-		*(target.bufptr) = '\0';
-		errno = EINVAL;			/* bad format */
-		return -1;
-	}
+	target.failed = false;
+	dopr(&target, fmt, args);
 	*(target.bufptr) = '\0';
-	return target.bufptr - target.bufstart;
+	return target.failed ? -1 : (target.bufptr - target.bufstart);
 }
 
 int
@@ -186,14 +189,10 @@ pg_vsprintf(char *str, const char *fmt, va_list args)
 	target.bufend = NULL;
 	target.stream = NULL;
 	/* target.nchars is unused in this case */
-	if (dopr(&target, fmt, args))
-	{
-		*(target.bufptr) = '\0';
-		errno = EINVAL;			/* bad format */
-		return -1;
-	}
+	target.failed = false;
+	dopr(&target, fmt, args);
 	*(target.bufptr) = '\0';
-	return target.bufptr - target.bufstart;
+	return target.failed ? -1 : (target.bufptr - target.bufstart);
 }
 
 int
@@ -223,14 +222,11 @@ pg_vfprintf(FILE *stream, const char *fmt, va_list args)
 	target.bufend = buffer + sizeof(buffer) - 1;
 	target.stream = stream;
 	target.nchars = 0;
-	if (dopr(&target, fmt, args))
-	{
-		errno = EINVAL;			/* bad format */
-		return -1;
-	}
+	target.failed = false;
+	dopr(&target, fmt, args);
 	/* dump any remaining buffer contents */
 	flushbuffer(&target);
-	return target.nchars;
+	return target.failed ? -1 : target.nchars;
 }
 
 int
@@ -257,14 +253,24 @@ pg_printf(const char *fmt,...)
 	return len;
 }
 
-/* call this only when stream is defined */
+/*
+ * Attempt to write the entire buffer to target->stream; discard the entire
+ * buffer in any case.  Call this only when target->stream is defined.
+ */
 static void
 flushbuffer(PrintfTarget *target)
 {
 	size_t		nc = target->bufptr - target->bufstart;
 
-	if (nc > 0)
-		target->nchars += fwrite(target->bufstart, 1, nc, target->stream);
+	if (!target->failed && nc > 0)
+	{
+		size_t		written;
+
+		written = fwrite(target->bufstart, 1, nc, target->stream);
+		target->nchars += written;
+		if (written != nc)
+			target->failed = true;
+	}
 	target->bufptr = target->bufstart;
 }
 
@@ -291,7 +297,7 @@ static void trailing_pad(int *padlen, PrintfTarget *target);
 /*
  * dopr(): poor man's version of doprintf
  */
-static int
+static void
 dopr(PrintfTarget *target, const char *format, va_list args)
 {
 	const char *format_start = format;
@@ -368,12 +374,12 @@ nextch1:
 			case '$':
 				have_dollar = true;
 				if (accum <= 0 || accum > NL_ARGMAX)
-					return -1;
+					goto bad_format;
 				if (afterstar)
 				{
 					if (argtypes[accum] &&
 						argtypes[accum] != ATYPE_INT)
-						return -1;
+						goto bad_format;
 					argtypes[accum] = ATYPE_INT;
 					last_dollar = Max(last_dollar, accum);
 					afterstar = false;
@@ -387,6 +393,19 @@ nextch1:
 					longlongflag = 1;
 				else
 					longflag = 1;
+				goto nextch1;
+			case 'z':
+#if SIZEOF_SIZE_T == 8
+#ifdef HAVE_LONG_INT_64
+				longflag = 1;
+#elif defined(HAVE_LONG_LONG_INT_64)
+				longlongflag = 1;
+#else
+#error "Don't know how to print 64bit integers"
+#endif
+#else
+				/* assume size_t is same size as int */
+#endif
 				goto nextch1;
 			case 'h':
 			case '\'':
@@ -410,7 +429,7 @@ nextch1:
 						atype = ATYPE_INT;
 					if (argtypes[fmtpos] &&
 						argtypes[fmtpos] != atype)
-						return -1;
+						goto bad_format;
 					argtypes[fmtpos] = atype;
 					last_dollar = Max(last_dollar, fmtpos);
 				}
@@ -422,7 +441,7 @@ nextch1:
 				{
 					if (argtypes[fmtpos] &&
 						argtypes[fmtpos] != ATYPE_INT)
-						return -1;
+						goto bad_format;
 					argtypes[fmtpos] = ATYPE_INT;
 					last_dollar = Max(last_dollar, fmtpos);
 				}
@@ -435,7 +454,7 @@ nextch1:
 				{
 					if (argtypes[fmtpos] &&
 						argtypes[fmtpos] != ATYPE_CHARPTR)
-						return -1;
+						goto bad_format;
 					argtypes[fmtpos] = ATYPE_CHARPTR;
 					last_dollar = Max(last_dollar, fmtpos);
 				}
@@ -451,7 +470,7 @@ nextch1:
 				{
 					if (argtypes[fmtpos] &&
 						argtypes[fmtpos] != ATYPE_DOUBLE)
-						return -1;
+						goto bad_format;
 					argtypes[fmtpos] = ATYPE_DOUBLE;
 					last_dollar = Max(last_dollar, fmtpos);
 				}
@@ -472,7 +491,7 @@ nextch1:
 
 	/* Per spec, you use either all dollar or all not. */
 	if (have_dollar && have_non_dollar)
-		return -1;
+		goto bad_format;
 
 	/*
 	 * In dollar mode, collect the arguments in physical order.
@@ -482,7 +501,7 @@ nextch1:
 		switch (argtypes[i])
 		{
 			case ATYPE_NONE:
-				return -1;		/* invalid format */
+				goto bad_format;
 			case ATYPE_INT:
 				argvalues[i].i = va_arg(args, int);
 				break;
@@ -507,6 +526,9 @@ nextch1:
 	format = format_start;
 	while ((ch = *format++) != '\0')
 	{
+		if (target->failed)
+			break;
+
 		if (ch != '%')
 		{
 			dopr_outch(ch, target);
@@ -620,6 +642,19 @@ nextch2:
 					longlongflag = 1;
 				else
 					longflag = 1;
+				goto nextch2;
+			case 'z':
+#if SIZEOF_SIZE_T == 8
+#ifdef HAVE_LONG_INT_64
+				longflag = 1;
+#elif defined(HAVE_LONG_LONG_INT_64)
+				longlongflag = 1;
+#else
+#error "Don't know how to print 64bit integers"
+#endif
+#else
+				/* assume size_t is same size as int */
+#endif
 				goto nextch2;
 			case 'h':
 			case '\'':
@@ -751,7 +786,11 @@ nextch2:
 		}
 	}
 
-	return 0;
+	return;
+
+bad_format:
+	errno = EINVAL;
+	target->failed = true;
 }
 
 static size_t
@@ -801,8 +840,10 @@ fmtptr(void *value, PrintfTarget *target)
 
 	/* we rely on regular C library's sprintf to do the basic conversion */
 	vallen = sprintf(convert, "%p", value);
-
-	dostr(convert, vallen, target);
+	if (vallen < 0)
+		target->failed = true;
+	else
+		dostr(convert, vallen, target);
 }
 
 static void
@@ -935,16 +976,27 @@ fmtfloat(double value, char type, int forcesign, int leftjust,
 
 	if (pointflag)
 	{
+<<<<<<< HEAD
 		sprintf(fmt, "%%.%d%c", prec, type);
 		zeropadlen = precision - prec;
 	}
 	else
 		sprintf(fmt, "%%%c", type);
+=======
+		if (sprintf(fmt, "%%.%d%c", prec, type) < 0)
+			goto fail;
+		zeropadlen = precision - prec;
+	}
+	else if (sprintf(fmt, "%%%c", type) < 0)
+		goto fail;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	if (!isnan(value) && adjust_sign((value < 0), forcesign, &signvalue))
 		value = -value;
 
 	vallen = sprintf(convert, fmt, value);
+	if (vallen < 0)
+		goto fail;
 
 	/* If it's infinity or NaN, forget about doing any zero-padding */
 	if (zeropadlen > 0 && !isdigit((unsigned char) convert[vallen - 1]))
@@ -984,6 +1036,10 @@ fmtfloat(double value, char type, int forcesign, int leftjust,
 	}
 
 	trailing_pad(&padlen, target);
+	return;
+
+fail:
+	target->failed = true;
 }
 
 static void

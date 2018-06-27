@@ -7,7 +7,7 @@
  * Client-side code should include postgres_fe.h instead.
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1995, Regents of the University of California
  *
  * src/include/postgres.h
@@ -25,7 +25,7 @@
  *	  -------	------------------------------------------------
  *		1)		variable-length datatypes (TOAST support)
  *		2)		datum type + support macros
- *		3)		exception handling definitions
+ *		3)		exception handling backend support
  *
  *	 NOTES
  *
@@ -33,7 +33,7 @@
  *	in the backend environment, but are of no interest outside the backend.
  *
  *	Simple type definitions live in c.h, where they are shared with
- *	postgres_fe.h.	We do that since those type definitions are needed by
+ *	postgres_fe.h.  We do that since those type definitions are needed by
  *	frontend modules that want to deal with binary data transmission to or
  *	from the backend.  Type definitions in this file should be for
  *	representations that never escape the backend, such as Datum or
@@ -61,23 +61,78 @@ extern "C" {
  */
 
 /*
- * struct varatt_external is a "TOAST pointer", that is, the information
- * needed to fetch a stored-out-of-line Datum.	The data is compressed
- * if and only if va_extsize < va_rawsize - VARHDRSZ.  This struct must not
- * contain any padding, because we sometimes compare pointers using memcmp.
+ * struct varatt_external is a traditional "TOAST pointer", that is, the
+ * information needed to fetch a Datum stored out-of-line in a TOAST table.
+ * The data is compressed if and only if va_extsize < va_rawsize - VARHDRSZ.
+ * This struct must not contain any padding, because we sometimes compare
+ * these pointers using memcmp.
  *
  * Note that this information is stored unaligned within actual tuples, so
  * you need to memcpy from the tuple into a local struct variable before
  * you can look at these fields!  (The reason we use memcmp is to avoid
  * having to do that just to detect equality of two TOAST pointers...)
  */
-struct varatt_external
+typedef struct varatt_external
 {
 	int32		va_rawsize;		/* Original data size (includes header) */
 	int32		va_extsize;		/* External saved size (doesn't) */
 	Oid			va_valueid;		/* Unique ID of value within TOAST table */
 	Oid			va_toastrelid;	/* RelID of TOAST table containing it */
-};
+}	varatt_external;
+
+/*
+ * struct varatt_indirect is a "TOAST pointer" representing an out-of-line
+ * Datum that's stored in memory, not in an external toast relation.
+ * The creator of such a Datum is entirely responsible that the referenced
+ * storage survives for as long as referencing pointer Datums can exist.
+ *
+ * Note that just as for struct varatt_external, this struct is stored
+ * unaligned within any containing tuple.
+ */
+typedef struct varatt_indirect
+{
+	struct varlena *pointer;	/* Pointer to in-memory varlena */
+}	varatt_indirect;
+
+/*
+ * struct varatt_expanded is a "TOAST pointer" representing an out-of-line
+ * Datum that is stored in memory, in some type-specific, not necessarily
+ * physically contiguous format that is convenient for computation not
+ * storage.  APIs for this, in particular the definition of struct
+ * ExpandedObjectHeader, are in src/include/utils/expandeddatum.h.
+ *
+ * Note that just as for struct varatt_external, this struct is stored
+ * unaligned within any containing tuple.
+ */
+typedef struct ExpandedObjectHeader ExpandedObjectHeader;
+
+typedef struct varatt_expanded
+{
+	ExpandedObjectHeader *eohptr;
+} varatt_expanded;
+
+/*
+ * Type tag for the various sorts of "TOAST pointer" datums.  The peculiar
+ * value for VARTAG_ONDISK comes from a requirement for on-disk compatibility
+ * with a previous notion that the tag field was the pointer datum's length.
+ */
+typedef enum vartag_external
+{
+	VARTAG_INDIRECT = 1,
+	VARTAG_EXPANDED_RO = 2,
+	VARTAG_EXPANDED_RW = 3,
+	VARTAG_ONDISK = 18
+} vartag_external;
+
+/* this test relies on the specific tag values above */
+#define VARTAG_IS_EXPANDED(tag) \
+	(((tag) & ~1) == VARTAG_EXPANDED_RO)
+
+#define VARTAG_SIZE(tag) \
+	((tag) == VARTAG_INDIRECT ? sizeof(varatt_indirect) : \
+	 VARTAG_IS_EXPANDED(tag) ? sizeof(varatt_expanded) : \
+	 (tag) == VARTAG_ONDISK ? sizeof(varatt_external) : \
+	 TrapMacro(true, "unrecognized TOAST vartag"))
 
 /*
  * These structs describe the header of a varlena object that may have been
@@ -93,22 +148,23 @@ typedef union
 	struct						/* Normal varlena (4-byte length) */
 	{
 		uint32		va_header;
-		char		va_data[1];
+		char		va_data[FLEXIBLE_ARRAY_MEMBER];
 	}			va_4byte;
 	struct						/* Compressed-in-line format */
 	{
 		uint32		va_header;
 		uint32		va_rawsize; /* Original data size (excludes header) */
-		char		va_data[1]; /* Compressed data */
+		char		va_data[FLEXIBLE_ARRAY_MEMBER];		/* Compressed data */
 	}			va_compressed;
 } varattrib_4b;
 
 typedef struct
 {
 	uint8		va_header;
-	char		va_data[1];		/* Data begins here */
+	char		va_data[FLEXIBLE_ARRAY_MEMBER]; /* Data begins here */
 } varattrib_1b;
 
+<<<<<<< HEAD
 /* NOT Like Postgres! ...In GPDB, We waste a few bytes of padding, and don't always set the va_len_1be to anything */
 typedef struct
 {
@@ -116,6 +172,14 @@ typedef struct
 	uint8		va_len_1be;		/*** PG only:  Len of toast pointer w/ 1b header, ignored in GPDB  ***/ /* Physical length of datum */
 	uint8		va_padding[2];	/*** GPDB only:  Alignment padding ***/
 	char		va_data[1];		/* Data (for now always a TOAST pointer) */
+=======
+/* TOAST pointers are a subset of varattrib_1b with an identifying tag byte */
+typedef struct
+{
+	uint8		va_header;		/* Always 0x80 or 0x01 */
+	uint8		va_tag;			/* Type of datum */
+	char		va_data[FLEXIBLE_ARRAY_MEMBER]; /* Type-specific data */
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 } varattrib_1b_e;
 
 /*
@@ -135,11 +199,20 @@ typedef struct
  * all our customers to initdb.
  *
  * The "xxx" bits are the length field (which includes itself in all cases).
+<<<<<<< HEAD
  * In the big-endian case we mask to extract the length.
  * Note that in both cases the flag bits are in the physically
  * first byte.	Also, it is not possible for a 1-byte length word to be zero;
+=======
+ * In the big-endian case we mask to extract the length, in the little-endian
+ * case we shift.  Note that in both cases the flag bits are in the physically
+ * first byte.  Also, it is not possible for a 1-byte length word to be zero;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * this lets us disambiguate alignment padding bytes from the start of an
  * unaligned datum.  (We now *require* pad bytes to be filled with zero!)
+ *
+ * In TOAST pointers the va_tag field (see varattrib_1b_e) is used to discern
+ * the specific type and length of the pointer datum.
  */
 
 /*
@@ -169,8 +242,13 @@ typedef struct
 	(ntohl(((varattrib_4b *) (PTR))->va_4byte.va_header) & 0x3FFFFFFF)
 #define VARSIZE_1B(PTR) \
 	(((varattrib_1b *) (PTR))->va_header & 0x7F)
+<<<<<<< HEAD
 /* In GPDB, VARSIZE_1B_E() is always the size of a toast pointer plus the 4 byte header */
 #define VARSIZE_1B_E(PTR) (VARHDRSZ_EXTERNAL + sizeof(struct varatt_external))
+=======
+#define VARTAG_1B_E(PTR) \
+	(((varattrib_1b_e *) (PTR))->va_tag)
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #define SET_VARSIZE_4B(PTR,len) \
 	(((varattrib_4b *) (PTR))->va_4byte.va_header = htonl( (len) & 0x3FFFFFFF ))
@@ -178,6 +256,7 @@ typedef struct
 	(((varattrib_4b *) (PTR))->va_4byte.va_header = htonl( ((len) & 0x3FFFFFFF) | 0x40000000 ))
 #define SET_VARSIZE_1B(PTR,len) \
 	(((varattrib_1b *) (PTR))->va_header = (len) | 0x80)
+<<<<<<< HEAD
 /*
  * Although this macro sets var_len_1be, data stored in GPDB might
  * not have anything set in this byte, so you can't count on it's value
@@ -186,8 +265,46 @@ typedef struct
 #define SET_VARSIZE_1B_E(PTR,len) \
 	(((varattrib_1b_e *) (PTR))->va_header = 0x80, \
 	 ((varattrib_1b_e *) (PTR))->va_len_1be = (len))
+=======
+#define SET_VARTAG_1B_E(PTR,tag) \
+	(((varattrib_1b_e *) (PTR))->va_header = 0x80, \
+	 ((varattrib_1b_e *) (PTR))->va_tag = (tag))
+#else							/* !WORDS_BIGENDIAN */
 
-#define VARHDRSZ_SHORT			1
+#define VARATT_IS_4B(PTR) \
+	((((varattrib_1b *) (PTR))->va_header & 0x01) == 0x00)
+#define VARATT_IS_4B_U(PTR) \
+	((((varattrib_1b *) (PTR))->va_header & 0x03) == 0x00)
+#define VARATT_IS_4B_C(PTR) \
+	((((varattrib_1b *) (PTR))->va_header & 0x03) == 0x02)
+#define VARATT_IS_1B(PTR) \
+	((((varattrib_1b *) (PTR))->va_header & 0x01) == 0x01)
+#define VARATT_IS_1B_E(PTR) \
+	((((varattrib_1b *) (PTR))->va_header) == 0x01)
+#define VARATT_NOT_PAD_BYTE(PTR) \
+	(*((uint8 *) (PTR)) != 0)
+
+/* VARSIZE_4B() should only be used on known-aligned data */
+#define VARSIZE_4B(PTR) \
+	((((varattrib_4b *) (PTR))->va_4byte.va_header >> 2) & 0x3FFFFFFF)
+#define VARSIZE_1B(PTR) \
+	((((varattrib_1b *) (PTR))->va_header >> 1) & 0x7F)
+#define VARTAG_1B_E(PTR) \
+	(((varattrib_1b_e *) (PTR))->va_tag)
+
+#define SET_VARSIZE_4B(PTR,len) \
+	(((varattrib_4b *) (PTR))->va_4byte.va_header = (((uint32) (len)) << 2))
+#define SET_VARSIZE_4B_C(PTR,len) \
+	(((varattrib_4b *) (PTR))->va_4byte.va_header = (((uint32) (len)) << 2) | 0x02)
+#define SET_VARSIZE_1B(PTR,len) \
+	(((varattrib_1b *) (PTR))->va_header = (((uint8) (len)) << 1) | 0x01)
+#define SET_VARTAG_1B_E(PTR,tag) \
+	(((varattrib_1b_e *) (PTR))->va_header = 0x01, \
+	 ((varattrib_1b_e *) (PTR))->va_tag = (tag))
+#endif   /* WORDS_BIGENDIAN */
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+
+#define VARHDRSZ_SHORT			offsetof(varattrib_1b, va_data)
 #define VARATT_SHORT_MAX		0x7F
 #define VARATT_CAN_MAKE_SHORT(PTR) \
 	(VARATT_IS_4B_U(PTR) && \
@@ -195,8 +312,12 @@ typedef struct
 #define VARATT_CONVERTED_SHORT_SIZE(PTR) \
 	(VARSIZE(PTR) - VARHDRSZ + VARHDRSZ_SHORT)
 
+<<<<<<< HEAD
 /* In Postgres, this is 2 */
 #define VARHDRSZ_EXTERNAL		4
+=======
+#define VARHDRSZ_EXTERNAL		offsetof(varattrib_1b_e, va_data)
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #define VARDATA_4B(PTR)		(((varattrib_4b *) (PTR))->va_4byte.va_data)
 #define VARDATA_4B_C(PTR)	(((varattrib_4b *) (PTR))->va_compressed.va_data)
@@ -230,26 +351,39 @@ typedef struct
 #define VARSIZE_SHORT(PTR)					VARSIZE_1B(PTR)
 #define VARDATA_SHORT(PTR)					VARDATA_1B(PTR)
 
-#define VARSIZE_EXTERNAL(PTR)				VARSIZE_1B_E(PTR)
+#define VARTAG_EXTERNAL(PTR)				VARTAG_1B_E(PTR)
+#define VARSIZE_EXTERNAL(PTR)				(VARHDRSZ_EXTERNAL + VARTAG_SIZE(VARTAG_EXTERNAL(PTR)))
 #define VARDATA_EXTERNAL(PTR)				VARDATA_1B_E(PTR)
 
 #define VARATT_IS_COMPRESSED(PTR)			VARATT_IS_4B_C(PTR)
 #define VARATT_IS_EXTERNAL(PTR)				VARATT_IS_1B_E(PTR)
+#define VARATT_IS_EXTERNAL_ONDISK(PTR) \
+	(VARATT_IS_EXTERNAL(PTR) && VARTAG_EXTERNAL(PTR) == VARTAG_ONDISK)
+#define VARATT_IS_EXTERNAL_INDIRECT(PTR) \
+	(VARATT_IS_EXTERNAL(PTR) && VARTAG_EXTERNAL(PTR) == VARTAG_INDIRECT)
+#define VARATT_IS_EXTERNAL_EXPANDED_RO(PTR) \
+	(VARATT_IS_EXTERNAL(PTR) && VARTAG_EXTERNAL(PTR) == VARTAG_EXPANDED_RO)
+#define VARATT_IS_EXTERNAL_EXPANDED_RW(PTR) \
+	(VARATT_IS_EXTERNAL(PTR) && VARTAG_EXTERNAL(PTR) == VARTAG_EXPANDED_RW)
+#define VARATT_IS_EXTERNAL_EXPANDED(PTR) \
+	(VARATT_IS_EXTERNAL(PTR) && VARTAG_IS_EXPANDED(VARTAG_EXTERNAL(PTR)))
 #define VARATT_IS_SHORT(PTR)				VARATT_IS_1B(PTR)
 #define VARATT_IS_EXTENDED(PTR)				(!VARATT_IS_4B_U(PTR))
 
 #define SET_VARSIZE(PTR, len)				SET_VARSIZE_4B(PTR, len)
 #define SET_VARSIZE_SHORT(PTR, len)			SET_VARSIZE_1B(PTR, len)
 #define SET_VARSIZE_COMPRESSED(PTR, len)	SET_VARSIZE_4B_C(PTR, len)
-#define SET_VARSIZE_EXTERNAL(PTR, len)		SET_VARSIZE_1B_E(PTR, len)
+
+#define SET_VARTAG_EXTERNAL(PTR, tag)		SET_VARTAG_1B_E(PTR, tag)
 
 #define VARSIZE_ANY(PTR) \
-	(VARATT_IS_1B_E(PTR) ? VARSIZE_1B_E(PTR) : \
+	(VARATT_IS_1B_E(PTR) ? VARSIZE_EXTERNAL(PTR) : \
 	 (VARATT_IS_1B(PTR) ? VARSIZE_1B(PTR) : \
 	  VARSIZE_4B(PTR)))
 
+/* Size of a varlena data, excluding header */
 #define VARSIZE_ANY_EXHDR(PTR) \
-	(VARATT_IS_1B_E(PTR) ? VARSIZE_1B_E(PTR)-VARHDRSZ_EXTERNAL : \
+	(VARATT_IS_1B_E(PTR) ? VARSIZE_EXTERNAL(PTR)-VARHDRSZ_EXTERNAL : \
 	 (VARATT_IS_1B(PTR) ? VARSIZE_1B(PTR)-VARHDRSZ_SHORT : \
 	  VARSIZE_4B(PTR)-VARHDRSZ))
 
@@ -374,11 +508,27 @@ static inline Datum Int64GetDatumFast(int64 x) { return Int64GetDatum(x); }
  * to palloc'd space.
  */
 
+<<<<<<< HEAD
 #ifdef USE_FLOAT8_BYVAL
 #define UInt64GetDatum(X) ((Datum) SET_8_BYTES(X))
 #else
 #define UInt64GetDatum(X) Int64GetDatum((int64) (X))
 #endif
+=======
+#define TransactionIdGetDatum(X) ((Datum) SET_4_BYTES((X)))
+
+/*
+ * MultiXactIdGetDatum
+ *		Returns datum representation for a multixact identifier.
+ */
+
+#define MultiXactIdGetDatum(X) ((Datum) SET_4_BYTES((X)))
+
+/*
+ * DatumGetCommandId
+ *		Returns command identifier value of a datum.
+ */
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 static inline Oid DatumGetObjectId(Datum d) { return (Oid) d; } 
 static inline Datum ObjectIdGetDatum(Oid oid) { return (Datum) oid; } 
@@ -433,22 +583,24 @@ static inline bool IsAligned(void *p, int align)
 }
 
 /* ----------------------------------------------------------------
- *				Section 3:	exception handling definitions
- *							Assert, Trap, etc macros
+ *				Section 3:	exception handling backend support
  * ----------------------------------------------------------------
  */
 
+<<<<<<< HEAD
 #define COMPILE_ASSERT(e) ((void)sizeof(char[1-2*!(e)]))
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(*(x)))
 
 extern PGDLLIMPORT bool assert_enabled;
 
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /*
- * USE_ASSERT_CHECKING, if defined, turns on all the assertions.
- * - plai  9/5/90
+ * Backend only infrastructure for the assertion-related macros in c.h.
  *
- * It should _NOT_ be defined in releases or in benchmark copies
+ * ExceptionalCondition must be present even when assertions are not enabled.
  */
+<<<<<<< HEAD
 
 /*
  * Trap
@@ -508,9 +660,11 @@ extern PGDLLIMPORT bool assert_enabled;
 
 #endif   /* USE_ASSERT_CHECKING */
 
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern void ExceptionalCondition(const char *conditionName,
 					 const char *errorType,
-			 const char *fileName, int lineNumber) __attribute__((noreturn));
+			   const char *fileName, int lineNumber) pg_attribute_noreturn();
 
 
 #ifdef __cplusplus

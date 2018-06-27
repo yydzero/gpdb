@@ -4,9 +4,13 @@
  *	  Post-processing of a completed plan tree: fix references to subplan
  *	  vars, compute regproc values for operators, etc
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2005-2008, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -23,6 +27,7 @@
 #include "nodes/nodeFuncs.h"
 #include "optimizer/pathnode.h"
 #include "optimizer/planmain.h"
+#include "optimizer/planner.h"
 #include "optimizer/tlist.h"
 #include "parser/parse_relation.h"
 #include "parser/parsetree.h"
@@ -48,9 +53,8 @@ typedef struct
 	int			num_vars;		/* number of plain Var tlist entries */
 	bool		has_ph_vars;	/* are there PlaceHolderVar entries? */
 	bool		has_non_vars;	/* are there other entries? */
-	/* array of num_vars entries: */
-	tlist_vinfo vars[1];		/* VARIABLE LENGTH ARRAY */
-} indexed_tlist;				/* VARIABLE LENGTH STRUCT */
+	tlist_vinfo vars[FLEXIBLE_ARRAY_MEMBER];	/* has num_vars entries */
+} indexed_tlist;
 
 typedef struct
 {
@@ -97,6 +101,10 @@ typedef struct
 #define fix_scan_list(root, lst, rtoffset) \
 	((List *) fix_scan_expr(root, (Node *) (lst), rtoffset))
 
+static void add_rtes_to_flat_rtable(PlannerInfo *root, bool recursing);
+static void flatten_unplanned_rtes(PlannerGlobal *glob, RangeTblEntry *rte);
+static bool flatten_rtes_walker(Node *node, PlannerGlobal *glob);
+static void add_rte_to_flat_rtable(PlannerGlobal *glob, RangeTblEntry *rte);
 static Plan *set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset);
 static Plan *set_indexonlyscan_references(PlannerInfo *root,
 							 IndexOnlyScan *plan,
@@ -105,6 +113,12 @@ static Plan *set_subqueryscan_references(PlannerInfo *root,
 							SubqueryScan *plan,
 							int rtoffset);
 static bool trivial_subqueryscan(SubqueryScan *plan);
+static void set_foreignscan_references(PlannerInfo *root,
+						   ForeignScan *fscan,
+						   int rtoffset);
+static void set_customscan_references(PlannerInfo *root,
+						  CustomScan *cscan,
+						  int rtoffset);
 static Node *fix_scan_expr(PlannerInfo *root, Node *node, int rtoffset);
 static Node *fix_scan_expr_mutator(Node *node, fix_scan_expr_context *context);
 static bool fix_scan_expr_walker(Node *node, fix_scan_expr_context *context);
@@ -164,6 +178,7 @@ static bool extract_query_dependencies_walker(Node *node,
 static bool cdb_extract_plan_dependencies_walker(Node *node,
 									 cdb_extract_plan_dependencies_context *context);
 
+<<<<<<< HEAD
 #ifdef USE_ASSERT_CHECKING
 #include "cdb/cdbplan.h"
 
@@ -312,6 +327,8 @@ static void set_plan_references_output_asserts(PlannerGlobal *glob, Plan *plan)
 /* End of debug code */
 #endif
 
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /*****************************************************************************
  *
  *		SUBPLAN REFERENCES
@@ -321,7 +338,7 @@ static void set_plan_references_output_asserts(PlannerGlobal *glob, Plan *plan)
 /*
  * set_plan_references
  *
- * This is the final processing pass of the planner/optimizer.	The plan
+ * This is the final processing pass of the planner/optimizer.  The plan
  * tree is complete; we just have to adjust some representational details
  * for the convenience of the executor:
  *
@@ -333,10 +350,13 @@ static void set_plan_references_output_asserts(PlannerGlobal *glob, Plan *plan)
  * 3. We adjust Vars in upper plan nodes to refer to the outputs of their
  * subplans.
  *
- * 4. We compute regproc OIDs for operators (ie, we look up the function
+ * 4. PARAM_MULTIEXPR Params are replaced by regular PARAM_EXEC Params,
+ * now that we have finished planning all MULTIEXPR subplans.
+ *
+ * 5. We compute regproc OIDs for operators (ie, we look up the function
  * that implements each op).
  *
- * 5. We create lists of specific objects that the plan depends on.
+ * 6. We create lists of specific objects that the plan depends on.
  * This will be used by plancache.c to drive invalidation of cached plans.
  * Relation dependencies are represented by OIDs, and everything else by
  * PlanInvalItems (this distinction is motivated by the shared-inval APIs).
@@ -365,7 +385,7 @@ static void set_plan_references_output_asserts(PlannerGlobal *glob, Plan *plan)
  * and root->glob->invalItems (for everything else).
  *
  * Notice that we modify Plan nodes in-place, but use expression_tree_mutator
- * to process targetlist and qual expressions.	We can assume that the Plan
+ * to process targetlist and qual expressions.  We can assume that the Plan
  * nodes were just built by the planner and are not multiply referenced, but
  * it's not so safe to assume that for expression tree nodes.
  */
@@ -385,13 +405,11 @@ set_plan_references(PlannerInfo *root, Plan *plan)
 #endif
 
 	/*
-	 * In the flat rangetable, we zero out substructure pointers that are not
-	 * needed by the executor; this reduces the storage space and copying cost
-	 * for cached plans.  We keep only the alias and eref Alias fields, which
-	 * are needed by EXPLAIN, and the selectedCols and modifiedCols bitmaps,
-	 * which are needed for executor-startup permissions checking and for
-	 * trigger event checking.
+	 * Add all the query's RTEs to the flattened rangetable.  The live ones
+	 * will have their rangetable indexes increased by rtoffset.  (Additional
+	 * RTEs, not referenced by the Plan tree, might get added after those.)
 	 */
+<<<<<<< HEAD
 	foreach(lc, root->parse->rtable)
 	{
 		RangeTblEntry *rte = (RangeTblEntry *) lfirst(lc);
@@ -433,6 +451,9 @@ set_plan_references(PlannerInfo *root, Plan *plan)
 		ereport(ERROR,
 				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
 				 errmsg("too many range table entries")));
+=======
+	add_rtes_to_flat_rtable(root, false);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/*
 	 * Adjust RT indexes of PlanRowMarks and add to final rowmarks list
@@ -466,6 +487,190 @@ set_plan_references(PlannerInfo *root, Plan *plan)
 #endif
 
 	return retPlan;
+}
+
+/*
+ * Extract RangeTblEntries from the plan's rangetable, and add to flat rtable
+ *
+ * This can recurse into subquery plans; "recursing" is true if so.
+ */
+static void
+add_rtes_to_flat_rtable(PlannerInfo *root, bool recursing)
+{
+	PlannerGlobal *glob = root->glob;
+	Index		rti;
+	ListCell   *lc;
+
+	/*
+	 * Add the query's own RTEs to the flattened rangetable.
+	 *
+	 * At top level, we must add all RTEs so that their indexes in the
+	 * flattened rangetable match up with their original indexes.  When
+	 * recursing, we only care about extracting relation RTEs.
+	 */
+	foreach(lc, root->parse->rtable)
+	{
+		RangeTblEntry *rte = (RangeTblEntry *) lfirst(lc);
+
+		if (!recursing || rte->rtekind == RTE_RELATION)
+			add_rte_to_flat_rtable(glob, rte);
+	}
+
+	/*
+	 * If there are any dead subqueries, they are not referenced in the Plan
+	 * tree, so we must add RTEs contained in them to the flattened rtable
+	 * separately.  (If we failed to do this, the executor would not perform
+	 * expected permission checks for tables mentioned in such subqueries.)
+	 *
+	 * Note: this pass over the rangetable can't be combined with the previous
+	 * one, because that would mess up the numbering of the live RTEs in the
+	 * flattened rangetable.
+	 */
+	rti = 1;
+	foreach(lc, root->parse->rtable)
+	{
+		RangeTblEntry *rte = (RangeTblEntry *) lfirst(lc);
+
+		/*
+		 * We should ignore inheritance-parent RTEs: their contents have been
+		 * pulled up into our rangetable already.  Also ignore any subquery
+		 * RTEs without matching RelOptInfos, as they likewise have been
+		 * pulled up.
+		 */
+		if (rte->rtekind == RTE_SUBQUERY && !rte->inh &&
+			rti < root->simple_rel_array_size)
+		{
+			RelOptInfo *rel = root->simple_rel_array[rti];
+
+			if (rel != NULL)
+			{
+				Assert(rel->relid == rti);		/* sanity check on array */
+
+				/*
+				 * The subquery might never have been planned at all, if it
+				 * was excluded on the basis of self-contradictory constraints
+				 * in our query level.  In this case apply
+				 * flatten_unplanned_rtes.
+				 *
+				 * If it was planned but the plan is dummy, we assume that it
+				 * has been omitted from our plan tree (see
+				 * set_subquery_pathlist), and recurse to pull up its RTEs.
+				 *
+				 * Otherwise, it should be represented by a SubqueryScan node
+				 * somewhere in our plan tree, and we'll pull up its RTEs when
+				 * we process that plan node.
+				 *
+				 * However, if we're recursing, then we should pull up RTEs
+				 * whether the subplan is dummy or not, because we've found
+				 * that some upper query level is treating this one as dummy,
+				 * and so we won't scan this level's plan tree at all.
+				 */
+				if (rel->subplan == NULL)
+					flatten_unplanned_rtes(glob, rte);
+				else if (recursing || is_dummy_plan(rel->subplan))
+				{
+					Assert(rel->subroot != NULL);
+					add_rtes_to_flat_rtable(rel->subroot, true);
+				}
+			}
+		}
+		rti++;
+	}
+}
+
+/*
+ * Extract RangeTblEntries from a subquery that was never planned at all
+ */
+static void
+flatten_unplanned_rtes(PlannerGlobal *glob, RangeTblEntry *rte)
+{
+	/* Use query_tree_walker to find all RTEs in the parse tree */
+	(void) query_tree_walker(rte->subquery,
+							 flatten_rtes_walker,
+							 (void *) glob,
+							 QTW_EXAMINE_RTES);
+}
+
+static bool
+flatten_rtes_walker(Node *node, PlannerGlobal *glob)
+{
+	if (node == NULL)
+		return false;
+	if (IsA(node, RangeTblEntry))
+	{
+		RangeTblEntry *rte = (RangeTblEntry *) node;
+
+		/* As above, we need only save relation RTEs */
+		if (rte->rtekind == RTE_RELATION)
+			add_rte_to_flat_rtable(glob, rte);
+		return false;
+	}
+	if (IsA(node, Query))
+	{
+		/* Recurse into subselects */
+		return query_tree_walker((Query *) node,
+								 flatten_rtes_walker,
+								 (void *) glob,
+								 QTW_EXAMINE_RTES);
+	}
+	return expression_tree_walker(node, flatten_rtes_walker,
+								  (void *) glob);
+}
+
+/*
+ * Add (a copy of) the given RTE to the final rangetable
+ *
+ * In the flat rangetable, we zero out substructure pointers that are not
+ * needed by the executor; this reduces the storage space and copying cost
+ * for cached plans.  We keep only the alias and eref Alias fields, which are
+ * needed by EXPLAIN, and the selectedCols, insertedCols and updatedCols
+ * bitmaps, which are needed for executor-startup permissions checking and for
+ * trigger event checking.
+ */
+static void
+add_rte_to_flat_rtable(PlannerGlobal *glob, RangeTblEntry *rte)
+{
+	RangeTblEntry *newrte;
+
+	/* flat copy to duplicate all the scalar fields */
+	newrte = (RangeTblEntry *) palloc(sizeof(RangeTblEntry));
+	memcpy(newrte, rte, sizeof(RangeTblEntry));
+
+	/* zap unneeded sub-structure */
+	newrte->subquery = NULL;
+	newrte->joinaliasvars = NIL;
+	newrte->functions = NIL;
+	newrte->values_lists = NIL;
+	newrte->values_collations = NIL;
+	newrte->ctecoltypes = NIL;
+	newrte->ctecoltypmods = NIL;
+	newrte->ctecolcollations = NIL;
+
+	glob->finalrtable = lappend(glob->finalrtable, newrte);
+
+	/*
+	 * Check for RT index overflow; it's very unlikely, but if it did happen,
+	 * the executor would get confused by varnos that match the special varno
+	 * values.
+	 */
+	if (IS_SPECIAL_VARNO(list_length(glob->finalrtable)))
+		ereport(ERROR,
+				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+				 errmsg("too many range table entries")));
+
+	/*
+	 * If it's a plain relation RTE, add the table to relationOids.
+	 *
+	 * We do this even though the RTE might be unreferenced in the plan tree;
+	 * this would correspond to cases such as views that were expanded, child
+	 * tables that were eliminated by constraint exclusion, etc. Schema
+	 * invalidation on such a rel must still force rebuilding of the plan.
+	 *
+	 * Note we don't bother to avoid making duplicate list entries.  We could,
+	 * but it would probably cost more cycles than it would save.
+	 */
+	if (newrte->rtekind == RTE_RELATION)
+		glob->relationOids = lappend_oid(glob->relationOids, newrte->relid);
 }
 
 /*
@@ -520,6 +725,17 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 				Assert((rte->rtekind == RTE_RELATION || rte->rtekind == RTE_CTE) && "Scan plan should refer to a scan relation");
 #endif
 
+				splan->plan.targetlist =
+					fix_scan_list(root, splan->plan.targetlist, rtoffset);
+				splan->plan.qual =
+					fix_scan_list(root, splan->plan.qual, rtoffset);
+			}
+			break;
+		case T_SampleScan:
+			{
+				SampleScan *splan = (SampleScan *) plan;
+
+				splan->scanrelid += rtoffset;
 				splan->plan.targetlist =
 					fix_scan_list(root, splan->plan.targetlist, rtoffset);
 				splan->plan.qual =
@@ -711,8 +927,8 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 					fix_scan_list(root, splan->scan.plan.targetlist, rtoffset);
 				splan->scan.plan.qual =
 					fix_scan_list(root, splan->scan.plan.qual, rtoffset);
-				splan->funcexpr =
-					fix_scan_expr(root, splan->funcexpr, rtoffset);
+				splan->functions =
+					fix_scan_list(root, splan->functions, rtoffset);
 			}
 			break;
 		case T_ValuesScan:
@@ -754,17 +970,10 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 			}
 			break;
 		case T_ForeignScan:
-			{
-				ForeignScan *splan = (ForeignScan *) plan;
-
-				splan->scan.scanrelid += rtoffset;
-				splan->scan.plan.targetlist =
-					fix_scan_list(root, splan->scan.plan.targetlist, rtoffset);
-				splan->scan.plan.qual =
-					fix_scan_list(root, splan->scan.plan.qual, rtoffset);
-				splan->fdw_exprs =
-					fix_scan_list(root, splan->fdw_exprs, rtoffset);
-			}
+			set_foreignscan_references(root, (ForeignScan *) plan, rtoffset);
+			break;
+		case T_CustomScan:
+			set_customscan_references(root, (CustomScan *) plan, rtoffset);
 			break;
 
 		case T_NestLoop:
@@ -797,7 +1006,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 			/*
 			 * These plan types don't actually bother to evaluate their
 			 * targetlists, because they just return their unmodified input
-			 * tuples.	Even though the targetlist won't be used by the
+			 * tuples.  Even though the targetlist won't be used by the
 			 * executor, we fix it up for possible use by EXPLAIN (not to
 			 * mention ease of debugging --- wrong varnos are very confusing).
 			 */
@@ -876,7 +1085,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 
 				/*
 				 * Like the plan types above, LockRows doesn't evaluate its
-				 * tlist or quals.	But we have to fix up the RT indexes in
+				 * tlist or quals.  But we have to fix up the RT indexes in
 				 * its rowmarks.
 				 */
 				set_dummy_tlist_references(plan, rtoffset);
@@ -911,6 +1120,12 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 			}
 			break;
 		case T_Agg:
+<<<<<<< HEAD
+=======
+			set_upper_references(root, plan, rtoffset);
+			break;
+		case T_Group:
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			set_upper_references(root, plan, rtoffset);
 			break;
 		case T_WindowAgg:
@@ -976,6 +1191,9 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 				Assert(splan->plan.targetlist == NIL);
 				Assert(splan->plan.qual == NIL);
 
+				splan->withCheckOptionLists =
+					fix_scan_list(root, splan->withCheckOptionLists, rtoffset);
+
 				if (splan->returningLists)
 				{
 					List	   *newRL = NIL;
@@ -1010,12 +1228,45 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 					 * Set up the visible plan targetlist as being the same as
 					 * the first RETURNING list. This is for the use of
 					 * EXPLAIN; the executor won't pay any attention to the
-					 * targetlist.	We postpone this step until here so that
+					 * targetlist.  We postpone this step until here so that
 					 * we don't have to do set_returning_clause_references()
 					 * twice on identical targetlists.
 					 */
 					splan->plan.targetlist = copyObject(linitial(newRL));
 				}
+
+				/*
+				 * We treat ModifyTable with ON CONFLICT as a form of 'pseudo
+				 * join', where the inner side is the EXCLUDED tuple.
+				 * Therefore use fix_join_expr to setup the relevant variables
+				 * to INNER_VAR. We explicitly don't create any OUTER_VARs as
+				 * those are already used by RETURNING and it seems better to
+				 * be non-conflicting.
+				 */
+				if (splan->onConflictSet)
+				{
+					indexed_tlist *itlist;
+
+					itlist = build_tlist_index(splan->exclRelTlist);
+
+					splan->onConflictSet =
+						fix_join_expr(root, splan->onConflictSet,
+									  NULL, itlist,
+									  linitial_int(splan->resultRelations),
+									  rtoffset);
+
+					splan->onConflictWhere = (Node *)
+						fix_join_expr(root, (List *) splan->onConflictWhere,
+									  NULL, itlist,
+									  linitial_int(splan->resultRelations),
+									  rtoffset);
+
+					splan->exclRelTlist =
+						fix_scan_list(root, splan->exclRelTlist, rtoffset);
+				}
+
+				splan->nominalRelation += rtoffset;
+				splan->exclRelRTI += rtoffset;
 
 				foreach(l, splan->resultRelations)
 				{
@@ -1275,7 +1526,7 @@ set_subqueryscan_references(PlannerInfo *root,
 	else
 	{
 		/*
-		 * Keep the SubqueryScan node.	We have to do the processing that
+		 * Keep the SubqueryScan node.  We have to do the processing that
 		 * set_plan_references would otherwise have done on it.  Notice we do
 		 * not do set_upper_references() here, because a SubqueryScan will
 		 * always have been created with correct references to its subplan's
@@ -1354,6 +1605,142 @@ trivial_subqueryscan(SubqueryScan *plan)
 }
 
 /*
+ * set_foreignscan_references
+ *	   Do set_plan_references processing on a ForeignScan
+ */
+static void
+set_foreignscan_references(PlannerInfo *root,
+						   ForeignScan *fscan,
+						   int rtoffset)
+{
+	/* Adjust scanrelid if it's valid */
+	if (fscan->scan.scanrelid > 0)
+		fscan->scan.scanrelid += rtoffset;
+
+	if (fscan->fdw_scan_tlist != NIL || fscan->scan.scanrelid == 0)
+	{
+		/* Adjust tlist, qual, fdw_exprs to reference custom scan tuple */
+		indexed_tlist *itlist = build_tlist_index(fscan->fdw_scan_tlist);
+
+		fscan->scan.plan.targetlist = (List *)
+			fix_upper_expr(root,
+						   (Node *) fscan->scan.plan.targetlist,
+						   itlist,
+						   INDEX_VAR,
+						   rtoffset);
+		fscan->scan.plan.qual = (List *)
+			fix_upper_expr(root,
+						   (Node *) fscan->scan.plan.qual,
+						   itlist,
+						   INDEX_VAR,
+						   rtoffset);
+		fscan->fdw_exprs = (List *)
+			fix_upper_expr(root,
+						   (Node *) fscan->fdw_exprs,
+						   itlist,
+						   INDEX_VAR,
+						   rtoffset);
+		pfree(itlist);
+		/* fdw_scan_tlist itself just needs fix_scan_list() adjustments */
+		fscan->fdw_scan_tlist =
+			fix_scan_list(root, fscan->fdw_scan_tlist, rtoffset);
+	}
+	else
+	{
+		/* Adjust tlist, qual, fdw_exprs in the standard way */
+		fscan->scan.plan.targetlist =
+			fix_scan_list(root, fscan->scan.plan.targetlist, rtoffset);
+		fscan->scan.plan.qual =
+			fix_scan_list(root, fscan->scan.plan.qual, rtoffset);
+		fscan->fdw_exprs =
+			fix_scan_list(root, fscan->fdw_exprs, rtoffset);
+	}
+
+	/* Adjust fs_relids if needed */
+	if (rtoffset > 0)
+	{
+		Bitmapset  *tempset = NULL;
+		int			x = -1;
+
+		while ((x = bms_next_member(fscan->fs_relids, x)) >= 0)
+			tempset = bms_add_member(tempset, x + rtoffset);
+		fscan->fs_relids = tempset;
+	}
+}
+
+/*
+ * set_customscan_references
+ *	   Do set_plan_references processing on a CustomScan
+ */
+static void
+set_customscan_references(PlannerInfo *root,
+						  CustomScan *cscan,
+						  int rtoffset)
+{
+	ListCell   *lc;
+
+	/* Adjust scanrelid if it's valid */
+	if (cscan->scan.scanrelid > 0)
+		cscan->scan.scanrelid += rtoffset;
+
+	if (cscan->custom_scan_tlist != NIL || cscan->scan.scanrelid == 0)
+	{
+		/* Adjust tlist, qual, custom_exprs to reference custom scan tuple */
+		indexed_tlist *itlist = build_tlist_index(cscan->custom_scan_tlist);
+
+		cscan->scan.plan.targetlist = (List *)
+			fix_upper_expr(root,
+						   (Node *) cscan->scan.plan.targetlist,
+						   itlist,
+						   INDEX_VAR,
+						   rtoffset);
+		cscan->scan.plan.qual = (List *)
+			fix_upper_expr(root,
+						   (Node *) cscan->scan.plan.qual,
+						   itlist,
+						   INDEX_VAR,
+						   rtoffset);
+		cscan->custom_exprs = (List *)
+			fix_upper_expr(root,
+						   (Node *) cscan->custom_exprs,
+						   itlist,
+						   INDEX_VAR,
+						   rtoffset);
+		pfree(itlist);
+		/* custom_scan_tlist itself just needs fix_scan_list() adjustments */
+		cscan->custom_scan_tlist =
+			fix_scan_list(root, cscan->custom_scan_tlist, rtoffset);
+	}
+	else
+	{
+		/* Adjust tlist, qual, custom_exprs in the standard way */
+		cscan->scan.plan.targetlist =
+			fix_scan_list(root, cscan->scan.plan.targetlist, rtoffset);
+		cscan->scan.plan.qual =
+			fix_scan_list(root, cscan->scan.plan.qual, rtoffset);
+		cscan->custom_exprs =
+			fix_scan_list(root, cscan->custom_exprs, rtoffset);
+	}
+
+	/* Adjust child plan-nodes recursively, if needed */
+	foreach (lc, cscan->custom_plans)
+	{
+		lfirst(lc) = set_plan_refs(root, (Plan *) lfirst(lc), rtoffset);
+	}
+
+	/* Adjust custom_relids if needed */
+	if (rtoffset > 0)
+	{
+		Bitmapset  *tempset = NULL;
+		int			x = -1;
+
+		while ((x = bms_next_member(cscan->custom_relids, x)) >= 0)
+			tempset = bms_add_member(tempset, x + rtoffset);
+		cscan->custom_relids = tempset;
+	}
+}
+
+/*
  * copyVar
  *		Copy a Var node.
  *
@@ -1377,6 +1764,7 @@ copyVar(Var *var)
  * We must look up operator opcode info for OpExpr and related nodes,
  * add OIDs from regclass Const nodes into root->glob->relationOids, and
  * add catalog TIDs for user-defined functions into root->glob->invalItems.
+ * We also fill in column index lists for GROUPING() expressions.
  *
  * We assume it's okay to update opcode info in-place.  So this could possibly
  * scribble on the planner's input data structures, but it's OK.
@@ -1440,6 +1828,7 @@ fix_expr_common(PlannerInfo *root, Node *node)
 				lappend_oid(root->glob->relationOids,
 							DatumGetObjectId(con->constvalue));
 	}
+<<<<<<< HEAD
     else if (IsA(node, Var))
     {
         Var    *var = (Var *)node;
@@ -1459,6 +1848,61 @@ fix_expr_common(PlannerInfo *root, Node *node)
                    var->varno <= list_length(root->glob->finalrtable));
         }
     }
+=======
+	else if (IsA(node, GroupingFunc))
+	{
+		GroupingFunc *g = (GroupingFunc *) node;
+		AttrNumber *grouping_map = root->grouping_map;
+
+		/* If there are no grouping sets, we don't need this. */
+
+		Assert(grouping_map || g->cols == NIL);
+
+		if (grouping_map)
+		{
+			ListCell   *lc;
+			List	   *cols = NIL;
+
+			foreach(lc, g->refs)
+			{
+				cols = lappend_int(cols, grouping_map[lfirst_int(lc)]);
+			}
+
+			Assert(!g->cols || equal(cols, g->cols));
+
+			if (!g->cols)
+				g->cols = cols;
+		}
+	}
+}
+
+/*
+ * fix_param_node
+ *		Do set_plan_references processing on a Param
+ *
+ * If it's a PARAM_MULTIEXPR, replace it with the appropriate Param from
+ * root->multiexpr_params; otherwise no change is needed.
+ * Just for paranoia's sake, we make a copy of the node in either case.
+ */
+static Node *
+fix_param_node(PlannerInfo *root, Param *p)
+{
+	if (p->paramkind == PARAM_MULTIEXPR)
+	{
+		int			subqueryid = p->paramid >> 16;
+		int			colno = p->paramid & 0xFFFF;
+		List	   *params;
+
+		if (subqueryid <= 0 ||
+			subqueryid > list_length(root->multiexpr_params))
+			elog(ERROR, "unexpected PARAM_MULTIEXPR ID: %d", p->paramid);
+		params = (List *) list_nth(root->multiexpr_params, subqueryid - 1);
+		if (colno <= 0 || colno > list_length(params))
+			elog(ERROR, "unexpected PARAM_MULTIEXPR ID: %d", p->paramid);
+		return copyObject(list_nth(params, colno - 1));
+	}
+	return copyObject(p);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 }
 
 /*
@@ -1466,6 +1910,7 @@ fix_expr_common(PlannerInfo *root, Node *node)
  *		Do set_plan_references processing on a scan-level expression
  *
  * This consists of incrementing all Vars' varnos by rtoffset,
+ * replacing PARAM_MULTIEXPR Params, expanding PlaceHolderVars,
  * looking up operator opcode info for OpExpr and related nodes,
  * and adding OIDs from regclass Const nodes into root->glob->relationOids.
  */
@@ -1477,6 +1922,7 @@ fix_scan_expr(PlannerInfo *root, Node *node, int rtoffset)
 	context.root = root;
 	context.rtoffset = rtoffset;
 
+<<<<<<< HEAD
 	/*
 	 * Postgres has an optimization to mutate the expression tree only if
 	 * rtoffset is non-zero. However, this optimization does not work for
@@ -1487,6 +1933,28 @@ fix_scan_expr(PlannerInfo *root, Node *node, int rtoffset)
 	 * using mutation. Therefore, in GPDB we need to unconditionally mutate the tree.
 	 */
 	return fix_scan_expr_mutator(node, &context);
+=======
+	if (rtoffset != 0 ||
+		root->multiexpr_params != NIL ||
+		root->glob->lastPHId != 0)
+	{
+		return fix_scan_expr_mutator(node, &context);
+	}
+	else
+	{
+		/*
+		 * If rtoffset == 0, we don't need to change any Vars, and if there
+		 * are no MULTIEXPR subqueries then we don't need to replace
+		 * PARAM_MULTIEXPR Params, and if there are no placeholders anywhere
+		 * we won't need to remove them.  Then it's OK to just scribble on the
+		 * input node tree instead of copying (since the only change, filling
+		 * in any unset opfuncid fields, is harmless).  This saves just enough
+		 * cycles to be noticeable on trivial queries.
+		 */
+		(void) fix_scan_expr_walker(node, &context);
+		return node;
+	}
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 }
 
 static Node *
@@ -1535,6 +2003,8 @@ fix_scan_expr_mutator(Node *node, fix_scan_expr_context *context)
 			return (Node *) var;
 		}
 	}
+	if (IsA(node, Param))
+		return fix_param_node(context->root, (Param *) node);
 	if (IsA(node, CurrentOfExpr))
 	{
 		CurrentOfExpr *cexpr = (CurrentOfExpr *) copyObject(node);
@@ -1575,7 +2045,7 @@ fix_scan_expr_walker(Node *node, fix_scan_expr_context *context)
  *	  subplans, by setting the varnos to OUTER_VAR or INNER_VAR and setting
  *	  attno values to the result domain number of either the corresponding
  *	  outer or inner join tuple item.  Also perform opcode lookup for these
- *	  expressions. and add regclass OIDs to root->glob->relationOids.
+ *	  expressions, and add regclass OIDs to root->glob->relationOids.
  */
 static void
 set_join_references(PlannerInfo *root, Join *join, int rtoffset)
@@ -1588,19 +2058,13 @@ set_join_references(PlannerInfo *root, Join *join, int rtoffset)
 	outer_itlist = build_tlist_index(outer_plan->targetlist);
 	inner_itlist = build_tlist_index(inner_plan->targetlist);
 
-	/* All join plans have tlist, qual, and joinqual */
-	join->plan.targetlist = fix_join_expr(root,
-										  join->plan.targetlist,
-										  outer_itlist,
-										  inner_itlist,
-										  (Index) 0,
-										  rtoffset);
-	join->plan.qual = fix_join_expr(root,
-									join->plan.qual,
-									outer_itlist,
-									inner_itlist,
-									(Index) 0,
-									rtoffset);
+	/*
+	 * First process the joinquals (including merge or hash clauses).  These
+	 * are logically below the join so they can always use all values
+	 * available from the input tlists.  It's okay to also handle
+	 * NestLoopParams now, because those couldn't refer to nullable
+	 * subexpressions.
+	 */
 	join->joinqual = fix_join_expr(root,
 								   join->joinqual,
 								   outer_itlist,
@@ -1658,6 +2122,49 @@ set_join_references(PlannerInfo *root, Join *join, int rtoffset)
 											(Index) 0,
 											rtoffset);
 	}
+
+	/*
+	 * Now we need to fix up the targetlist and qpqual, which are logically
+	 * above the join.  This means they should not re-use any input expression
+	 * that was computed in the nullable side of an outer join.  Vars and
+	 * PlaceHolderVars are fine, so we can implement this restriction just by
+	 * clearing has_non_vars in the indexed_tlist structs.
+	 *
+	 * XXX This is a grotty workaround for the fact that we don't clearly
+	 * distinguish between a Var appearing below an outer join and the "same"
+	 * Var appearing above it.  If we did, we'd not need to hack the matching
+	 * rules this way.
+	 */
+	switch (join->jointype)
+	{
+		case JOIN_LEFT:
+		case JOIN_SEMI:
+		case JOIN_ANTI:
+			inner_itlist->has_non_vars = false;
+			break;
+		case JOIN_RIGHT:
+			outer_itlist->has_non_vars = false;
+			break;
+		case JOIN_FULL:
+			outer_itlist->has_non_vars = false;
+			inner_itlist->has_non_vars = false;
+			break;
+		default:
+			break;
+	}
+
+	join->plan.targetlist = fix_join_expr(root,
+										  join->plan.targetlist,
+										  outer_itlist,
+										  inner_itlist,
+										  (Index) 0,
+										  rtoffset);
+	join->plan.qual = fix_join_expr(root,
+									join->plan.qual,
+									outer_itlist,
+									inner_itlist,
+									(Index) 0,
+									rtoffset);
 
 	pfree(outer_itlist);
 	pfree(inner_itlist);
@@ -1805,7 +2312,7 @@ set_dummy_tlist_references(Plan *plan, int rtoffset)
  *
  * In most cases, subplan tlists will be "flat" tlists with only Vars,
  * so we try to optimize that case by extracting information about Vars
- * in advance.	Matching a parent tlist to a child is still an O(N^2)
+ * in advance.  Matching a parent tlist to a child is still an O(N^2)
  * operation, but at least with a much smaller constant factor than plain
  * tlist_member() searches.
  *
@@ -1964,7 +2471,9 @@ search_indexed_tlist_for_var(Var *var, indexed_tlist *itlist,
  * If no match, return NULL.
  *
  * NOTE: it is a waste of time to call this unless itlist->has_ph_vars or
- * itlist->has_non_vars
+ * itlist->has_non_vars.  Furthermore, set_join_references() relies on being
+ * able to prevent matching of non-Vars by clearing itlist->has_non_vars,
+ * so there's a correctness reason not to call it unless that's set.
  */
 static Var *
 search_indexed_tlist_for_non_var(Node *node,
@@ -2045,7 +2554,8 @@ search_indexed_tlist_for_sortgroupref(Node *node,
  * inner_itlist = NULL and acceptable_rel = the ID of the target relation.
  *
  * 'clauses' is the targetlist or list of join clauses
- * 'outer_itlist' is the indexed target list of the outer join relation
+ * 'outer_itlist' is the indexed target list of the outer join relation,
+ *		or NULL
  * 'inner_itlist' is the indexed target list of the inner join relation,
  *		or NULL
  * 'acceptable_rel' is either zero or the rangetable index of a relation
@@ -2194,12 +2704,17 @@ fix_join_expr_mutator(Node *node, fix_join_expr_context *context)
 		Var		   *var = (Var *) node;
 
 		/* First look for the var in the input tlists */
-		newvar = search_indexed_tlist_for_var(var,
-											  context->outer_itlist,
-											  OUTER_VAR,
-											  context->rtoffset);
-		if (newvar)
-			return (Node *) newvar;
+		if (context->outer_itlist)
+		{
+			newvar = search_indexed_tlist_for_var(var,
+												  context->outer_itlist,
+												  OUTER_VAR,
+												  context->rtoffset);
+			if (newvar)
+				return (Node *) newvar;
+		}
+
+		/* Then in the outer */
 		if (context->inner_itlist)
 		{
 			newvar = search_indexed_tlist_for_var(var,
@@ -2228,7 +2743,7 @@ fix_join_expr_mutator(Node *node, fix_join_expr_context *context)
 		PlaceHolderVar *phv = (PlaceHolderVar *) node;
 
 		/* See if the PlaceHolderVar has bubbled up from a lower plan node */
-		if (context->outer_itlist->has_ph_vars)
+		if (context->outer_itlist && context->outer_itlist->has_ph_vars)
 		{
 			newvar = search_indexed_tlist_for_non_var((Node *) phv,
 													  context->outer_itlist,
@@ -2248,10 +2763,17 @@ fix_join_expr_mutator(Node *node, fix_join_expr_context *context)
 		/* If not supplied by input plans, evaluate the contained expr */
 		return fix_join_expr_mutator((Node *) phv->phexpr, context);
 	}
+<<<<<<< HEAD
 
 	/* Try matching more complex expressions too, if tlists have any */
 	if (context->outer_itlist && context->outer_itlist->has_non_vars &&
 	        context->use_outer_tlist_for_matching_nonvars)
+=======
+	if (IsA(node, Param))
+		return fix_param_node(context->root, (Param *) node);
+	/* Try matching more complex expressions too, if tlists have any */
+	if (context->outer_itlist && context->outer_itlist->has_non_vars)
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	{
 		newvar = search_indexed_tlist_for_non_var(node,
 												  context->outer_itlist,
@@ -2355,6 +2877,8 @@ fix_upper_expr_mutator(Node *node, fix_upper_expr_context *context)
 		/* If not supplied by input plan, evaluate the contained expr */
 		return fix_upper_expr_mutator((Node *) phv->phexpr, context);
 	}
+	if (IsA(node, Param))
+		return fix_param_node(context->root, (Param *) node);
 	/* Try matching more complex expressions too, if tlist has any */
 	if (context->subplan_itlist->has_non_vars && !IsA(node, GroupId))
 	{
@@ -2378,7 +2902,7 @@ fix_upper_expr_mutator(Node *node, fix_upper_expr_context *context)
  * adjust any Vars that refer to other tables to reference junk tlist
  * entries in the top subplan's targetlist.  Vars referencing the result
  * table should be left alone, however (the executor will evaluate them
- * using the actual heap tuple, after firing triggers if any).	In the
+ * using the actual heap tuple, after firing triggers if any).  In the
  * adjusted RETURNING list, result-table Vars will have their original
  * varno (plus rtoffset), but Vars for other rels will have varno OUTER_VAR.
  *
@@ -2434,6 +2958,7 @@ set_returning_clause_references(PlannerInfo *root,
 
 	return rlist;
 }
+
 
 /*****************************************************************************
  *					OPERATOR REGPROC LOOKUP
@@ -2552,7 +3077,8 @@ record_plan_function_dependency(PlannerInfo *root, Oid funcid)
 void
 extract_query_dependencies(Node *query,
 						   List **relationOids,
-						   List **invalItems)
+						   List **invalItems,
+						   bool *hasRowSecurity)
 {
 	PlannerGlobal glob;
 	PlannerInfo root;
@@ -2562,6 +3088,7 @@ extract_query_dependencies(Node *query,
 	glob.type = T_PlannerGlobal;
 	glob.relationOids = NIL;
 	glob.invalItems = NIL;
+	glob.hasRowSecurity = false;
 
 	MemSet(&root, 0, sizeof(root));
 	root.type = T_PlannerInfo;
@@ -2571,6 +3098,7 @@ extract_query_dependencies(Node *query,
 
 	*relationOids = glob.relationOids;
 	*invalItems = glob.invalItems;
+	*hasRowSecurity = glob.hasRowSecurity;
 }
 
 static bool
@@ -2586,7 +3114,10 @@ extract_query_dependencies_walker(Node *node, PlannerInfo *context)
 		Query	   *query = (Query *) node;
 		ListCell   *lc;
 
-		while (query->commandType == CMD_UTILITY)
+		/* Collect row security information */
+		context->glob->hasRowSecurity = query->hasRowSecurity;
+
+		if (query->commandType == CMD_UTILITY)
 		{
 			/*
 			 * Ignore utility statements, except those (such as EXPLAIN) that

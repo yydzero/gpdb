@@ -4,7 +4,7 @@
  *	  prototypes for planner.c.
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/optimizer/planner.h
@@ -47,9 +47,17 @@ extern bool choose_hashed_grouping(PlannerInfo *root,
 								   double dNumGroups,
 								   AggClauseCosts *agg_costs);
 
+extern void add_tlist_costs_to_plan(PlannerInfo *root, Plan *plan,
+						List *tlist);
+
 extern bool is_dummy_plan(Plan *plan);
 
+extern RowMarkType select_rowmark_type(RangeTblEntry *rte,
+					LockClauseStrength strength);
+
 extern Expr *expression_planner(Expr *expr);
+
+extern Expr *preprocess_phv_expression(PlannerInfo *root, Expr *expr);
 
 extern bool plan_cluster_use_sort(Oid tableOid, Oid indexOid);
 

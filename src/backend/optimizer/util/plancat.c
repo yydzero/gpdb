@@ -4,9 +4,13 @@
  *	   routines for accessing the system catalogs
  *
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2005-2008, Greenplum inc.
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -21,10 +25,15 @@
 
 #include "access/genam.h"
 #include "access/heapam.h"
+#include "access/htup_details.h"
+#include "access/nbtree.h"
 #include "access/sysattr.h"
 #include "access/transam.h"
+#include "access/xlog.h"
 #include "catalog/catalog.h"
+#include "catalog/dependency.h"
 #include "catalog/heap.h"
+#include "foreign/fdwapi.h"
 #include "miscadmin.h"
 #include "commands/tablecmds.h"
 #include "nodes/makefuncs.h"
@@ -54,6 +63,8 @@ int			constraint_exclusion = CONSTRAINT_EXCLUSION_PARTITION;
 get_relation_info_hook_type get_relation_info_hook = NULL;
 
 
+static bool infer_collation_opclass_match(InferenceElem *elem, Relation idxRel,
+							  Bitmapset *inferAttrs, List *idxExprs);
 static int32 get_rel_data_width(Relation rel, int32 *attr_widths);
 static List *get_relation_constraints(PlannerInfo *root,
 						 Oid relationObjectId, RelOptInfo *rel,
@@ -86,6 +97,8 @@ static void get_external_relation_info(Relation relation, RelOptInfo *rel);
  *	min_attr	lowest valid AttrNumber
  *	max_attr	highest valid AttrNumber
  *	indexlist	list of IndexOptInfos for relation's indexes
+ *	serverid	if it's a foreign table, the server OID
+ *	fdwroutine	if it's a foreign table, the FDW function pointers
  *	pages		number of pages
  *	tuples		number of tuples
  *
@@ -167,7 +180,7 @@ get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
 	 * Don't bother with indexes for an inheritance parent, either.
 	 */
 	if (inhparent ||
-		(IgnoreSystemIndexes && IsSystemClass(relation->rd_rel)))
+		(IgnoreSystemIndexes && IsSystemRelation(relation)))
 		hasindex = false;
 	else
 		hasindex = relation->rd_rel->relhasindex;
@@ -251,6 +264,7 @@ get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
 			info->indexcollations = (Oid *) palloc(sizeof(Oid) * ncolumns);
 			info->opfamily = (Oid *) palloc(sizeof(Oid) * ncolumns);
 			info->opcintype = (Oid *) palloc(sizeof(Oid) * ncolumns);
+			info->canreturn = (bool *) palloc(sizeof(bool) * ncolumns);
 
 			for (i = 0; i < ncolumns; i++)
 			{
@@ -258,11 +272,11 @@ get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
 				info->indexcollations[i] = indexRelation->rd_indcollation[i];
 				info->opfamily[i] = indexRelation->rd_opfamily[i];
 				info->opcintype[i] = indexRelation->rd_opcintype[i];
+				info->canreturn[i] = index_can_return(indexRelation, i + 1);
 			}
 
 			info->relam = indexRelation->rd_rel->relam;
 			info->amcostestimate = indexRelation->rd_am->amcostestimate;
-			info->canreturn = index_can_return(indexRelation);
 			info->amcanorderbyop = indexRelation->rd_am->amcanorderbyop;
 			info->amoptionalkey = indexRelation->rd_am->amoptionalkey;
 			info->amsearcharray = indexRelation->rd_am->amsearcharray;
@@ -400,7 +414,22 @@ get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
                 !rel->cdb_default_stats_used)
                 cdb_default_stats_warning_for_index(relation->rd_id, indexoid);
 
+<<<<<<< HEAD
 			index_close(indexRelation, needs_longlock ? NoLock : lmode);
+=======
+			if (info->relam == BTREE_AM_OID)
+			{
+				/* For btrees, get tree height while we have the index open */
+				info->tree_height = _bt_getrootheight(indexRelation);
+			}
+			else
+			{
+				/* For other index types, just set it to "unknown" for now */
+				info->tree_height = -1;
+			}
+
+			index_close(indexRelation, NoLock);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 			indexinfos = lcons(info, indexinfos);
 		}
@@ -409,6 +438,18 @@ get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
 	}
 
 	rel->indexlist = indexinfos;
+
+	/* Grab foreign-table info using the relcache, while we have it */
+	if (relation->rd_rel->relkind == RELKIND_FOREIGN_TABLE)
+	{
+		rel->serverid = GetForeignServerIdByRelId(RelationGetRelid(relation));
+		rel->fdwroutine = GetFdwRoutineForRelation(relation, true);
+	}
+	else
+	{
+		rel->serverid = InvalidOid;
+		rel->fdwroutine = NULL;
+	}
 
 	heap_close(relation, NoLock);
 
@@ -422,6 +463,7 @@ get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
 }
 
 /*
+<<<<<<< HEAD
  * Update RelOptInfo to include the external specifications (file URI list
  * and data format) from the pg_exttable catalog.
  */
@@ -557,6 +599,364 @@ cdb_estimate_rel_size(RelOptInfo   *relOptInfo,
 
 }                               /* cdb_estimate_rel_size */
 
+=======
+ * infer_arbiter_indexes -
+ *	  Determine the unique indexes used to arbitrate speculative insertion.
+ *
+ * Uses user-supplied inference clause expressions and predicate to match a
+ * unique index from those defined and ready on the heap relation (target).
+ * An exact match is required on columns/expressions (although they can appear
+ * in any order).  However, the predicate given by the user need only restrict
+ * insertion to a subset of some part of the table covered by some particular
+ * unique index (in particular, a partial unique index) in order to be
+ * inferred.
+ *
+ * The implementation does not consider which B-Tree operator class any
+ * particular available unique index attribute uses, unless one was specified
+ * in the inference specification. The same is true of collations.  In
+ * particular, there is no system dependency on the default operator class for
+ * the purposes of inference.  If no opclass (or collation) is specified, then
+ * all matching indexes (that may or may not match the default in terms of
+ * each attribute opclass/collation) are used for inference.
+ */
+List *
+infer_arbiter_indexes(PlannerInfo *root)
+{
+	OnConflictExpr *onconflict = root->parse->onConflict;
+
+	/* Iteration state */
+	Relation	relation;
+	Oid			relationObjectId;
+	Oid			indexOidFromConstraint = InvalidOid;
+	List	   *indexList;
+	ListCell   *l;
+
+	/* Normalized inference attributes and inference expressions: */
+	Bitmapset  *inferAttrs = NULL;
+	List	   *inferElems = NIL;
+
+	/* Results */
+	List	   *results = NIL;
+
+	/*
+	 * Quickly return NIL for ON CONFLICT DO NOTHING without an inference
+	 * specification or named constraint.  ON CONFLICT DO UPDATE statements
+	 * must always provide one or the other (but parser ought to have caught
+	 * that already).
+	 */
+	if (onconflict->arbiterElems == NIL &&
+		onconflict->constraint == InvalidOid)
+		return NIL;
+
+	/*
+	 * We need not lock the relation since it was already locked, either by
+	 * the rewriter or when expand_inherited_rtentry() added it to the query's
+	 * rangetable.
+	 */
+	relationObjectId = rt_fetch(root->parse->resultRelation,
+								root->parse->rtable)->relid;
+
+	relation = heap_open(relationObjectId, NoLock);
+
+	/*
+	 * Build normalized/BMS representation of plain indexed attributes, as
+	 * well as direct list of inference elements.  This is required for
+	 * matching the cataloged definition of indexes.
+	 */
+	foreach(l, onconflict->arbiterElems)
+	{
+		InferenceElem *elem;
+		Var		   *var;
+		int			attno;
+
+		elem = (InferenceElem *) lfirst(l);
+
+		/*
+		 * Parse analysis of inference elements performs full parse analysis
+		 * of Vars, even for non-expression indexes (in contrast with utility
+		 * command related use of IndexElem).  However, indexes are cataloged
+		 * with simple attribute numbers for non-expression indexes.  Those
+		 * are handled later.
+		 */
+		if (!IsA(elem->expr, Var))
+		{
+			inferElems = lappend(inferElems, elem->expr);
+			continue;
+		}
+
+		var = (Var *) elem->expr;
+		attno = var->varattno;
+
+		if (attno < 0)
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
+					 errmsg("system columns cannot be used in an ON CONFLICT clause")));
+		else if (attno == 0)
+			elog(ERROR, "whole row unique index inference specifications are not valid");
+
+		inferAttrs = bms_add_member(inferAttrs, attno);
+	}
+
+	/*
+	 * Lookup named constraint's index.  This is not immediately returned
+	 * because some additional sanity checks are required.
+	 */
+	if (onconflict->constraint != InvalidOid)
+	{
+		indexOidFromConstraint = get_constraint_index(onconflict->constraint);
+
+		if (indexOidFromConstraint == InvalidOid)
+			ereport(ERROR,
+					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
+					 errmsg("constraint in ON CONFLICT clause has no associated index")));
+	}
+
+	indexList = RelationGetIndexList(relation);
+
+	/*
+	 * Using that representation, iterate through the list of indexes on the
+	 * target relation to try and find a match
+	 */
+	foreach(l, indexList)
+	{
+		Oid			indexoid = lfirst_oid(l);
+		Relation	idxRel;
+		Form_pg_index idxForm;
+		Bitmapset  *indexedAttrs = NULL;
+		List	   *idxExprs;
+		List	   *predExprs;
+		List	   *whereExplicit;
+		AttrNumber	natt;
+		ListCell   *el;
+
+		/*
+		 * Extract info from the relation descriptor for the index.  We know
+		 * that this is a target, so get lock type it is known will ultimately
+		 * be required by the executor.
+		 *
+		 * Let executor complain about !indimmediate case directly, because
+		 * enforcement needs to occur there anyway when an inference clause is
+		 * omitted.
+		 */
+		idxRel = index_open(indexoid, RowExclusiveLock);
+		idxForm = idxRel->rd_index;
+
+		if (!IndexIsValid(idxForm))
+			goto next;
+
+		/*
+		 * Note that we do not perform a check against indcheckxmin (like e.g.
+		 * get_relation_info()) here to eliminate candidates, because
+		 * uniqueness checking only cares about the most recently committed
+		 * tuple versions.
+		 */
+
+		/*
+		 * Look for match on "ON constraint_name" variant, which may not be
+		 * unique constraint.  This can only be a constraint name.
+		 */
+		if (indexOidFromConstraint == idxForm->indexrelid)
+		{
+			if (!idxForm->indisunique && onconflict->action == ONCONFLICT_UPDATE)
+				ereport(ERROR,
+						(errcode(ERRCODE_WRONG_OBJECT_TYPE),
+						 errmsg("ON CONFLICT DO UPDATE not supported with exclusion constraints")));
+
+			results = lappend_oid(results, idxForm->indexrelid);
+			list_free(indexList);
+			index_close(idxRel, NoLock);
+			heap_close(relation, NoLock);
+			return results;
+		}
+		else if (indexOidFromConstraint != InvalidOid)
+		{
+			/* No point in further work for index in named constraint case */
+			goto next;
+		}
+
+		/*
+		 * Only considering conventional inference at this point (not named
+		 * constraints), so index under consideration can be immediately
+		 * skipped if it's not unique
+		 */
+		if (!idxForm->indisunique)
+			goto next;
+
+		/* Build BMS representation of cataloged index attributes */
+		for (natt = 0; natt < idxForm->indnatts; natt++)
+		{
+			int			attno = idxRel->rd_index->indkey.values[natt];
+
+			if (attno < 0)
+				elog(ERROR, "system column in index");
+
+			if (attno != 0)
+				indexedAttrs = bms_add_member(indexedAttrs, attno);
+		}
+
+		/* Non-expression attributes (if any) must match */
+		if (!bms_equal(indexedAttrs, inferAttrs))
+			goto next;
+
+		/* Expression attributes (if any) must match */
+		idxExprs = RelationGetIndexExpressions(idxRel);
+		foreach(el, onconflict->arbiterElems)
+		{
+			InferenceElem *elem = (InferenceElem *) lfirst(el);
+
+			/*
+			 * Ensure that collation/opclass aspects of inference expression
+			 * element match.  Even though this loop is primarily concerned
+			 * with matching expressions, it is a convenient point to check
+			 * this for both expressions and ordinary (non-expression)
+			 * attributes appearing as inference elements.
+			 */
+			if (!infer_collation_opclass_match(elem, idxRel, inferAttrs,
+											   idxExprs))
+				goto next;
+
+			/*
+			 * Plain Vars don't factor into count of expression elements, and
+			 * the question of whether or not they satisfy the index
+			 * definition has already been considered (they must).
+			 */
+			if (IsA(elem->expr, Var))
+				continue;
+
+			/*
+			 * Might as well avoid redundant check in the rare cases where
+			 * infer_collation_opclass_match() is required to do real work.
+			 * Otherwise, check that element expression appears in cataloged
+			 * index definition.
+			 */
+			if (elem->infercollid != InvalidOid ||
+				elem->inferopclass != InvalidOid ||
+				list_member(idxExprs, elem->expr))
+				continue;
+
+			goto next;
+		}
+
+		/*
+		 * Now that all inference elements were matched, ensure that the
+		 * expression elements from inference clause are not missing any
+		 * cataloged expressions.  This does the right thing when unique
+		 * indexes redundantly repeat the same attribute, or if attributes
+		 * redundantly appear multiple times within an inference clause.
+		 */
+		if (list_difference(idxExprs, inferElems) != NIL)
+			goto next;
+
+		/*
+		 * Any user-supplied ON CONFLICT unique index inference WHERE clause
+		 * need only be implied by the cataloged index definitions predicate.
+		 */
+		predExprs = RelationGetIndexPredicate(idxRel);
+		whereExplicit = make_ands_implicit((Expr *) onconflict->arbiterWhere);
+
+		if (!predicate_implied_by(predExprs, whereExplicit))
+			goto next;
+
+		results = lappend_oid(results, idxForm->indexrelid);
+next:
+		index_close(idxRel, NoLock);
+	}
+
+	list_free(indexList);
+	heap_close(relation, NoLock);
+
+	if (results == NIL)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
+				 errmsg("there is no unique or exclusion constraint matching the ON CONFLICT specification")));
+
+	return results;
+}
+
+/*
+ * infer_collation_opclass_match - ensure infer element opclass/collation match
+ *
+ * Given unique index inference element from inference specification, if
+ * collation was specified, or if opclass (represented here as opfamily +
+ * opcintype) was specified, verify that there is at least one matching
+ * indexed attribute (occasionally, there may be more).  Skip this in the
+ * common case where inference specification does not include collation or
+ * opclass (instead matching everything, regardless of cataloged
+ * collation/opclass of indexed attribute).
+ *
+ * At least historically, Postgres has not offered collations or opclasses
+ * with alternative-to-default notions of equality, so these additional
+ * criteria should only be required infrequently.
+ *
+ * Don't give up immediately when an inference element matches some attribute
+ * cataloged as indexed but not matching additional opclass/collation
+ * criteria.  This is done so that the implementation is as forgiving as
+ * possible of redundancy within cataloged index attributes (or, less
+ * usefully, within inference specification elements).  If collations actually
+ * differ between apparently redundantly indexed attributes (redundant within
+ * or across indexes), then there really is no redundancy as such.
+ *
+ * Note that if an inference element specifies an opclass and a collation at
+ * once, both must match in at least one particular attribute within index
+ * catalog definition in order for that inference element to be considered
+ * inferred/satisfied.
+ */
+static bool
+infer_collation_opclass_match(InferenceElem *elem, Relation idxRel,
+							  Bitmapset *inferAttrs, List *idxExprs)
+{
+	AttrNumber	natt;
+	Oid			inferopfamily = InvalidOid;		/* OID of att opfamily */
+	Oid			inferopcinputtype = InvalidOid; /* OID of att opfamily */
+
+	/*
+	 * If inference specification element lacks collation/opclass, then no
+	 * need to check for exact match.
+	 */
+	if (elem->infercollid == InvalidOid && elem->inferopclass == InvalidOid)
+		return true;
+
+	/*
+	 * Lookup opfamily and input type, for matching indexes
+	 */
+	if (elem->inferopclass)
+	{
+		inferopfamily = get_opclass_family(elem->inferopclass);
+		inferopcinputtype = get_opclass_input_type(elem->inferopclass);
+	}
+
+	for (natt = 1; natt <= idxRel->rd_att->natts; natt++)
+	{
+		Oid			opfamily = idxRel->rd_opfamily[natt - 1];
+		Oid			opcinputtype = idxRel->rd_opcintype[natt - 1];
+		Oid			collation = idxRel->rd_indcollation[natt - 1];
+
+		if (elem->inferopclass != InvalidOid &&
+			(inferopfamily != opfamily || inferopcinputtype != opcinputtype))
+		{
+			/* Attribute needed to match opclass, but didn't */
+			continue;
+		}
+
+		if (elem->infercollid != InvalidOid &&
+			elem->infercollid != collation)
+		{
+			/* Attribute needed to match collation, but didn't */
+			continue;
+		}
+
+		if ((IsA(elem->expr, Var) &&
+			 bms_is_member(((Var *) elem->expr)->varattno, inferAttrs)) ||
+			list_member(idxExprs, elem->expr))
+		{
+			/* Found one match - good enough */
+			return true;
+		}
+	}
+
+	return false;
+}
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /*
  * estimate_rel_size - estimate # pages and # tuples in a table or index
@@ -582,6 +982,7 @@ estimate_rel_size(Relation rel, int32 *attr_widths,
 	{
 		case RELKIND_RELATION:
 		case RELKIND_INDEX:
+		case RELKIND_MATVIEW:
 		case RELKIND_TOASTVALUE:
 		case RELKIND_AOSEGMENTS:
 		case RELKIND_AOBLOCKDIR:
@@ -616,12 +1017,12 @@ estimate_rel_size(Relation rel, int32 *attr_widths,
 			 * minimum size estimate of 10 pages.  The idea here is to avoid
 			 * assuming a newly-created table is really small, even if it
 			 * currently is, because that may not be true once some data gets
-			 * loaded into it.	Once a vacuum or analyze cycle has been done
+			 * loaded into it.  Once a vacuum or analyze cycle has been done
 			 * on it, it's more reasonable to believe the size is somewhat
 			 * stable.
 			 *
 			 * (Note that this is only an issue if the plan gets cached and
-			 * used again after the table has been filled.	What we're trying
+			 * used again after the table has been filled.  What we're trying
 			 * to avoid is using a nestloop-type plan on a table that has
 			 * grown substantially since the plan was made.  Normally,
 			 * autovacuum/autoanalyze will occur once enough inserts have
@@ -630,7 +1031,7 @@ estimate_rel_size(Relation rel, int32 *attr_widths,
 			 * such as temporary tables.)
 			 *
 			 * We approximate "never vacuumed" by "has relpages = 0", which
-			 * means this will also fire on genuinely empty relations.	Not
+			 * means this will also fire on genuinely empty relations.  Not
 			 * great, but fortunately that's a seldom-seen case in the real
 			 * world, and it shouldn't degrade the quality of the plan too
 			 * much anyway to err in this direction.
@@ -697,8 +1098,8 @@ estimate_rel_size(Relation rel, int32 *attr_widths,
 				int32		tuple_width;
 
 				tuple_width = get_rel_data_width(rel, attr_widths);
-				tuple_width += sizeof(HeapTupleHeaderData);
-				tuple_width += sizeof(ItemPointerData);
+				tuple_width += MAXALIGN(SizeofHeapTupleHeader);
+				tuple_width += sizeof(ItemIdData);
 				/* note: integer division is intentional here */
 				density = (BLCKSZ - SizeOfPageHeaderData) / tuple_width;
 			}
@@ -877,12 +1278,6 @@ get_relation_constraints(PlannerInfo *root,
 
 			cexpr = (Node *) canonicalize_qual((Expr *) cexpr);
 
-			/*
-			 * Also mark any coercion format fields as "don't care", so that
-			 * we can match to both explicit and implicit coercions.
-			 */
-			set_coercionform_dontcare(cexpr);
-
 			/* Fix Vars to have the desired varno */
 			if (varno != 1)
 				ChangeVarNodes(cexpr, 1, varno, 0);
@@ -916,6 +1311,7 @@ get_relation_constraints(PlannerInfo *root,
 												  0);
 					ntest->nulltesttype = IS_NOT_NULL;
 					ntest->argisrow = type_is_rowtype(att->atttypid);
+					ntest->location = -1;
 					result = lappend(result, ntest);
 				}
 			}
@@ -1006,7 +1402,7 @@ relation_excluded_by_constraints(PlannerInfo *root,
 		return false;
 
 	/*
-	 * OK to fetch the constraint expressions.	Include "col IS NOT NULL"
+	 * OK to fetch the constraint expressions.  Include "col IS NOT NULL"
 	 * expressions for attnotnull columns, in case we can refute those.
 	 */
 	constraint_pred = get_relation_constraints(root, rte->relid, rel, true);
@@ -1054,7 +1450,7 @@ relation_excluded_by_constraints(PlannerInfo *root,
  * Exception: if there are any dropped columns, we punt and return NIL.
  * Ideally we would like to handle the dropped-column case too.  However this
  * creates problems for ExecTypeFromTL, which may be asked to build a tupdesc
- * for a tlist that includes vars of no-longer-existent types.	In theory we
+ * for a tlist that includes vars of no-longer-existent types.  In theory we
  * could dig out the required info from the pg_attribute entries of the
  * relation, but that data is not readily available to ExecTypeFromTL.
  * For now, we don't apply the physical-tlist optimization when there are

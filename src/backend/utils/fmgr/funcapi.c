@@ -4,7 +4,7 @@
  *	  Utility and convenience functions for fmgr functions that return
  *	  sets and/or composite types.
  *
- * Copyright (c) 2002-2012, PostgreSQL Global Development Group
+ * Copyright (c) 2002-2015, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
  *	  src/backend/utils/fmgr/funcapi.c
@@ -13,6 +13,7 @@
  */
 #include "postgres.h"
 
+#include "access/htup_details.h"
 #include "catalog/namespace.h"
 #include "catalog/pg_proc.h"
 #include "catalog/pg_type.h"
@@ -136,7 +137,7 @@ per_MultiFuncCall(PG_FUNCTION_ARGS)
 	 * FuncCallContext is pointing to it), but in most usage patterns the
 	 * tuples stored in it will be in the function's per-tuple context. So at
 	 * the beginning of each call, the Slot will hold a dangling pointer to an
-	 * already-recycled tuple.	We clear it out here.
+	 * already-recycled tuple.  We clear it out here.
 	 *
 	 * Note: use of retval->slot is obsolete as of 8.0, and we expect that it
 	 * will always be NULL.  This is just here for backwards compatibility in
@@ -192,13 +193,18 @@ shutdown_MultiFuncCall(Datum arg)
  *		Given a function's call info record, determine the kind of datatype
  *		it is supposed to return.  If resultTypeId isn't NULL, *resultTypeId
  *		receives the actual datatype OID (this is mainly useful for scalar
+<<<<<<< HEAD
  *		result types).	If resultTupleDesc isn't NULL, *resultTupleDesc
  *		receives a pointer to a TupleDesc when the result is of a composit//
+=======
+ *		result types).  If resultTupleDesc isn't NULL, *resultTupleDesc
+ *		receives a pointer to a TupleDesc when the result is of a composite
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  *		type, or NULL when it's a scalar result.
  *
  * One hard case that this handles is resolution of actual rowtypes for
  * functions returning RECORD (from either the function's OUT parameter
- * list, or a ReturnSetInfo context node).	TYPEFUNC_RECORD is returned
+ * list, or a ReturnSetInfo context node).  TYPEFUNC_RECORD is returned
  * only when we couldn't resolve the actual rowtype for lack of information.
  *
  * The other hard case that this handles is resolution of polymorphism.
@@ -316,7 +322,7 @@ assign_func_result_transient_type(Oid funcid)
 /*
  * internal_get_result_type -- workhorse code implementing all the above
  *
- * funcid must always be supplied.	call_expr and rsinfo can be NULL if not
+ * funcid must always be supplied.  call_expr and rsinfo can be NULL if not
  * available.  We will return TYPEFUNC_RECORD, and store NULL into
  * *resultTupleDesc, if we cannot deduce the complete result rowtype from
  * the available information.
@@ -483,7 +489,7 @@ resolve_polymorphic_tupdesc(TupleDesc tupdesc, oidvector *declared_args,
 		return true;
 
 	/*
-	 * Otherwise, extract actual datatype(s) from input arguments.	(We assume
+	 * Otherwise, extract actual datatype(s) from input arguments.  (We assume
 	 * the parser already validated consistency of the arguments.)
 	 */
 	if (!call_expr)
@@ -912,6 +918,48 @@ get_func_arg_info(HeapTuple procTup,
 	return numargs;
 }
 
+/*
+ * get_func_trftypes
+ *
+ * Returns a number of transformated types used by function.
+ */
+int
+get_func_trftypes(HeapTuple procTup,
+				  Oid **p_trftypes)
+{
+	Datum		protrftypes;
+	ArrayType  *arr;
+	int			nelems;
+	bool		isNull;
+
+	protrftypes = SysCacheGetAttr(PROCOID, procTup,
+								  Anum_pg_proc_protrftypes,
+								  &isNull);
+	if (!isNull)
+	{
+		/*
+		 * We expect the arrays to be 1-D arrays of the right types; verify
+		 * that.  For the OID and char arrays, we don't need to use
+		 * deconstruct_array() since the array data is just going to look like
+		 * a C array of values.
+		 */
+		arr = DatumGetArrayTypeP(protrftypes);	/* ensure not toasted */
+		nelems = ARR_DIMS(arr)[0];
+		if (ARR_NDIM(arr) != 1 ||
+			nelems < 0 ||
+			ARR_HASNULL(arr) ||
+			ARR_ELEMTYPE(arr) != OIDOID)
+			elog(ERROR, "protrftypes is not a 1-D Oid array");
+		Assert(nelems >= ((Form_pg_proc) GETSTRUCT(procTup))->pronargs);
+		*p_trftypes = (Oid *) palloc(nelems * sizeof(Oid));
+		memcpy(*p_trftypes, ARR_DATA_PTR(arr),
+			   nelems * sizeof(Oid));
+
+		return nelems;
+	}
+	else
+		return 0;
+}
 
 /*
  * get_func_input_arg_names
@@ -1228,6 +1276,7 @@ build_function_result_tupdesc_d(Datum proallargtypes,
 
 		switch (argmodes[i])
 		{
+<<<<<<< HEAD
 			/* input modes */
 			case PROARGMODE_IN:
 			case PROARGMODE_VARIADIC:
@@ -1253,6 +1302,10 @@ build_function_result_tupdesc_d(Datum proallargtypes,
 				}
 				outargnames[numoutargs] = pname;
 				numoutargs++;
+=======
+			/* Parameter is not named, so gin up a column name */
+			pname = psprintf("column%d", numoutargs + 1);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		}
 	}
 

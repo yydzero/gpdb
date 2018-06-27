@@ -36,7 +36,7 @@
  * to look like NO SCROLL cursors.
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/utils/portal.h
@@ -48,6 +48,7 @@
 
 #include "datatype/timestamp.h"
 #include "executor/execdesc.h"
+#include "utils/plancache.h"
 #include "utils/resowner.h"
 
 /*
@@ -57,8 +58,8 @@
  * single result from the user's viewpoint.  However, the rule rewriter
  * may expand the single source query to zero or many actual queries.)
  *
- * PORTAL_ONE_SELECT: the portal contains one single SELECT query.	We run
- * the Executor incrementally as results are demanded.	This strategy also
+ * PORTAL_ONE_SELECT: the portal contains one single SELECT query.  We run
+ * the Executor incrementally as results are demanded.  This strategy also
  * supports holdable cursors (the Executor results can be dumped into a
  * tuplestore for access after transaction completion).
  *
@@ -72,7 +73,7 @@
  * all the auxiliary queries.)
  *
  * PORTAL_ONE_MOD_WITH: the portal contains one single SELECT query, but
- * it has data-modifying CTEs.	This is currently treated the same as the
+ * it has data-modifying CTEs.  This is currently treated the same as the
  * PORTAL_ONE_RETURNING case because of the possibility of needing to fire
  * triggers.  It may act more like PORTAL_ONE_SELECT in future.
  *
@@ -235,8 +236,12 @@ extern void PortalDefineQuery(Portal portal,
 extern Node *PortalListGetPrimaryStmt(List *stmts);
 extern void PortalCreateHoldStore(Portal portal);
 extern void PortalHashTableDeleteAll(void);
+<<<<<<< HEAD
 extern void AtExitCleanup_ResPortals(void);
 extern void TotalResPortalIncrements(int pid, Oid queueid,
 									 Cost *totalIncrements, int *num);
+=======
+extern bool ThereAreNoReadyPortals(void);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #endif   /* PORTAL_H */

@@ -16,20 +16,13 @@ typedef struct float8key
 ** float8 ops
 */
 PG_FUNCTION_INFO_V1(gbt_float8_compress);
+PG_FUNCTION_INFO_V1(gbt_float8_fetch);
 PG_FUNCTION_INFO_V1(gbt_float8_union);
 PG_FUNCTION_INFO_V1(gbt_float8_picksplit);
 PG_FUNCTION_INFO_V1(gbt_float8_consistent);
 PG_FUNCTION_INFO_V1(gbt_float8_distance);
 PG_FUNCTION_INFO_V1(gbt_float8_penalty);
 PG_FUNCTION_INFO_V1(gbt_float8_same);
-
-Datum		gbt_float8_compress(PG_FUNCTION_ARGS);
-Datum		gbt_float8_union(PG_FUNCTION_ARGS);
-Datum		gbt_float8_picksplit(PG_FUNCTION_ARGS);
-Datum		gbt_float8_consistent(PG_FUNCTION_ARGS);
-Datum		gbt_float8_distance(PG_FUNCTION_ARGS);
-Datum		gbt_float8_penalty(PG_FUNCTION_ARGS);
-Datum		gbt_float8_same(PG_FUNCTION_ARGS);
 
 
 static bool
@@ -93,6 +86,7 @@ static const gbtree_ninfo tinfo =
 {
 	gbt_t_float8,
 	sizeof(float8),
+	16,							/* sizeof(gbtreekey16) */
 	gbt_float8gt,
 	gbt_float8ge,
 	gbt_float8eq,
@@ -104,7 +98,6 @@ static const gbtree_ninfo tinfo =
 
 
 PG_FUNCTION_INFO_V1(float8_dist);
-Datum		float8_dist(PG_FUNCTION_ARGS);
 Datum
 float8_dist(PG_FUNCTION_ARGS)
 {
@@ -127,11 +120,17 @@ Datum
 gbt_float8_compress(PG_FUNCTION_ARGS)
 {
 	GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
-	GISTENTRY  *retval = NULL;
 
-	PG_RETURN_POINTER(gbt_num_compress(retval, entry, &tinfo));
+	PG_RETURN_POINTER(gbt_num_compress(entry, &tinfo));
 }
 
+Datum
+gbt_float8_fetch(PG_FUNCTION_ARGS)
+{
+	GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
+
+	PG_RETURN_POINTER(gbt_num_fetch(entry, &tinfo));
+}
 
 Datum
 gbt_float8_consistent(PG_FUNCTION_ARGS)

@@ -5,35 +5,73 @@
  *	Lately it's also being used by psql and bin/scripts/ ...
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/bin/pg_dump/dumputils.h
  *
  *-------------------------------------------------------------------------
  */
-
 #ifndef DUMPUTILS_H
 #define DUMPUTILS_H
 
 #include "libpq-fe.h"
 #include "pqexpbuffer.h"
 
-typedef enum					/* bits returned by set_dump_section */
+/*
+ * Data structures for simple lists of OIDs and strings.  The support for
+ * these is very primitive compared to the backend's List facilities, but
+ * it's all we need in pg_dump.
+ */
+typedef struct SimpleOidListCell
 {
-	DUMP_PRE_DATA = 0x01,
-	DUMP_DATA = 0x02,
-	DUMP_POST_DATA = 0x04,
-	DUMP_UNSECTIONED = 0xff
-} DumpSections;
+	struct SimpleOidListCell *next;
+	Oid			val;
+} SimpleOidListCell;
 
-typedef void (*on_exit_nicely_callback) (int code, void *arg);
+typedef struct SimpleOidList
+{
+	SimpleOidListCell *head;
+	SimpleOidListCell *tail;
+} SimpleOidList;
+
+typedef struct SimpleStringListCell
+{
+	struct SimpleStringListCell *next;
+	char		val[FLEXIBLE_ARRAY_MEMBER];		/* null-terminated string here */
+} SimpleStringListCell;
+
+typedef struct SimpleStringList
+{
+	SimpleStringListCell *head;
+	SimpleStringListCell *tail;
+} SimpleStringList;
+
+#define atooid(x)  ((Oid) strtoul((x), NULL, 10))
+
+/*
+ * Preferred strftime(3) format specifier for printing timestamps in pg_dump
+ * and friends.
+ *
+ * We don't print the timezone on Windows, because the names are long and
+ * localized, which means they may contain characters in various random
+ * encodings; this has been seen to cause encoding errors when reading the
+ * dump script.  Think not to get around that by using %z, because
+ * (1) %z is not portable to pre-C99 systems, and
+ * (2) %z doesn't actually act differently from %Z on Windows anyway.
+ */
+#ifndef WIN32
+#define PGDUMP_STRFTIME_FMT  "%Y-%m-%d %H:%M:%S %Z"
+#else
+#define PGDUMP_STRFTIME_FMT  "%Y-%m-%d %H:%M:%S"
+#endif
 
 extern int	quote_all_identifiers;
-extern const char *progname;
+extern PQExpBuffer (*getLocalPQExpBuffer) (void);
 
-extern void init_parallel_dump_utils(void);
 extern const char *fmtId(const char *identifier);
+extern const char *fmtQualifiedId(int remoteVersion,
+			   const char *schema, const char *id);
 extern void appendStringLiteral(PQExpBuffer buf, const char *str,
 					int encoding, bool std_strings);
 extern void appendStringLiteralConn(PQExpBuffer buf, const char *str,
@@ -43,7 +81,6 @@ extern void appendStringLiteralDQ(PQExpBuffer buf, const char *str,
 extern void appendByteaLiteral(PQExpBuffer buf,
 				   const unsigned char *str, size_t length,
 				   bool std_strings);
-extern int	parse_version(const char *versionString);
 extern bool parsePGArray(const char *atext, char ***itemarray, int *nitems);
 extern bool buildACLCommands(const char *name, const char *subname,
 				 const char *type, const char *acls, const char *owner,
@@ -68,16 +105,8 @@ extern void buildShSecLabelQuery(PGconn *conn, const char *catalog_name,
 extern void emitShSecLabels(PGconn *conn, PGresult *res,
 				PQExpBuffer buffer, const char *target, const char *objname);
 extern void set_dump_section(const char *arg, int *dumpSections);
-extern void
-write_msg(const char *modulename, const char *fmt,...)
-__attribute__((format(PG_PRINTF_ATTRIBUTE, 2, 3)));
-extern void
-vwrite_msg(const char *modulename, const char *fmt, va_list ap)
-__attribute__((format(PG_PRINTF_ATTRIBUTE, 2, 0)));
-extern void
-exit_horribly(const char *modulename, const char *fmt,...)
-__attribute__((format(PG_PRINTF_ATTRIBUTE, 2, 3), noreturn));
-extern void on_exit_nicely(on_exit_nicely_callback function, void *arg);
-extern void exit_nicely(int code) __attribute__((noreturn));
+
+extern void simple_string_list_append(SimpleStringList *list, const char *val);
+extern bool simple_string_list_member(SimpleStringList *list, const char *val);
 
 #endif   /* DUMPUTILS_H */

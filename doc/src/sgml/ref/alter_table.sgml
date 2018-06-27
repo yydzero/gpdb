@@ -4,6 +4,10 @@ PostgreSQL documentation
 -->
 
 <refentry id="SQL-ALTERTABLE">
+ <indexterm zone="sql-altertable">
+  <primary>ALTER TABLE</primary>
+ </indexterm>
+
  <refmeta>
   <refentrytitle>ALTER TABLE</refentrytitle>
   <manvolnum>7</manvolnum>
@@ -14,10 +18,6 @@ PostgreSQL documentation
   <refname>ALTER TABLE</refname>
   <refpurpose>change the definition of a table</refpurpose>
  </refnamediv>
-
- <indexterm zone="sql-altertable">
-  <primary>ALTER TABLE</primary>
- </indexterm>
 
  <refsynopsisdiv>
 <synopsis>
@@ -134,28 +134,31 @@ Where column_reference_storage_directive is:
 ALTER TABLE [ IF EXISTS ] [ ONLY ] <replaceable class="PARAMETER">name</replaceable> [ * ]
     <replaceable class="PARAMETER">action</replaceable> [, ... ]
 ALTER TABLE [ IF EXISTS ] [ ONLY ] <replaceable class="PARAMETER">name</replaceable> [ * ]
-    RENAME [ COLUMN ] <replaceable class="PARAMETER">column</replaceable> TO <replaceable class="PARAMETER">new_column</replaceable>
+    RENAME [ COLUMN ] <replaceable class="PARAMETER">column_name</replaceable> TO <replaceable class="PARAMETER">new_column_name</replaceable>
 ALTER TABLE [ IF EXISTS ] [ ONLY ] <replaceable class="PARAMETER">name</replaceable> [ * ]
     RENAME CONSTRAINT <replaceable class="PARAMETER">constraint_name</replaceable> TO <replaceable class="PARAMETER">new_constraint_name</replaceable>
 ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
     RENAME TO <replaceable class="PARAMETER">new_name</replaceable>
 ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
     SET SCHEMA <replaceable class="PARAMETER">new_schema</replaceable>
+ALTER TABLE ALL IN TABLESPACE <replaceable class="PARAMETER">name</replaceable> [ OWNED BY <replaceable class="PARAMETER">role_name</replaceable> [, ... ] ]
+    SET TABLESPACE <replaceable class="PARAMETER">new_tablespace</replaceable> [ NOWAIT ]
 
 <phrase>where <replaceable class="PARAMETER">action</replaceable> is one of:</phrase>
 
-    ADD [ COLUMN ] <replaceable class="PARAMETER">column</replaceable> <replaceable class="PARAMETER">data_type</replaceable> [ COLLATE <replaceable class="PARAMETER">collation</replaceable> ] [ <replaceable class="PARAMETER">column_constraint</replaceable> [ ... ] ]
-    DROP [ COLUMN ] [ IF EXISTS ] <replaceable class="PARAMETER">column</replaceable> [ RESTRICT | CASCADE ]
-    ALTER [ COLUMN ] <replaceable class="PARAMETER">column</replaceable> [ SET DATA ] TYPE <replaceable class="PARAMETER">data_type</replaceable> [ COLLATE <replaceable class="PARAMETER">collation</replaceable> ] [ USING <replaceable class="PARAMETER">expression</replaceable> ]
-    ALTER [ COLUMN ] <replaceable class="PARAMETER">column</replaceable> SET DEFAULT <replaceable class="PARAMETER">expression</replaceable>
-    ALTER [ COLUMN ] <replaceable class="PARAMETER">column</replaceable> DROP DEFAULT
-    ALTER [ COLUMN ] <replaceable class="PARAMETER">column</replaceable> { SET | DROP } NOT NULL
-    ALTER [ COLUMN ] <replaceable class="PARAMETER">column</replaceable> SET STATISTICS <replaceable class="PARAMETER">integer</replaceable>
-    ALTER [ COLUMN ] <replaceable class="PARAMETER">column</replaceable> SET ( <replaceable class="PARAMETER">attribute_option</replaceable> = <replaceable class="PARAMETER">value</replaceable> [, ... ] )
-    ALTER [ COLUMN ] <replaceable class="PARAMETER">column</replaceable> RESET ( <replaceable class="PARAMETER">attribute_option</replaceable> [, ... ] )
-    ALTER [ COLUMN ] <replaceable class="PARAMETER">column</replaceable> SET STORAGE { PLAIN | EXTERNAL | EXTENDED | MAIN }
+    ADD [ COLUMN ] <replaceable class="PARAMETER">column_name</replaceable> <replaceable class="PARAMETER">data_type</replaceable> [ COLLATE <replaceable class="PARAMETER">collation</replaceable> ] [ <replaceable class="PARAMETER">column_constraint</replaceable> [ ... ] ]
+    DROP [ COLUMN ] [ IF EXISTS ] <replaceable class="PARAMETER">column_name</replaceable> [ RESTRICT | CASCADE ]
+    ALTER [ COLUMN ] <replaceable class="PARAMETER">column_name</replaceable> [ SET DATA ] TYPE <replaceable class="PARAMETER">data_type</replaceable> [ COLLATE <replaceable class="PARAMETER">collation</replaceable> ] [ USING <replaceable class="PARAMETER">expression</replaceable> ]
+    ALTER [ COLUMN ] <replaceable class="PARAMETER">column_name</replaceable> SET DEFAULT <replaceable class="PARAMETER">expression</replaceable>
+    ALTER [ COLUMN ] <replaceable class="PARAMETER">column_name</replaceable> DROP DEFAULT
+    ALTER [ COLUMN ] <replaceable class="PARAMETER">column_name</replaceable> { SET | DROP } NOT NULL
+    ALTER [ COLUMN ] <replaceable class="PARAMETER">column_name</replaceable> SET STATISTICS <replaceable class="PARAMETER">integer</replaceable>
+    ALTER [ COLUMN ] <replaceable class="PARAMETER">column_name</replaceable> SET ( <replaceable class="PARAMETER">attribute_option</replaceable> = <replaceable class="PARAMETER">value</replaceable> [, ... ] )
+    ALTER [ COLUMN ] <replaceable class="PARAMETER">column_name</replaceable> RESET ( <replaceable class="PARAMETER">attribute_option</replaceable> [, ... ] )
+    ALTER [ COLUMN ] <replaceable class="PARAMETER">column_name</replaceable> SET STORAGE { PLAIN | EXTERNAL | EXTENDED | MAIN }
     ADD <replaceable class="PARAMETER">table_constraint</replaceable> [ NOT VALID ]
     ADD <replaceable class="PARAMETER">table_constraint_using_index</replaceable>
+    ALTER CONSTRAINT <replaceable class="PARAMETER">constraint_name</replaceable> [ DEFERRABLE | NOT DEFERRABLE ] [ INITIALLY DEFERRED | INITIALLY IMMEDIATE ]
     VALIDATE CONSTRAINT <replaceable class="PARAMETER">constraint_name</replaceable>
     DROP CONSTRAINT [ IF EXISTS ]  <replaceable class="PARAMETER">constraint_name</replaceable> [ RESTRICT | CASCADE ]
     DISABLE TRIGGER [ <replaceable class="PARAMETER">trigger_name</replaceable> | ALL | USER ]
@@ -166,18 +169,22 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
     ENABLE RULE <replaceable class="PARAMETER">rewrite_rule_name</replaceable>
     ENABLE REPLICA RULE <replaceable class="PARAMETER">rewrite_rule_name</replaceable>
     ENABLE ALWAYS RULE <replaceable class="PARAMETER">rewrite_rule_name</replaceable>
+    DISABLE ROW LEVEL SECURITY
+    ENABLE ROW LEVEL SECURITY
     CLUSTER ON <replaceable class="PARAMETER">index_name</replaceable>
     SET WITHOUT CLUSTER
     SET WITH OIDS
     SET WITHOUT OIDS
+    SET TABLESPACE <replaceable class="PARAMETER">new_tablespace</replaceable>
+    SET { LOGGED | UNLOGGED }
     SET ( <replaceable class="PARAMETER">storage_parameter</replaceable> = <replaceable class="PARAMETER">value</replaceable> [, ... ] )
     RESET ( <replaceable class="PARAMETER">storage_parameter</replaceable> [, ... ] )
     INHERIT <replaceable class="PARAMETER">parent_table</replaceable>
     NO INHERIT <replaceable class="PARAMETER">parent_table</replaceable>
     OF <replaceable class="PARAMETER">type_name</replaceable>
     NOT OF
-    OWNER TO <replaceable class="PARAMETER">new_owner</replaceable>
-    SET TABLESPACE <replaceable class="PARAMETER">new_tablespace</replaceable>
+    OWNER TO { <replaceable class="PARAMETER">new_owner</replaceable> | CURRENT_USER | SESSION_USER }
+    REPLICA IDENTITY { DEFAULT | USING INDEX <replaceable class="PARAMETER">index_name</replaceable> | FULL | NOTHING }
 
 <phrase>and <replaceable class="PARAMETER">table_constraint_using_index</replaceable> is:</phrase>
 
@@ -193,7 +200,10 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
 
   <para>
    <command>ALTER TABLE</command> changes the definition of an existing table.
-   There are several subforms:
+   There are several subforms described below. Note that the lock level required
+   may differ for each subform. An <literal>ACCESS EXCLUSIVE</literal> lock is held
+   unless explicitly noted. When multiple subcommands are listed, the lock
+   held will be the strictest one required from any subcommand.
 
   <variablelist>
    <varlistentry>
@@ -218,16 +228,6 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
       If <literal>IF EXISTS</literal> is specified and the column
       does not exist, no error is thrown. In this case a notice
       is issued instead.
-     </para>
-    </listitem>
-   </varlistentry>
-
-   <varlistentry>
-    <term><literal>IF EXISTS</literal></term>
-    <listitem>
-     <para>
-      Do not throw an error if the table does not exist. A notice is issued
-      in this case.
      </para>
     </listitem>
    </varlistentry>
@@ -258,11 +258,9 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
     <listitem>
      <para>
       These forms set or remove the default value for a column.
-      The default values only apply to subsequent <command>INSERT</command>
-      commands; they do not cause rows already in the table to change.
-      Defaults can also be created for views, in which case they are
-      inserted into <command>INSERT</> statements on the view before
-      the view's <literal>ON INSERT</literal> rule is applied.
+      Default values only apply in subsequent <command>INSERT</command>
+      or <command>UPDATE</> commands; they do not cause rows already in the
+      table to change.
      </para>
     </listitem>
    </varlistentry>
@@ -291,6 +289,10 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
       For more information on the use of statistics by the
       <productname>PostgreSQL</productname> query planner, refer to
       <xref linkend="planner-stats">.
+     </para>
+     <para>
+      <literal>SET STATISTICS</literal> acquires a
+      <literal>SHARE UPDATE EXCLUSIVE</literal> lock.
      </para>
     </listitem>
    </varlistentry>
@@ -324,16 +326,21 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
       of statistics by the <productname>PostgreSQL</productname> query
       planner, refer to <xref linkend="planner-stats">.
      </para>
+     <para>
+      Changing per-attribute options acquires a
+      <literal>SHARE UPDATE EXCLUSIVE</literal> lock.
+     </para>
     </listitem>
    </varlistentry>
 
    <varlistentry>
-    <indexterm>
-     <primary>TOAST</primary>
-     <secondary>per-column storage settings</secondary>
-    </indexterm>
-
-    <term><literal>SET STORAGE</literal></term>
+    <term>
+     <literal>SET STORAGE</literal>
+     <indexterm>
+      <primary>TOAST</primary>
+      <secondary>per-column storage settings</secondary>
+     </indexterm>
+    </term>
     <listitem>
      <para>
       This form sets the storage mode for a column. This controls whether this
@@ -430,6 +437,16 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
    </varlistentry>
 
    <varlistentry>
+    <term><literal>ALTER CONSTRAINT</literal></term>
+    <listitem>
+     <para>
+      This form alters the attributes of a constraint that was previously
+      created. Currently only foreign key constraints may be altered.
+     </para>
+    </listitem>
+   </varlistentry>
+
+   <varlistentry>
     <term><literal>VALIDATE CONSTRAINT</literal></term>
     <listitem>
      <para>
@@ -437,9 +454,19 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
       as <literal>NOT VALID</literal>, by scanning the table to ensure there
       are no rows for which the constraint is not satisfied.
       Nothing happens if the constraint is already marked valid.
-      The value of separating validation from initial creation of the
-      constraint is that validation requires a lesser lock on the table
-      than constraint creation does.
+     </para>
+     <para>
+      Validation can be a long process on larger tables. The value of separating
+      validation from initial creation is that you can defer validation to less
+      busy times, or can be used to give additional time to correct pre-existing
+      errors while preventing new errors. Note also that validation on its own
+      does not prevent normal write commands against the table while it runs.
+     </para>
+     <para>
+      Validation acquires only a <literal>SHARE UPDATE EXCLUSIVE</literal> lock
+      on the table being altered. If the constraint is a foreign key then
+      a <literal>ROW SHARE</literal> lock is also required on
+      the table referenced by the constraint.
      </para>
     </listitem>
    </varlistentry>
@@ -480,6 +507,9 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
       mode, and triggers configured as <literal>ENABLE ALWAYS</literal> will
       fire regardless of the current replication mode.
      </para>
+     <para>
+      This command acquires a <literal>SHARE ROW EXCLUSIVE</literal> lock.
+     </para>
     </listitem>
    </varlistentry>
 
@@ -498,12 +528,30 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
    </varlistentry>
 
    <varlistentry>
+    <term><literal>DISABLE</literal>/<literal>ENABLE ROW LEVEL SECURITY</literal></term>
+    <listitem>
+     <para>
+      These forms control the application of row security policies belonging
+      to the table.  If enabled and no policies exist for the table, then a
+      default-deny policy is applied.  Note that policies can exist for a table
+      even if row level security is disabled - in this case, the policies will
+      NOT be applied and the policies will be ignored.
+      See also
+      <xref linkend="SQL-CREATEPOLICY">.
+     </para>
+    </listitem>
+   </varlistentry>
+
+   <varlistentry>
     <term><literal>CLUSTER ON</literal></term>
     <listitem>
      <para>
       This form selects the default index for future
       <xref linkend="SQL-CLUSTER">
       operations.  It does not actually re-cluster the table.
+     </para>
+     <para>
+      Changing cluster options acquires a <literal>SHARE UPDATE EXCLUSIVE</literal> lock.
      </para>
     </listitem>
    </varlistentry>
@@ -516,6 +564,9 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
       <xref linkend="SQL-CLUSTER">
       index specification from the table.  This affects
       future cluster operations that don't specify an index.
+     </para>
+     <para>
+      Changing cluster options acquires a <literal>SHARE UPDATE EXCLUSIVE</literal> lock.
      </para>
     </listitem>
    </varlistentry>
@@ -546,6 +597,42 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
       <literal>DROP COLUMN oid RESTRICT</literal>,
       except that it will not complain if there is already no
       <literal>oid</literal> column.
+     </para>
+    </listitem>
+   </varlistentry>
+
+   <varlistentry>
+    <term><literal>SET TABLESPACE</literal></term>
+    <listitem>
+     <para>
+      This form changes the table's tablespace to the specified tablespace and
+      moves the data file(s) associated with the table to the new tablespace.
+      Indexes on the table, if any, are not moved; but they can be moved
+      separately with additional <literal>SET TABLESPACE</literal> commands.
+      All tables in the current database in a tablespace can be moved by using
+      the <literal>ALL IN TABLESPACE</literal> form, which will lock all tables
+      to be moved first and then move each one.  This form also supports
+      <literal>OWNED BY</literal>, which will only move tables owned by the
+      roles specified.  If the <literal>NOWAIT</literal> option is specified
+      then the command will fail if it is unable to acquire all of the locks
+      required immediately.  Note that system catalogs are not moved by this
+      command, use <command>ALTER DATABASE</command> or explicit
+      <command>ALTER TABLE</command> invocations instead if desired.  The
+      <literal>information_schema</literal> relations are not considered part
+      of the system catalogs and will be moved.
+      See also
+      <xref linkend="SQL-CREATETABLESPACE">.
+     </para>
+    </listitem>
+   </varlistentry>
+
+   <varlistentry>
+    <term><literal>SET { LOGGED | UNLOGGED }</literal></term>
+    <listitem>
+     <para>
+      This form changes the table from unlogged to logged or vice-versa
+      (see <xref linkend="SQL-CREATETABLE-UNLOGGED">).  It cannot be applied
+      to a temporary table.
      </para>
     </listitem>
    </varlistentry>
@@ -606,7 +693,7 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
      <para>
       There must also be matching child-table constraints for all
       <literal>CHECK</literal> constraints of the parent, except those
-      marked non-inheritable (that is, created with <literal>ALTER TABLE ONLY</literal>)
+      marked non-inheritable (that is, created with <literal>ALTER TABLE ... ADD CONSTRAINT ... NO INHERIT</literal>)
       in the parent, which are ignored; all child-table constraints matched
       must not be marked non-inheritable.
       Currently
@@ -657,22 +744,28 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
     <term><literal>OWNER</literal></term>
     <listitem>
      <para>
-      This form changes the owner of the table, sequence, or view to the
-      specified user.
+      This form changes the owner of the table, sequence, view, materialized view,
+      or foreign table to the specified user.
      </para>
     </listitem>
    </varlistentry>
 
-   <varlistentry>
-    <term><literal>SET TABLESPACE</literal></term>
+   <varlistentry id="SQL-CREATETABLE-REPLICA-IDENTITY">
+    <term><literal>REPLICA IDENTITY</literal></term>
     <listitem>
      <para>
-      This form changes the table's tablespace to the specified tablespace and
-      moves the data file(s) associated with the table to the new tablespace.
-      Indexes on the table, if any, are not moved; but they can be moved
-      separately with additional <literal>SET TABLESPACE</literal> commands.
-      See also
-      <xref linkend="SQL-CREATETABLESPACE">.
+      This form changes the information which is written to the write-ahead log
+      to identify rows which are updated or deleted.  This option has no effect
+      except when logical replication is in use.  <literal>DEFAULT</>
+      (the default for non-system tables) records the 
+      old values of the columns of the primary key, if any.  <literal>USING INDEX</>
+      records the old values of the columns covered by the named index, which
+      must be unique, not partial, not deferrable, and include only columns marked
+      <literal>NOT NULL</>.  <literal>FULL</> records the old values of all columns
+      in the row.  <literal>NOTHING</> records no information about the old row.
+      (This is the default for system tables.)
+      In all cases, no old values are logged unless at least one of the columns
+      that would be logged differs between the old and new versions of the row.
      </para>
     </listitem>
    </varlistentry>
@@ -682,8 +775,9 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
     <listitem>
      <para>
       The <literal>RENAME</literal> forms change the name of a table
-      (or an index, sequence, or view), the name of an individual column in
-      a table, or the name of a constraint of the table. There is no effect on the stored data.
+      (or an index, sequence, view, materialized view, or foreign table), the name
+      of an individual column in a table, or the name of a constraint of the table.
+      There is no effect on the stored data.
      </para>
     </listitem>
    </varlistentry>
@@ -702,7 +796,8 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
   </para>
 
   <para>
-   All the actions except <literal>RENAME</literal> and <literal>SET SCHEMA</>
+   All the actions except <literal>RENAME</literal>,
+   <literal>SET TABLESPACE</literal> and <literal>SET SCHEMA</literal>
    can be combined into
    a list of multiple alterations to apply in parallel.  For example, it
    is possible to add several columns and/or alter the type of several
@@ -720,8 +815,8 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
 
   <para>
    You must own the table to use <command>ALTER TABLE</>.
-   To change the schema of a table, you must also have
-   <literal>CREATE</literal> privilege on the new schema.
+   To change the schema or tablespace of a table, you must also have
+   <literal>CREATE</literal> privilege on the new schema or tablespace.
    To add the table as a new child of a parent table, you must own the
    parent table as well.
    To alter the owner, you must also be a direct or indirect member of the new
@@ -741,6 +836,16 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
     <variablelist>
 
      <varlistentry>
+      <term><literal>IF EXISTS</literal></term>
+      <listitem>
+       <para>
+        Do not throw an error if the table does not exist. A notice is issued
+        in this case.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry>
       <term><replaceable class="PARAMETER">name</replaceable></term>
       <listitem>
        <para>
@@ -755,7 +860,7 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
      </varlistentry>
 
      <varlistentry>
-      <term><replaceable class="PARAMETER">column</replaceable></term>
+      <term><replaceable class="PARAMETER">column_name</replaceable></term>
       <listitem>
        <para>
         Name of a new or existing column.
@@ -764,7 +869,7 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
      </varlistentry>
 
      <varlistentry>
-      <term><replaceable class="PARAMETER">new_column</replaceable></term>
+      <term><replaceable class="PARAMETER">new_column_name</replaceable></term>
       <listitem>
        <para>
         New name for an existing column.
@@ -782,7 +887,7 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
      </varlistentry>
 
      <varlistentry>
-      <term><replaceable class="PARAMETER">type</replaceable></term>
+      <term><replaceable class="PARAMETER">data_type</replaceable></term>
       <listitem>
        <para>
         Data type of the new column, or new data type for an existing
@@ -804,7 +909,7 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
       <term><replaceable class="PARAMETER">constraint_name</replaceable></term>
       <listitem>
        <para>
-        Name of an existing constraint to drop.
+        Name of a new or existing constraint.
        </para>
       </listitem>
      </varlistentry>
@@ -867,7 +972,7 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
       <term><replaceable class="PARAMETER">index_name</replaceable></term>
       <listitem>
        <para>
-        The index name on which the table should be marked for clustering.
+        The name of an existing index.
        </para>
       </listitem>
      </varlistentry>
@@ -941,14 +1046,18 @@ ALTER TABLE [ IF EXISTS ] <replaceable class="PARAMETER">name</replaceable>
     When a column is added with <literal>ADD COLUMN</literal>, all existing
     rows in the table are initialized with the column's default value
     (NULL if no <literal>DEFAULT</> clause is specified).
+    If there is no <literal>DEFAULT</> clause, this is merely a metadata
+    change and does not require any immediate update of the table's data;
+    the added NULL values are supplied on readout, instead.
    </para>
 
    <para>
-    Adding a column with a non-null default or changing the type of an
-    existing column will require the entire table and indexes to be rewritten.
-    As an exception, if the <literal>USING</> clause does not change the column
+    Adding a column with a <literal>DEFAULT</> clause or changing the type of
+    an existing column will require the entire table and its indexes to be
+    rewritten.  As an exception when changing the type of an existing column,
+    if the <literal>USING</> clause does not change the column
     contents and the old type is either binary coercible to the new type or
-    an unconstrained domain over the new type, a table rewrite is not needed,
+    an unconstrained domain over the new type, a table rewrite is not needed;
     but any indexes on the affected columns must still be rebuilt.  Adding or
     removing a system <literal>oid</> column also requires rewriting the entire
     table.  Table and/or index rebuilds may take a significant amount of time
@@ -1134,7 +1243,7 @@ ALTER TABLE distributors ADD CONSTRAINT zipchk CHECK (char_length(zipcode) = 5);
   <para>
    To add a check constraint only to a table and not to its children:
 <programlisting>
-ALTER TABLE distributors ADD CONSTRAINT zipchk CHECK NO INHERIT (char_length(zipcode) = 5);
+ALTER TABLE distributors ADD CONSTRAINT zipchk CHECK (char_length(zipcode) = 5) NO INHERIT;
 </programlisting>
    (The check constraint will not be inherited by future children, either.)
   </para>
@@ -1147,7 +1256,7 @@ ALTER TABLE distributors DROP CONSTRAINT zipchk;
   </para>
 
   <para>
-   To remove a check constraint from a table only:
+   To remove a check constraint from one table only:
 <programlisting>
 ALTER TABLE ONLY distributors DROP CONSTRAINT zipchk;
 </programlisting>
@@ -1158,6 +1267,14 @@ ALTER TABLE ONLY distributors DROP CONSTRAINT zipchk;
    To add a foreign key constraint to a table:
 <programlisting>
 ALTER TABLE distributors ADD CONSTRAINT distfk FOREIGN KEY (address) REFERENCES addresses (address);
+</programlisting>
+  </para>
+
+  <para>
+   To add a foreign key constraint to a table with the least impact on other work:
+<programlisting>
+ALTER TABLE distributors ADD CONSTRAINT distfk FOREIGN KEY (address) REFERENCES addresses (address) NOT VALID;
+ALTER TABLE distributors VALIDATE CONSTRAINT distfk;
 </programlisting>
   </para>
 

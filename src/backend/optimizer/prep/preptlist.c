@@ -4,18 +4,23 @@
  *	  Routines to preprocess the parse tree target list
  *
  * For INSERT and UPDATE queries, the targetlist must contain an entry for
- * each attribute of the target relation in the correct order.	For all query
+ * each attribute of the target relation in the correct order.  For all query
  * types, we may need to add junk tlist entries for Vars used in the RETURNING
- * list and row ID information needed for EvalPlanQual checking.
+ * list and row ID information needed for SELECT FOR UPDATE locking and/or
+ * EvalPlanQual checking.
  *
  * NOTE: the rewriter's rewriteTargetListIU and rewriteTargetListUD
  * routines also do preprocessing of the targetlist.  The division of labor
  * between here and there is a bit arbitrary and historical.
  *
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2006-2008, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
@@ -140,7 +145,7 @@ preprocess_targetlist(PlannerInfo *root, List *tlist)
 	/*
 	 * Add necessary junk columns for rowmarked rels.  These values are needed
 	 * for locking of rels selected FOR UPDATE/SHARE, and to do EvalPlanQual
-	 * rechecking.	See comments for PlanRowMark in plannodes.h.
+	 * rechecking.  See comments for PlanRowMark in plannodes.h.
 	 */
 	foreach(lc, root->rowMarks)
 	{
@@ -153,9 +158,9 @@ preprocess_targetlist(PlannerInfo *root, List *tlist)
 		if (rc->rti != rc->prti)
 			continue;
 
-		if (rc->markType != ROW_MARK_COPY)
+		if (rc->allMarkTypes & ~(1 << ROW_MARK_COPY))
 		{
-			/* It's a regular table, so fetch its TID */
+			/* Need to fetch TID */
 			var = makeVar(rc->rti,
 						  SelfItemPointerAttributeNumber,
 						  TIDOID,
@@ -168,27 +173,10 @@ preprocess_targetlist(PlannerInfo *root, List *tlist)
 								  pstrdup(resname),
 								  true);
 			tlist = lappend(tlist, tle);
-
-			/* if parent of inheritance tree, need the tableoid too */
-			if (rc->isParent)
-			{
-				var = makeVar(rc->rti,
-							  TableOidAttributeNumber,
-							  OIDOID,
-							  -1,
-							  InvalidOid,
-							  0);
-				snprintf(resname, sizeof(resname), "tableoid%u", rc->rowmarkId);
-				tle = makeTargetEntry((Expr *) var,
-									  list_length(tlist) + 1,
-									  pstrdup(resname),
-									  true);
-				tlist = lappend(tlist, tle);
-			}
 		}
-		else
+		if (rc->allMarkTypes & (1 << ROW_MARK_COPY))
 		{
-			/* Not a table, so we need the whole row as a junk var */
+			/* Need the whole row as a junk var */
 			var = makeWholeRowVar(rt_fetch(rc->rti, range_table),
 								  rc->rti,
 								  0,
@@ -200,12 +188,29 @@ preprocess_targetlist(PlannerInfo *root, List *tlist)
 								  true);
 			tlist = lappend(tlist, tle);
 		}
+
+		/* If parent of inheritance tree, always fetch the tableoid too. */
+		if (rc->isParent)
+		{
+			var = makeVar(rc->rti,
+						  TableOidAttributeNumber,
+						  OIDOID,
+						  -1,
+						  InvalidOid,
+						  0);
+			snprintf(resname, sizeof(resname), "tableoid%u", rc->rowmarkId);
+			tle = makeTargetEntry((Expr *) var,
+								  list_length(tlist) + 1,
+								  pstrdup(resname),
+								  true);
+			tlist = lappend(tlist, tle);
+		}
 	}
 
 	/*
 	 * If the query has a RETURNING list, add resjunk entries for any Vars
 	 * used in RETURNING that belong to other relations.  We need to do this
-	 * to make these Vars available for the RETURNING calculation.	Vars that
+	 * to make these Vars available for the RETURNING calculation.  Vars that
 	 * belong to the result rel don't need to be added, because they will be
 	 * made to refer to the actual heap tuple.
 	 */
@@ -241,6 +246,19 @@ preprocess_targetlist(PlannerInfo *root, List *tlist)
 
 	return tlist;
 }
+
+/*
+ * preprocess_onconflict_targetlist
+ *	  Process ON CONFLICT SET targetlist.
+ *
+ *	  Returns the new targetlist.
+ */
+List *
+preprocess_onconflict_targetlist(List *tlist, int result_relation, List *range_table)
+{
+	return expand_targetlist(tlist, CMD_UPDATE, result_relation, range_table);
+}
+
 
 /*****************************************************************************
  *
@@ -313,9 +331,9 @@ expand_targetlist(List *tlist, int command_type,
 			 * When generating a NULL constant for a dropped column, we label
 			 * it INT4 (any other guaranteed-to-exist datatype would do as
 			 * well). We can't label it with the dropped column's datatype
-			 * since that might not exist anymore.	It does not really matter
+			 * since that might not exist anymore.  It does not really matter
 			 * what we claim the type is, since NULL is NULL --- its
-			 * representation is datatype-independent.	This could perhaps
+			 * representation is datatype-independent.  This could perhaps
 			 * confuse code comparing the finished plan to the target
 			 * relation, however.
 			 */
@@ -397,7 +415,7 @@ expand_targetlist(List *tlist, int command_type,
 	/*
 	 * The remaining tlist entries should be resjunk; append them all to the
 	 * end of the new tlist, making sure they have resnos higher than the last
-	 * real attribute.	(Note: although the rewriter already did such
+	 * real attribute.  (Note: although the rewriter already did such
 	 * renumbering, we have to do it again here in case we are doing an UPDATE
 	 * in a table with dropped columns, or an inheritance child table with
 	 * extra columns.)

@@ -18,9 +18,6 @@
 #include "pgtypes_date.h"
 
 
-int PGTYPEStimestamp_defmt_scan(char **, const char *, timestamp *, int *, int *, int *,
-							int *, int *, int *, int *);
-
 #ifdef HAVE_INT64_TIMESTAMP
 static int64
 time2t(const int hour, const int min, const int sec, const fsec_t fsec)
@@ -76,8 +73,9 @@ tm2timestamp(struct tm * tm, fsec_t fsec, int *tzp, timestamp * result)
 	if ((*result - time) / USECS_PER_DAY != dDate)
 		return -1;
 	/* check for just-barely overflow (okay except time-of-day wraps) */
-	if ((*result < 0 && dDate >= 0) ||
-		(*result >= 0 && dDate < 0))
+	/* caution: we want to allow 1999-12-31 24:00:00 */
+	if ((*result < 0 && dDate > 0) ||
+		(*result > 0 && dDate < -1))
 		return -1;
 #else
 	*result = dDate * SECS_PER_DAY + time;
@@ -254,6 +252,8 @@ recalc_t:
 			*tzn = NULL;
 	}
 
+	tm->tm_yday = dDate - date2j(tm->tm_year, 1, 1) + 1;
+
 	return 0;
 }	/* timestamp2tm() */
 
@@ -419,7 +419,7 @@ dttofmtasc_replace(timestamp * ts, date dDate, int dow, struct tm * tm,
 					replace_val.str_val = months[tm->tm_mon];
 					replace_type = PGTYPES_TYPE_STRING_CONSTANT;
 					break;
-					/* the full name name of the month */
+					/* the full name of the month */
 					/* XXX should be locale aware */
 				case 'B':
 					replace_val.str_val = pgtypes_date_months[tm->tm_mon];
@@ -947,8 +947,6 @@ PGTYPEStimestamp_defmt_asc(char *str, const char *fmt, timestamp * d)
 int
 PGTYPEStimestamp_add_interval(timestamp * tin, interval * span, timestamp * tout)
 {
-
-
 	if (TIMESTAMP_NOT_FINITE(*tin))
 		*tout = *tin;
 

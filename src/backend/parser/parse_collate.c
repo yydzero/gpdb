@@ -14,22 +14,22 @@
  * 1. The output collation of each expression node, or InvalidOid if it
  * returns a noncollatable data type.  This can also be InvalidOid if the
  * result type is collatable but the collation is indeterminate.
- * 2. The collation to be used in executing each function.	InvalidOid means
+ * 2. The collation to be used in executing each function.  InvalidOid means
  * that there are no collatable inputs or their collation is indeterminate.
  * This value is only stored in node types that might call collation-using
  * functions.
  *
  * You might think we could get away with storing only one collation per
- * node, but the two concepts really need to be kept distinct.	Otherwise
+ * node, but the two concepts really need to be kept distinct.  Otherwise
  * it's too confusing when a function produces a collatable output type but
  * has no collatable inputs or produces noncollatable output from collatable
  * inputs.
  *
  * Cases with indeterminate collation might result in an error being thrown
- * at runtime.	If we knew exactly which functions require collation
+ * at runtime.  If we knew exactly which functions require collation
  * information, we could throw those errors at parse time instead.
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -248,7 +248,7 @@ select_common_collation(ParseState *pstate, List *exprs, bool none_ok)
  *		Recursive guts of collation processing.
  *
  * Nodes with no children (eg, Vars, Consts, Params) must have been marked
- * when built.	All upper-level nodes are marked here.
+ * when built.  All upper-level nodes are marked here.
  *
  * Note: if this is invoked directly on a List, it will attempt to infer a
  * common collation for all the list members.  In particular, it will throw
@@ -275,6 +275,9 @@ assign_collations_walker(Node *node, assign_collations_context *context)
 	loccontext.collation = InvalidOid;
 	loccontext.strength = COLLATE_NONE;
 	loccontext.location = -1;
+	/* Set these fields just to suppress uninitialized-value warnings: */
+	loccontext.collation2 = InvalidOid;
+	loccontext.location2 = -1;
 
 	/*
 	 * Recurse if appropriate, then determine the collation for this node.
@@ -334,86 +337,6 @@ assign_collations_walker(Node *node, assign_collations_context *context)
 					strength = COLLATE_NONE;
 					location = -1;		/* won't be used */
 				}
-			}
-			break;
-		case T_CaseExpr:
-			{
-				/*
-				 * CaseExpr is a special case because we do not want to
-				 * recurse into the test expression (if any).  It was already
-				 * marked with collations during transformCaseExpr, and
-				 * furthermore its collation is not relevant to the result of
-				 * the CASE --- only the output expressions are. So we can't
-				 * use expression_tree_walker here.
-				 */
-				CaseExpr   *expr = (CaseExpr *) node;
-				Oid			typcollation;
-				ListCell   *lc;
-
-				foreach(lc, expr->args)
-				{
-					CaseWhen   *when = (CaseWhen *) lfirst(lc);
-
-					Assert(IsA(when, CaseWhen));
-
-					/*
-					 * The condition expressions mustn't affect the CASE's
-					 * result collation either; but since they are known to
-					 * yield boolean, it's safe to recurse directly on them
-					 * --- they won't change loccontext.
-					 */
-					(void) assign_collations_walker((Node *) when->expr,
-													&loccontext);
-					(void) assign_collations_walker((Node *) when->result,
-													&loccontext);
-				}
-				(void) assign_collations_walker((Node *) expr->defresult,
-												&loccontext);
-
-				/*
-				 * Now determine the CASE's output collation.  This is the
-				 * same as the general case below.
-				 */
-				typcollation = get_typcollation(exprType(node));
-				if (OidIsValid(typcollation))
-				{
-					/* Node's result is collatable; what about its input? */
-					if (loccontext.strength > COLLATE_NONE)
-					{
-						/* Collation state bubbles up from children. */
-						collation = loccontext.collation;
-						strength = loccontext.strength;
-						location = loccontext.location;
-					}
-					else
-					{
-						/*
-						 * Collatable output produced without any collatable
-						 * input.  Use the type's collation (which is usually
-						 * DEFAULT_COLLATION_OID, but might be different for a
-						 * domain).
-						 */
-						collation = typcollation;
-						strength = COLLATE_IMPLICIT;
-						location = exprLocation(node);
-					}
-				}
-				else
-				{
-					/* Node's result type isn't collatable. */
-					collation = InvalidOid;
-					strength = COLLATE_NONE;
-					location = -1;		/* won't be used */
-				}
-
-				/*
-				 * Save the state into the expression node.  We know it
-				 * doesn't care about input collation.
-				 */
-				if (strength == COLLATE_CONFLICT)
-					exprSetCollation(node, InvalidOid);
-				else
-					exprSetCollation(node, collation);
 			}
 			break;
 		case T_RowExpr:
@@ -528,7 +451,7 @@ assign_collations_walker(Node *node, assign_collations_context *context)
 
 			/*
 			 * TargetEntry can have only one child, and should bubble that
-			 * state up to its parent.	We can't use the general-case code
+			 * state up to its parent.  We can't use the general-case code
 			 * below because exprType and friends don't work on TargetEntry.
 			 */
 			collation = loccontext.collation;
@@ -543,7 +466,7 @@ assign_collations_walker(Node *node, assign_collations_context *context)
 			 * There are some cases where there might not be a failure, for
 			 * example if the planner chooses to use hash aggregation instead
 			 * of sorting for grouping; but it seems better to predictably
-			 * throw an error.	(Compare transformSetOperationTree, which will
+			 * throw an error.  (Compare transformSetOperationTree, which will
 			 * throw error for indeterminate collation of set-op columns, even
 			 * though the planner might be able to implement the set-op
 			 * without sorting.)
@@ -559,9 +482,11 @@ assign_collations_walker(Node *node, assign_collations_context *context)
 						 parser_errposition(context->pstate,
 											loccontext.location2)));
 			break;
+		case T_InferenceElem:
 		case T_RangeTblRef:
 		case T_JoinExpr:
 		case T_FromExpr:
+		case T_OnConflictExpr:
 		case T_SortGroupClause:
 		case T_GroupingClause:
 		case T_WindowClause:
@@ -585,16 +510,22 @@ assign_collations_walker(Node *node, assign_collations_context *context)
 				 * SubLink.  Act as though the Query returns its first output
 				 * column, which indeed is what it does for EXPR_SUBLINK and
 				 * ARRAY_SUBLINK cases.  In the cases where the SubLink
-				 * returns boolean, this info will be ignored.
+				 * returns boolean, this info will be ignored.  Special case:
+				 * in EXISTS, the Query might return no columns, in which case
+				 * we need do nothing.
 				 *
 				 * We needn't recurse, since the Query is already processed.
 				 */
 				Query	   *qtree = (Query *) node;
 				TargetEntry *tent;
 
+				if (qtree->targetList == NIL)
+					return false;
 				tent = (TargetEntry *) linitial(qtree->targetList);
 				Assert(IsA(tent, TargetEntry));
-				Assert(!tent->resjunk);
+				if (tent->resjunk)
+					return false;
+
 				collation = exprCollation((Node *) tent->expr);
 				/* collation doesn't change if it's converted to array */
 				strength = COLLATE_IMPLICIT;
@@ -651,7 +582,7 @@ assign_collations_walker(Node *node, assign_collations_context *context)
 			{
 				/*
 				 * General case for most expression nodes with children. First
-				 * recurse, then figure out what to assign here.
+				 * recurse, then figure out what to assign to this node.
 				 */
 				Oid			typcollation;
 
@@ -672,6 +603,7 @@ assign_collations_walker(Node *node, assign_collations_context *context)
 							 * separately.
 							 */
 							Aggref	   *aggref = (Aggref *) node;
+<<<<<<< HEAD
 
 							switch (aggref->aggkind)
 							{
@@ -717,7 +649,97 @@ assign_collations_walker(Node *node, assign_collations_context *context)
 													  (void *) &loccontext);
 						break;
 				}
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
+							switch (aggref->aggkind)
+							{
+								case AGGKIND_NORMAL:
+									assign_aggregate_collations(aggref,
+																&loccontext);
+									break;
+								case AGGKIND_ORDERED_SET:
+									assign_ordered_set_collations(aggref,
+																&loccontext);
+									break;
+								case AGGKIND_HYPOTHETICAL:
+									assign_hypothetical_collations(aggref,
+																&loccontext);
+									break;
+								default:
+									elog(ERROR, "unrecognized aggkind: %d",
+										 (int) aggref->aggkind);
+							}
+
+							assign_expr_collations(context->pstate,
+												 (Node *) aggref->aggfilter);
+						}
+						break;
+					case T_WindowFunc:
+						{
+							/*
+							 * WindowFunc requires special processing only for
+							 * its aggfilter clause, as for aggregates.
+							 */
+							WindowFunc *wfunc = (WindowFunc *) node;
+
+							(void) assign_collations_walker((Node *) wfunc->args,
+															&loccontext);
+
+							assign_expr_collations(context->pstate,
+												   (Node *) wfunc->aggfilter);
+						}
+						break;
+					case T_CaseExpr:
+						{
+							/*
+							 * CaseExpr is a special case because we do not
+							 * want to recurse into the test expression (if
+							 * any).  It was already marked with collations
+							 * during transformCaseExpr, and furthermore its
+							 * collation is not relevant to the result of the
+							 * CASE --- only the output expressions are.
+							 */
+							CaseExpr   *expr = (CaseExpr *) node;
+							ListCell   *lc;
+
+							foreach(lc, expr->args)
+							{
+								CaseWhen   *when = (CaseWhen *) lfirst(lc);
+
+								Assert(IsA(when, CaseWhen));
+
+								/*
+								 * The condition expressions mustn't affect
+								 * the CASE's result collation either; but
+								 * since they are known to yield boolean, it's
+								 * safe to recurse directly on them --- they
+								 * won't change loccontext.
+								 */
+								(void) assign_collations_walker((Node *) when->expr,
+																&loccontext);
+								(void) assign_collations_walker((Node *) when->result,
+																&loccontext);
+							}
+							(void) assign_collations_walker((Node *) expr->defresult,
+															&loccontext);
+						}
+						break;
+					default:
+
+						/*
+						 * Normal case: all child expressions contribute
+						 * equally to loccontext.
+						 */
+						(void) expression_tree_walker(node,
+													assign_collations_walker,
+													  (void *) &loccontext);
+						break;
+				}
+
+				/*
+				 * Now figure out what collation to assign to this node.
+				 */
 				typcollation = get_typcollation(exprType(node));
 				if (OidIsValid(typcollation))
 				{

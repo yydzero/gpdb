@@ -4,7 +4,7 @@
  *	  Standard POSTGRES buffer page definitions.
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/storage/bufpage.h
@@ -16,7 +16,10 @@
 
 #include "access/xlogdefs.h"
 #include "storage/block.h"
+<<<<<<< HEAD
 #include "storage/bufmgr.h"
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include "storage/item.h"
 #include "storage/off.h"
 
@@ -28,7 +31,7 @@
  * disk page is always a slotted page of the form:
  *
  * +----------------+---------------------------------+
- * | PageHeaderData | linp1 linp2 linp3 ...			  |
+ * | PageHeaderData | linp1 linp2 linp3 ...           |
  * +-----------+----+---------------------------------+
  * | ... linpN |									  |
  * +-----------+--------------------------------------+
@@ -36,7 +39,7 @@
  * |												  |
  * |			 v pd_upper							  |
  * +-------------+------------------------------------+
- * |			 | tupleN ...						  |
+ * |			 | tupleN ...                         |
  * +-------------+------------------+-----------------+
  * |	   ... tuple3 tuple2 tuple1 | "special space" |
  * +--------------------------------+-----------------+
@@ -67,7 +70,7 @@
  *
  * AM-specific per-page data (if any) is kept in the area marked "special
  * space"; each AM has an "opaque" structure defined somewhere that is
- * stored as the page trailer.	an access method should always
+ * stored as the page trailer.  an access method should always
  * initialize its pages with PageInit and then set its own opaque
  * fields.
  */
@@ -85,12 +88,31 @@ typedef uint16 LocationIndex;
 
 
 /*
+ * For historical reasons, the 64-bit LSN value is stored as two 32-bit
+ * values.
+ */
+typedef struct
+{
+	uint32		xlogid;			/* high bits */
+	uint32		xrecoff;		/* low bits */
+} PageXLogRecPtr;
+
+#define PageXLogRecPtrGet(val) \
+	((uint64) (val).xlogid << 32 | (val).xrecoff)
+#define PageXLogRecPtrSet(ptr, lsn) \
+	((ptr).xlogid = (uint32) ((lsn) >> 32), (ptr).xrecoff = (uint32) (lsn))
+
+/*
  * disk page organization
  *
  * space management information generic to any page
  *
  *		pd_lsn		- identifies xlog record for last change to this page.
+<<<<<<< HEAD
  *		pd_checksum	- page checksum, if set.
+=======
+ *		pd_checksum - page checksum, if set.
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  *		pd_flags	- flag bits.
  *		pd_lower	- offset to start of free space.
  *		pd_upper	- offset to end of free space.
@@ -114,7 +136,7 @@ typedef uint16 LocationIndex;
  * there are no flag bits relating to checksums.
  *
  * pd_prune_xid is a hint field that helps determine whether pruning will be
- * useful.	It is currently unused in index pages.
+ * useful.  It is currently unused in index pages.
  *
  * The page version number and page size are packed together into a single
  * uint16 field.  This is for historical reasons: before PostgreSQL 7.3,
@@ -129,10 +151,11 @@ typedef uint16 LocationIndex;
  * On the high end, we can only support pages up to 32KB because lp_off/lp_len
  * are 15 bits.
  */
+
 typedef struct PageHeaderData
 {
 	/* XXX LSN is member of *any* block, not only page-organized ones */
-	XLogRecPtr	pd_lsn;			/* LSN: next byte after last byte of xlog
+	PageXLogRecPtr pd_lsn;		/* LSN: next byte after last byte of xlog
 								 * record for last change to this page */
 	uint16		pd_checksum;	/* checksum */
 	uint16		pd_flags;		/* flag bits, see below */
@@ -141,7 +164,7 @@ typedef struct PageHeaderData
 	LocationIndex pd_special;	/* offset to start of special space */
 	uint16		pd_pagesize_version;
 	TransactionId pd_prune_xid; /* oldest prunable XID, or zero if none */
-	ItemIdData	pd_linp[1];		/* beginning of line pointer array */
+	ItemIdData	pd_linp[FLEXIBLE_ARRAY_MEMBER]; /* line pointer array */
 } PageHeaderData;
 
 typedef PageHeaderData *PageHeader;
@@ -177,6 +200,7 @@ typedef PageHeaderData *PageHeader;
  *
  * As of Release 9.3, the checksum version must also be considered when
  * handling pages.
+<<<<<<< HEAD
  *
  * GPDB 4 uses 4. However, it didn't have the pd_prune_xid field
  * GPDB 5.0 uses 14. The layout is the same as PostgreSQL 8.3's, but
@@ -184,6 +208,10 @@ typedef PageHeaderData *PageHeader;
  *		used 4 for the previous format.
  */
 #define PG_PAGE_LAYOUT_VERSION		14
+=======
+ */
+#define PG_PAGE_LAYOUT_VERSION		4
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #define PG_DATA_CHECKSUM_VERSION	1
 
 /* ----------------------------------------------------------------
@@ -301,6 +329,8 @@ typedef PageHeaderData *PageHeader;
 #define PageGetSpecialPointer(page) \
 ( \
 	AssertMacro(PageIsValid(page)), \
+	AssertMacro(((PageHeader) (page))->pd_special <= BLCKSZ), \
+	AssertMacro(((PageHeader) (page))->pd_special >= SizeOfPageHeaderData), \
 	(char *) ((char *) (page) + ((PageHeader) (page))->pd_special) \
 )
 
@@ -335,6 +365,7 @@ typedef PageHeaderData *PageHeader;
 	  / sizeof(ItemIdData)))
 
 /*
+<<<<<<< HEAD
  * Retrieving LSN of a shared buffer is safe only if: (1) exclusive lock on the
  * buffer's contents is held OR (2) shared lock on the buffer's contents and
  * the buffer header spinlock is held.  The Assert() validates that a shared
@@ -373,6 +404,15 @@ PageGetLSN(Page page)
 	(((PageHeader) (page))->pd_lsn = (lsn))
 #define PageXLogRecPtrSet(ptr, lsn) \
 	((ptr).xlogid = (uint32) ((lsn) >> 32), (ptr).xrecoff = (uint32) (lsn))
+=======
+ * Additional macros for access to page headers. (Beware multiple evaluation
+ * of the arguments!)
+ */
+#define PageGetLSN(page) \
+	PageXLogRecPtrGet(((PageHeader) (page))->pd_lsn)
+#define PageSetLSN(page, lsn) \
+	PageXLogRecPtrSet(((PageHeader) (page))->pd_lsn, lsn)
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #define PageHasFreeLinePointers(page) \
 	(((PageHeader) (page))->pd_flags & PD_HAS_FREE_LINES)
@@ -438,6 +478,11 @@ extern Size PageGetExactFreeSpace(Page page);
 extern Size PageGetHeapFreeSpace(Page page);
 extern void PageIndexTupleDelete(Page page, OffsetNumber offset);
 extern void PageIndexMultiDelete(Page page, OffsetNumber *itemnos, int nitems);
+<<<<<<< HEAD
+=======
+extern void PageIndexDeleteNoCompact(Page page, OffsetNumber *itemnos,
+						 int nitems);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern char *PageSetChecksumCopy(Page page, BlockNumber blkno);
 extern void PageSetChecksumInplace(Page page, BlockNumber blkno);
 

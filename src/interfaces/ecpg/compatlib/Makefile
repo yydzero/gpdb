@@ -2,7 +2,7 @@
 #
 # Makefile for ecpg compatibility library
 #
-# Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+# Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
 # Portions Copyright (c) 1994, Regents of the University of California
 #
 # src/interfaces/ecpg/compatlib/Makefile
@@ -13,17 +13,21 @@ subdir = src/interfaces/ecpg/compatlib
 top_builddir = ../../../..
 include $(top_builddir)/src/Makefile.global
 
+<<<<<<< HEAD
 # The frontend doesn't need everything that's in LIBS, some are backend only
 LIBS := $(filter-out -lresolv -lbz2, $(LIBS))
 # This program isn't interactive, so doesn't need these
 LIBS := $(filter-out -lreadline -ledit -ltermcap -lncurses -lcurses -lcurl -lssl -lcrypto -lz, $(LIBS))
 
+=======
+PGFILEDESC = "ECPG compat - compatibility library for ECPG"
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 NAME= ecpg_compat
 SO_MAJOR_VERSION= 3
-SO_MINOR_VERSION= 4
+SO_MINOR_VERSION= 7
 
 override CPPFLAGS := -I../include -I$(top_srcdir)/src/interfaces/ecpg/include \
-	-I$(libpq_srcdir) -I$(top_srcdir)/src/include/utils $(CPPFLAGS)
+	-I$(libpq_srcdir) -DFRONTEND $(CPPFLAGS)
 override CFLAGS += $(PTHREAD_CFLAGS)
 
 SHLIB_LINK = -L../ecpglib -lecpg -L../pgtypeslib -lpgtypes $(libpq) \
@@ -42,7 +46,9 @@ SHLIB_EXPORTS = exports.txt
 # Need to recompile any libpgport object files
 LIBS := $(filter-out -lpgport, $(LIBS))
 
-OBJS= informix.o $(filter snprintf.o, $(LIBOBJS))
+OBJS= informix.o $(filter snprintf.o, $(LIBOBJS)) $(WIN32RES)
+
+PKG_CONFIG_REQUIRES_PRIVATE = libecpg libpgtypes
 
 all: all-lib
 

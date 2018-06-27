@@ -8,7 +8,7 @@
  * or call fmgr-callable functions.
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/fmgr.h
@@ -23,7 +23,11 @@ typedef struct Node *fmNodePtr;
 typedef struct Aggref *fmAggrefPtr;
 
 /* Likewise, avoid including execnodes.h here */
+<<<<<<< HEAD
 typedef struct ExprContext *fmExprContextPtr;
+=======
+typedef void (*fmExprContextCallbackFunction) (Datum arg);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* Likewise, avoid including stringinfo.h here */
 typedef struct StringInfoData *fmStringInfo;
@@ -54,8 +58,7 @@ typedef struct FmgrInfo
 {
 	PGFunction	fn_addr;		/* pointer to function or handler to be called */
 	Oid			fn_oid;			/* OID of function (NOT of handler, if any) */
-	short		fn_nargs;		/* 0..FUNC_MAX_ARGS, or -1 if variable arg
-								 * count */
+	short		fn_nargs;		/* number of input args (0..FUNC_MAX_ARGS) */
 	bool		fn_strict;		/* function is "strict" (NULL in => NULL out) */
 	bool		fn_retset;		/* function returns a set */
 	unsigned char fn_stats;		/* collect stats if track_functions > this */
@@ -105,7 +108,7 @@ extern void fmgr_info_copy(FmgrInfo *dstinfo, FmgrInfo *srcinfo,
 
 /*
  * This macro initializes all the fields of a FunctionCallInfoData except
- * for the arg[] and argnull[] arrays.	Performance testing has shown that
+ * for the arg[] and argnull[] arrays.  Performance testing has shown that
  * the fastest way to set up argnull[] for small numbers of arguments is to
  * explicitly set each required element to false, so we don't try to zero
  * out the argnull[] array in the macro.
@@ -122,7 +125,7 @@ extern void fmgr_info_copy(FmgrInfo *dstinfo, FmgrInfo *srcinfo,
 
 /*
  * This macro invokes a function given a filled-in FunctionCallInfoData
- * struct.	The macro result is the returned Datum --- but note that
+ * struct.  The macro result is the returned Datum --- but note that
  * caller must still check fcinfo->isnull!	Also, if function is strict,
  * it is caller's responsibility to verify that no null arguments are present
  * before calling.
@@ -171,11 +174,11 @@ extern void fmgr_info_copy(FmgrInfo *dstinfo, FmgrInfo *srcinfo,
  * which are varlena types).  pg_detoast_datum() gives you either the input
  * datum (if not toasted) or a detoasted copy allocated with palloc().
  * pg_detoast_datum_copy() always gives you a palloc'd copy --- use it
- * if you need a modifiable copy of the input.	Caller is expected to have
+ * if you need a modifiable copy of the input.  Caller is expected to have
  * checked for null inputs first, if necessary.
  *
  * pg_detoast_datum_packed() will return packed (1-byte header) datums
- * unmodified.	It will still expand an externally toasted or compressed datum.
+ * unmodified.  It will still expand an externally toasted or compressed datum.
  * The resulting datum can be accessed using VARSIZE_ANY() and VARDATA_ANY()
  * (beware of multiple evaluations in those macros!)
  *
@@ -206,7 +209,7 @@ extern struct varlena *pg_detoast_datum_packed(struct varlena * datum);
 	pg_detoast_datum_packed((struct varlena *) DatumGetPointer(datum))
 
 /*
- * Support for cleaning up detoasted copies of inputs.	This must only
+ * Support for cleaning up detoasted copies of inputs.  This must only
  * be used for pass-by-ref datatypes, and normally would only be used
  * for toastable types.  If the given pointer is different from the
  * original argument, assume it's a palloc'd detoasted copy, and pfree it.
@@ -302,6 +305,7 @@ extern struct varlena *pg_detoast_datum_packed(struct varlena * datum);
 #define PG_RETURN_INT32(x)	 return Int32GetDatum(x)
 #define PG_RETURN_UINT32(x)  return UInt32GetDatum(x)
 #define PG_RETURN_INT16(x)	 return Int16GetDatum(x)
+#define PG_RETURN_UINT16(x)  return UInt16GetDatum(x)
 #define PG_RETURN_CHAR(x)	 return CharGetDatum(x)
 #define PG_RETURN_BOOL(x)	 return BoolGetDatum(x)
 #define PG_RETURN_OID(x)	 return ObjectIdGetDatum(x)
@@ -318,8 +322,12 @@ extern struct varlena *pg_detoast_datum_packed(struct varlena * datum);
 #define PG_RETURN_TEXT_P(x)    PG_RETURN_POINTER(x)
 #define PG_RETURN_BPCHAR_P(x)  PG_RETURN_POINTER(x)
 #define PG_RETURN_VARCHAR_P(x) PG_RETURN_POINTER(x)
+<<<<<<< HEAD
 #define PG_RETURN_HEAPTUPLEHEADER(x)  PG_RETURN_POINTER(x)
 #define PG_RETURN_XID(x)	 return TransactionIdGetDatum(x)
+=======
+#define PG_RETURN_HEAPTUPLEHEADER(x)  return HeapTupleHeaderGetDatum(x)
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 
 /*-------------------------------------------------------------------------
@@ -328,7 +336,7 @@ extern struct varlena *pg_detoast_datum_packed(struct varlena * datum);
  * Dynamically loaded functions may use either the version-1 ("new style")
  * or version-0 ("old style") calling convention.  Version 1 is the call
  * convention defined in this header file; version 0 is the old "plain C"
- * convention.	A version-1 function must be accompanied by the macro call
+ * convention.  A version-1 function must be accompanied by the macro call
  *
  *		PG_FUNCTION_INFO_V1(function_name);
  *
@@ -353,6 +361,7 @@ typedef const Pg_finfo_record *(*PGFInfoFunction) (void);
  *	doesn't hurt to add PGDLLIMPORT in case they don't.
  */
 #define PG_FUNCTION_INFO_V1(funcname) \
+Datum funcname(PG_FUNCTION_ARGS); \
 extern PGDLLEXPORT const Pg_finfo_record * CppConcat(pg_finfo_,funcname)(void); \
 const Pg_finfo_record * \
 CppConcat(pg_finfo_,funcname) (void) \
@@ -536,9 +545,9 @@ extern Datum FunctionCall9Coll(FmgrInfo *flinfo, Oid collation,
 
 /* These are for invocation of a function identified by OID with a
  * directly-computed parameter list.  Note that neither arguments nor result
- * are allowed to be NULL.	These are essentially FunctionLookup() followed
- * by FunctionCallN().	If the same function is to be invoked repeatedly,
- * do the FunctionLookup() once and then use FunctionCallN().
+ * are allowed to be NULL.  These are essentially fmgr_info() followed by
+ * FunctionCallN().  If the same function is to be invoked repeatedly, do the
+ * fmgr_info() once and then use FunctionCallN().
  */
 extern Datum OidFunctionCall0Coll(Oid functionId, Oid collation);
 extern Datum OidFunctionCall1Coll(Oid functionId, Oid collation,
@@ -673,6 +682,9 @@ extern PGFunction load_external_function(char *filename, char *funcname,
 extern PGFunction lookup_external_function(void *filehandle, char *funcname);
 extern void load_file(const char *filename, bool restricted);
 extern void **find_rendezvous_variable(const char *varName);
+extern Size EstimateLibraryStateSpace(void);
+extern void SerializeLibraryState(Size maxsize, char *start_address);
+extern void RestoreLibraryState(char *start_address);
 
 /*
  * Support for aggregate functions
@@ -688,14 +700,21 @@ extern void **find_rendezvous_variable(const char *varName);
 extern int AggCheckCallContext(FunctionCallInfo fcinfo,
 					MemoryContext *aggcontext);
 extern fmAggrefPtr AggGetAggref(FunctionCallInfo fcinfo);
+<<<<<<< HEAD
 extern fmExprContextPtr AggGetPerTupleEContext(FunctionCallInfo fcinfo);
 extern fmExprContextPtr AggGetPerAggEContext(FunctionCallInfo fcinfo);
+=======
+extern MemoryContext AggGetTempMemoryContext(FunctionCallInfo fcinfo);
+extern void AggRegisterCallback(FunctionCallInfo fcinfo,
+					fmExprContextCallbackFunction func,
+					Datum arg);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /*
  * We allow plugin modules to hook function entry/exit.  This is intended
  * as support for loadable security policy modules, which may want to
  * perform additional privilege checks on function entry or exit, or to do
- * other internal bookkeeping.	To make this possible, such modules must be
+ * other internal bookkeeping.  To make this possible, such modules must be
  * able not only to support normal function entry and exit, but also to trap
  * the case where we bail out due to an error; and they must also be able to
  * prevent inlining.

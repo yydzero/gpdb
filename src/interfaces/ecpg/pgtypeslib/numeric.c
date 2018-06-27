@@ -974,7 +974,7 @@ PGTYPESnumeric_sub(numeric *var1, numeric *var2, numeric *result)
  * mul_var() -
  *
  *	Multiplication on variable level. Product of var1 * var2 is stored
- *	in result.	Accuracy of result is determined by global_rscale.
+ *	in result.  Accuracy of result is determined by global_rscale.
  * ----------
  */
 int
@@ -1366,7 +1366,6 @@ done:
 int
 PGTYPESnumeric_cmp(numeric *var1, numeric *var2)
 {
-
 	/* use cmp_abs function to calculate the result */
 
 	/* both are positive: normal comparation with cmp_abs */
@@ -1377,7 +1376,7 @@ PGTYPESnumeric_cmp(numeric *var1, numeric *var2)
 	if (var1->sign == NUMERIC_NEG && var2->sign == NUMERIC_NEG)
 	{
 		/*
-		 * instead of inverting the result, we invert the paramter ordering
+		 * instead of inverting the result, we invert the parameter ordering
 		 */
 		return cmp_abs(var2, var1);
 	}

@@ -6,9 +6,9 @@
  * This file contains the basic memory allocation interface that is
  * needed by almost every backend module.  It is included directly by
  * postgres.h, so the definitions here are automatically available
- * everywhere.	Keep it lean!
+ * everywhere.  Keep it lean!
  *
- * Memory allocation occurs within "contexts".	Every chunk obtained from
+ * Memory allocation occurs within "contexts".  Every chunk obtained from
  * palloc()/MemoryContextAlloc() is allocated within a specific context.
  * The entire contents of a context can be freed easily and quickly by
  * resetting or deleting the context --- this is both faster and less
@@ -18,9 +18,13 @@
  * everything that should be freed.  See utils/mmgr/README for more info.
  *
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2007-2008, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/utils/palloc.h
@@ -31,6 +35,7 @@
 #define PALLOC_H
 
 /*
+<<<<<<< HEAD
  * Optional #defines for debugging...
  *
  * If CDB_PALLOC_CALLER_ID is defined, MemoryContext error and warning
@@ -81,15 +86,34 @@ typedef uint32 OOMTimeType;
 
 /*
  * Type MemoryContextData is declared in nodes/memnodes.h.	Most users
+=======
+ * Type MemoryContextData is declared in nodes/memnodes.h.  Most users
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * of memory allocation should just treat it as an abstract type, so we
  * do not provide the struct contents here.
  */
 typedef struct MemoryContextData *MemoryContext;
 
 /*
+ * A memory context can have callback functions registered on it.  Any such
+ * function will be called once just before the context is next reset or
+ * deleted.  The MemoryContextCallback struct describing such a callback
+ * typically would be allocated within the context itself, thereby avoiding
+ * any need to manage it explicitly (the reset/delete action will free it).
+ */
+typedef void (*MemoryContextCallbackFunction) (void *arg);
+
+typedef struct MemoryContextCallback
+{
+	MemoryContextCallbackFunction func; /* function to call */
+	void	   *arg;			/* argument to pass it */
+	struct MemoryContextCallback *next; /* next in list of callbacks */
+} MemoryContextCallback;
+
+/*
  * CurrentMemoryContext is the default allocation context for palloc().
- * We declare it here so that palloc() can be a macro.	Avoid accessing it
- * directly!  Instead, use MemoryContextSwitchTo() to change the setting.
+ * Avoid accessing it directly!  Instead, use MemoryContextSwitchTo()
+ * to change the setting.
  */
 extern PGDLLIMPORT MemoryContext CurrentMemoryContext;
 
@@ -99,8 +123,16 @@ extern volatile OOMTimeType oomTrackerStartTime;
 extern volatile OOMTimeType alreadyReportedOOMTime;
 
 /*
+ * Flags for MemoryContextAllocExtended.
+ */
+#define MCXT_ALLOC_HUGE			0x01	/* allow huge allocation (> 1 GB) */
+#define MCXT_ALLOC_NO_OOM		0x02	/* no failure if out-of-memory */
+#define MCXT_ALLOC_ZERO			0x04	/* zero allocated memory */
+
+/*
  * Fundamental memory-allocation operations (more are in utils/memutils.h)
  */
+<<<<<<< HEAD
 extern void * __attribute__((malloc)) MemoryContextAllocImpl(MemoryContext context, Size size, const char* file, const char *func, int line);
 extern void * __attribute__((malloc)) MemoryContextAllocZeroImpl(MemoryContext context, Size size, const char* file, const char *func, int line);
 extern void * __attribute__((malloc)) MemoryContextAllocZeroAlignedImpl(MemoryContext context, Size size, const char* file, const char *func, int line);
@@ -113,6 +145,19 @@ extern void MemoryContextFreeImpl(void *pointer, const char* file, const char *f
 
 #define MemoryContextAllocZero(ctxt, sz) MemoryContextAllocZeroImpl((ctxt), (sz), __FILE__, PG_FUNCNAME_MACRO, __LINE__)
 #define palloc0(sz) MemoryContextAllocZero(CurrentMemoryContext, (sz))
+=======
+extern void *MemoryContextAlloc(MemoryContext context, Size size);
+extern void *MemoryContextAllocZero(MemoryContext context, Size size);
+extern void *MemoryContextAllocZeroAligned(MemoryContext context, Size size);
+extern void *MemoryContextAllocExtended(MemoryContext context,
+						   Size size, int flags);
+
+extern void *palloc(Size size);
+extern void *palloc0(Size size);
+extern void *palloc_extended(Size size, int flags);
+extern void *repalloc(void *pointer, Size size);
+extern void pfree(void *pointer);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #define repalloc(ptr, sz) MemoryContextReallocImpl(ptr, (sz), __FILE__, PG_FUNCNAME_MACRO, __LINE__)
 #define pfree(ptr) MemoryContextFreeImpl(ptr, __FILE__, PG_FUNCNAME_MACRO, __LINE__)
@@ -126,11 +171,27 @@ extern void MemoryContextFreeImpl(void *pointer, const char* file, const char *f
  * practice.
  */
 #define palloc0fast(sz) \
+<<<<<<< HEAD
 	( MemSetTest(0, (sz)) ? \
 		MemoryContextAllocZeroAlignedImpl(CurrentMemoryContext, (sz), __FILE__, PG_FUNCNAME_MACRO, __LINE__) : \
 		MemoryContextAllocZeroImpl(CurrentMemoryContext, (sz), __FILE__, PG_FUNCNAME_MACRO, __LINE__))
 
 /*
+=======
+	( MemSetTest(0, sz) ? \
+		MemoryContextAllocZeroAligned(CurrentMemoryContext, sz) : \
+		MemoryContextAllocZero(CurrentMemoryContext, sz) )
+
+/* Higher-limit allocators. */
+extern void *MemoryContextAllocHuge(MemoryContext context, Size size);
+extern void *repalloc_huge(void *pointer, Size size);
+
+/*
+ * MemoryContextSwitchTo can't be a macro in standard C compilers.
+ * But we can make it an inline function if the compiler supports it.
+ * See STATIC_IF_INLINE in c.h.
+ *
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Although this header file is nominally backend-only, certain frontend
  * programs like pg_controldata include it via postgres.h.  For some compilers
  * it's necessary to hide the inline definition of MemoryContextSwitchTo in
@@ -138,7 +199,15 @@ extern void MemoryContextFreeImpl(void *pointer, const char* file, const char *f
  */
 
 #ifndef FRONTEND
+<<<<<<< HEAD
 static inline MemoryContext
+=======
+#ifndef PG_USE_INLINE
+extern MemoryContext MemoryContextSwitchTo(MemoryContext context);
+#endif   /* !PG_USE_INLINE */
+#if defined(PG_USE_INLINE) || defined(MCXT_INCLUDE_DEFINITIONS)
+STATIC_IF_INLINE MemoryContext
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 MemoryContextSwitchTo(MemoryContext context)
 {
 	MemoryContext old = CurrentMemoryContext;
@@ -146,12 +215,22 @@ MemoryContextSwitchTo(MemoryContext context)
 	CurrentMemoryContext = context;
 	return old;
 }
+<<<<<<< HEAD
 #endif   /* FRONTEND */
+=======
+#endif   /* PG_USE_INLINE || MCXT_INCLUDE_DEFINITIONS */
+#endif   /* FRONTEND */
+
+/* Registration of memory context reset/delete callbacks */
+extern void MemoryContextRegisterResetCallback(MemoryContext context,
+								   MemoryContextCallback *cb);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /*
  * These are like standard strdup() except the copied string is
  * allocated in a context, not with malloc().
  */
+<<<<<<< HEAD
 extern char * __attribute__((malloc)) MemoryContextStrdup(MemoryContext context, const char *string);
 extern void MemoryContextStats(MemoryContext context);
 
@@ -168,6 +247,15 @@ extern void *pgport_palloc(Size sz);
 extern char *pgport_pstrdup(const char *str);
 extern void pgport_pfree(void *pointer);
 #endif
+=======
+extern char *MemoryContextStrdup(MemoryContext context, const char *string);
+extern char *pstrdup(const char *in);
+extern char *pnstrdup(const char *in, Size len);
+
+/* sprintf into a palloc'd buffer --- these are in psprintf.c */
+extern char *psprintf(const char *fmt,...) pg_attribute_printf(1, 2);
+extern size_t pvsnprintf(char *buf, size_t len, const char *fmt, va_list args) pg_attribute_printf(3, 0);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* Mem Protection */
 extern int max_chunks_per_query;

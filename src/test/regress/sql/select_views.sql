@@ -47,7 +47,7 @@ INSERT INTO credit_card
               (103, '9801-2345-6789-0123', 2000);
 INSERT INTO credit_usage
        VALUES (101, '2011-09-15', 120),
-       	      (101, '2011-10-05',  90),
+	      (101, '2011-10-05',  90),
 	      (101, '2011-10-18', 110),
 	      (101, '2011-10-21', 200),
 	      (101, '2011-11-10',  80),
@@ -94,6 +94,20 @@ EXPLAIN (COSTS OFF) SELECT * FROM my_property_normal WHERE f_leak(passwd);
 
 SELECT * FROM my_property_secure WHERE f_leak(passwd);
 EXPLAIN (COSTS OFF) SELECT * FROM my_property_secure WHERE f_leak(passwd);
+
+--
+-- scenario: qualifiers can be pushed down if they contain leaky functions,
+--           provided they aren't passed data from inside the view.
+--
+SELECT * FROM my_property_normal v
+		WHERE f_leak('passwd') AND f_leak(passwd);
+EXPLAIN (COSTS OFF) SELECT * FROM my_property_normal v
+		WHERE f_leak('passwd') AND f_leak(passwd);
+
+SELECT * FROM my_property_secure v
+		WHERE f_leak('passwd') AND f_leak(passwd);
+EXPLAIN (COSTS OFF) SELECT * FROM my_property_secure v
+		WHERE f_leak('passwd') AND f_leak(passwd);
 
 --
 -- scenario: if a qualifier references only one-side of a particular join-

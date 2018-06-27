@@ -3,7 +3,11 @@
  * jsonapi.h
  *	  Declarations for JSON API support.
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 1996-2013, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/utils/jsonapi.h
@@ -73,6 +77,13 @@ typedef void (*json_scalar_action) (void *state, char *token, JsonTokenType toke
  * point, Likewise, semstate can be NULL. Using an all-NULL structure amounts
  * to doing a pure parse with no side-effects, and is therefore exactly
  * what the json input routines do.
+<<<<<<< HEAD
+=======
+ *
+ * The 'fname' and 'token' strings passed to these actions are palloc'd.
+ * They are not free'd or used further by the parser, so the action function
+ * is free to do what it wishes with them.
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  */
 typedef struct JsonSemAction
 {
@@ -100,18 +111,37 @@ typedef struct JsonSemAction
 extern void pg_parse_json(JsonLexContext *lex, JsonSemAction *sem);
 
 /*
+<<<<<<< HEAD
  * constructor for JsonLexContext, with or without strval element.
  * If supplied, the strval element will contain a de-escaped version of
  * the lexeme. However, doing this imposes a performance penalty, so
  * it should be avoided if the de-escaped lexeme is not required.
  */
 extern JsonLexContext *makeJsonLexContext(text *json, bool need_escapes);
+=======
+ * constructors for JsonLexContext, with or without strval element.
+ * If supplied, the strval element will contain a de-escaped version of
+ * the lexeme. However, doing this imposes a performance penalty, so
+ * it should be avoided if the de-escaped lexeme is not required.
+ *
+ * If you already have the json as a text* value, use the first of these
+ * functions, otherwise use  makeJsonLexContextCstringLen().
+ */
+extern JsonLexContext *makeJsonLexContext(text *json, bool need_escapes);
+extern JsonLexContext *makeJsonLexContextCstringLen(char *json,
+							 int len,
+							 bool need_escapes);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /*
  * Utility function to check if a string is a valid JSON number.
  *
  * str agrument does not need to be nul-terminated.
  */
+<<<<<<< HEAD
 extern bool IsValidJsonNumber(const char * str, int len);
+=======
+extern bool IsValidJsonNumber(const char *str, int len);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #endif   /* JSONAPI_H */

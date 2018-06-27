@@ -3,9 +3,13 @@
  * explain.c
  *	  Explain query execution plans
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2005-2010, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994-5, Regents of the University of California
  *
  * IDENTIFICATION
@@ -16,6 +20,7 @@
 #include "postgres.h"
 
 #include "access/xact.h"
+#include "catalog/pg_collation.h"
 #include "catalog/pg_type.h"
 #include "commands/createas.h"
 #include "commands/defrem.h"
@@ -24,6 +29,7 @@
 #include "executor/execUtils.h"
 #include "executor/hashjoin.h"
 #include "foreign/fdwapi.h"
+#include "nodes/nodeFuncs.h"
 #include "optimizer/clauses.h"
 #include "parser/parsetree.h"
 #include "rewrite/rewriteHandler.h"
@@ -33,8 +39,10 @@
 #include "utils/lsyscache.h"
 #include "utils/metrics_utils.h"
 #include "utils/rel.h"
+#include "utils/ruleutils.h"
 #include "utils/snapmgr.h"
 #include "utils/tuplesort.h"
+#include "utils/typcache.h"
 #include "utils/xml.h"
 
 #include "cdb/cdbgang.h"
@@ -69,6 +77,10 @@ static void ExplainDXL(Query *query, ExplainState *es,
 							ParamListInfo params);
 #endif
 static double elapsed_time(instr_time *starttime);
+static void ExplainPreScanNode(PlanState *planstate, Bitmapset **rels_used);
+static void ExplainPreScanMemberNodes(List *plans, PlanState **planstates,
+						  Bitmapset **rels_used);
+static void ExplainPreScanSubPlans(List *plans, Bitmapset **rels_used);
 static void ExplainNode(PlanState *planstate, List *ancestors,
 			const char *relationship, const char *plan_name,
 			ExplainState *es);
@@ -90,12 +102,33 @@ static void show_sort_keys(SortState *sortstate, List *ancestors,
 			   ExplainState *es);
 static void show_merge_append_keys(MergeAppendState *mstate, List *ancestors,
 					   ExplainState *es);
+<<<<<<< HEAD
 static void show_sort_group_keys(PlanState *planstate, const char *qlabel,
 					 int nkeys, AttrNumber *keycols,
 					 List *ancestors, ExplainState *es);
+=======
+static void show_agg_keys(AggState *astate, List *ancestors,
+			  ExplainState *es);
+static void show_grouping_sets(PlanState *planstate, Agg *agg,
+				   List *ancestors, ExplainState *es);
+static void show_grouping_set_keys(PlanState *planstate,
+					   Agg *aggnode, Sort *sortnode,
+					   List *context, bool useprefix,
+					   List *ancestors, ExplainState *es);
+static void show_group_keys(GroupState *gstate, List *ancestors,
+				ExplainState *es);
+static void show_sort_group_keys(PlanState *planstate, const char *qlabel,
+					 int nkeys, AttrNumber *keycols,
+					 Oid *sortOperators, Oid *collations, bool *nullsFirst,
+					 List *ancestors, ExplainState *es);
+static void show_sortorder_options(StringInfo buf, Node *sortexpr,
+					   Oid sortOperator, Oid collation, bool nullsFirst);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 static void show_sort_info(SortState *sortstate, ExplainState *es);
 static void show_windowagg_keys(WindowAggState *waggstate, List *ancestors, ExplainState *es);
 static void show_hash_info(HashState *hashstate, ExplainState *es);
+static void show_tidbitmap_info(BitmapHeapScanState *planstate,
+					ExplainState *es);
 static void show_instrumentation_count(const char *qlabel, int which,
 						   PlanState *planstate, ExplainState *es);
 static void show_foreignscan_info(ForeignScanState *fsstate, ExplainState *es);
@@ -105,10 +138,18 @@ static void ExplainIndexScanDetails(Oid indexid, ScanDirection indexorderdir,
 static void ExplainScanTarget(Scan *plan, ExplainState *es);
 static void ExplainModifyTarget(ModifyTable *plan, ExplainState *es);
 static void ExplainTargetRel(Plan *plan, Index rti, ExplainState *es);
+static void show_modifytable_info(ModifyTableState *mtstate, List *ancestors,
+					  ExplainState *es);
 static void ExplainMemberNodes(List *plans, PlanState **planstates,
 				   List *ancestors, ExplainState *es);
 static void ExplainSubPlans(List *plans, List *ancestors,
+<<<<<<< HEAD
 				const char *relationship, ExplainState *es, SliceTable *sliceTable);
+=======
+				const char *relationship, ExplainState *es);
+static void ExplainCustomChildren(CustomScanState *css,
+								  List *ancestors, ExplainState *es);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 static void ExplainProperty(const char *qlabel, const char *value,
 				bool numeric, ExplainState *es);
 static void ExplainPropertyStringInfo(const char *qlabel, ExplainState *es,
@@ -137,14 +178,11 @@ void
 ExplainQuery(ExplainStmt *stmt, const char *queryString,
 			 ParamListInfo params, DestReceiver *dest)
 {
-	ExplainState es;
+	ExplainState *es = NewExplainState();
 	TupOutputState *tstate;
 	List	   *rewritten;
 	ListCell   *lc;
 	bool		timing_set = false;
-
-	/* Initialize ExplainState. */
-	ExplainInitState(&es);
 
 	/* Parse options list. */
 	foreach(lc, stmt->options)
@@ -152,30 +190,30 @@ ExplainQuery(ExplainStmt *stmt, const char *queryString,
 		DefElem    *opt = (DefElem *) lfirst(lc);
 
 		if (strcmp(opt->defname, "analyze") == 0)
-			es.analyze = defGetBoolean(opt);
+			es->analyze = defGetBoolean(opt);
 		else if (strcmp(opt->defname, "verbose") == 0)
-			es.verbose = defGetBoolean(opt);
+			es->verbose = defGetBoolean(opt);
 		else if (strcmp(opt->defname, "costs") == 0)
-			es.costs = defGetBoolean(opt);
+			es->costs = defGetBoolean(opt);
 		else if (strcmp(opt->defname, "buffers") == 0)
-			es.buffers = defGetBoolean(opt);
+			es->buffers = defGetBoolean(opt);
 		else if (strcmp(opt->defname, "timing") == 0)
 		{
 			timing_set = true;
-			es.timing = defGetBoolean(opt);
+			es->timing = defGetBoolean(opt);
 		}
 		else if (strcmp(opt->defname, "format") == 0)
 		{
 			char	   *p = defGetString(opt);
 
 			if (strcmp(p, "text") == 0)
-				es.format = EXPLAIN_FORMAT_TEXT;
+				es->format = EXPLAIN_FORMAT_TEXT;
 			else if (strcmp(p, "xml") == 0)
-				es.format = EXPLAIN_FORMAT_XML;
+				es->format = EXPLAIN_FORMAT_XML;
 			else if (strcmp(p, "json") == 0)
-				es.format = EXPLAIN_FORMAT_JSON;
+				es->format = EXPLAIN_FORMAT_JSON;
 			else if (strcmp(p, "yaml") == 0)
-				es.format = EXPLAIN_FORMAT_YAML;
+				es->format = EXPLAIN_FORMAT_YAML;
 			else
 				ereport(ERROR,
 						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
@@ -191,19 +229,22 @@ ExplainQuery(ExplainStmt *stmt, const char *queryString,
 							opt->defname)));
 	}
 
-	if (es.buffers && !es.analyze)
+	if (es->buffers && !es->analyze)
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				 errmsg("EXPLAIN option BUFFERS requires ANALYZE")));
 
 	/* if the timing was not set explicitly, set default value */
-	es.timing = (timing_set) ? es.timing : es.analyze;
+	es->timing = (timing_set) ? es->timing : es->analyze;
 
 	/* check that timing is used with EXPLAIN ANALYZE */
-	if (es.timing && !es.analyze)
+	if (es->timing && !es->analyze)
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				 errmsg("EXPLAIN option TIMING requires ANALYZE")));
+
+	/* currently, summary option is not exposed to users; just set it */
+	es->summary = es->analyze;
 
 	/*
 	 * Parse analysis was done already, but we still have to run the rule
@@ -212,7 +253,7 @@ ExplainQuery(ExplainStmt *stmt, const char *queryString,
 	 * plancache.c.
 	 *
 	 * Because the rewriter and planner tend to scribble on the input, we make
-	 * a preliminary copy of the source querytree.	This prevents problems in
+	 * a preliminary copy of the source querytree.  This prevents problems in
 	 * the case that the EXPLAIN is in a portal or plpgsql function and is
 	 * executed repeatedly.  (See also the same hack in DECLARE CURSOR and
 	 * PREPARE.)  XXX FIXME someday.
@@ -221,7 +262,7 @@ ExplainQuery(ExplainStmt *stmt, const char *queryString,
 	rewritten = QueryRewrite((Query *) copyObject(stmt->query));
 
 	/* emit opening boilerplate */
-	ExplainBeginOutput(&es);
+	ExplainBeginOutput(es);
 
 	if (rewritten == NIL)
 	{
@@ -229,8 +270,8 @@ ExplainQuery(ExplainStmt *stmt, const char *queryString,
 		 * In the case of an INSTEAD NOTHING, tell at least that.  But in
 		 * non-text format, the output is delimited, so this isn't necessary.
 		 */
-		if (es.format == EXPLAIN_FORMAT_TEXT)
-			appendStringInfoString(es.str, "Query rewrites to nothing\n");
+		if (es->format == EXPLAIN_FORMAT_TEXT)
+			appendStringInfoString(es->str, "Query rewrites to nothing\n");
 	}
 	else
 	{
@@ -239,41 +280,44 @@ ExplainQuery(ExplainStmt *stmt, const char *queryString,
 		/* Explain every plan */
 		foreach(l, rewritten)
 		{
-			ExplainOneQuery((Query *) lfirst(l), NULL, &es,
+			ExplainOneQuery((Query *) lfirst(l), NULL, es,
 							queryString, params);
 
 			/* Separate plans with an appropriate separator */
 			if (lnext(l) != NULL)
-				ExplainSeparatePlans(&es);
+				ExplainSeparatePlans(es);
 		}
 	}
 
 	/* emit closing boilerplate */
-	ExplainEndOutput(&es);
-	Assert(es.indent == 0);
+	ExplainEndOutput(es);
+	Assert(es->indent == 0);
 
 	/* output tuples */
 	tstate = begin_tup_output_tupdesc(dest, ExplainResultDesc(stmt));
-	if (es.format == EXPLAIN_FORMAT_TEXT)
-		do_text_output_multiline(tstate, es.str->data);
+	if (es->format == EXPLAIN_FORMAT_TEXT)
+		do_text_output_multiline(tstate, es->str->data);
 	else
-		do_text_output_oneline(tstate, es.str->data);
+		do_text_output_oneline(tstate, es->str->data);
 	end_tup_output(tstate);
 
-	pfree(es.str->data);
+	pfree(es->str->data);
 }
 
 /*
- * Initialize ExplainState.
+ * Create a new ExplainState struct initialized with default options.
  */
-void
-ExplainInitState(ExplainState *es)
+ExplainState *
+NewExplainState(void)
 {
-	/* Set default options. */
-	memset(es, 0, sizeof(ExplainState));
+	ExplainState *es = (ExplainState *) palloc0(sizeof(ExplainState));
+
+	/* Set default options (most fields can be left as zeroes). */
 	es->costs = true;
 	/* Prepare output buffer. */
 	es->str = makeStringInfo();
+
+	return es;
 }
 
 /*
@@ -385,12 +429,19 @@ ExplainOneQuery(Query *query, IntoClause *into, ExplainState *es,
 	else
 	{
 		PlannedStmt *plan;
+		instr_time	planstart,
+					planduration;
+
+		INSTR_TIME_SET_CURRENT(planstart);
 
 		/* plan the query */
 		plan = pg_plan_query(query, 0, params);
 
+		INSTR_TIME_SET_CURRENT(planduration);
+		INSTR_TIME_SUBTRACT(planduration, planstart);
+
 		/* run it (if needed) and produce output */
-		ExplainOnePlan(plan, into, es, queryString, params);
+		ExplainOnePlan(plan, into, es, queryString, params, &planduration);
 	}
 }
 
@@ -467,7 +518,8 @@ ExplainOneUtility(Node *utilityStmt, IntoClause *into, ExplainState *es,
  */
 void
 ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
-			   const char *queryString, ParamListInfo params)
+			   const char *queryString, ParamListInfo params,
+			   const instr_time *planduration)
 {
 	DestReceiver *dest;
 	QueryDesc  *queryDesc;
@@ -488,7 +540,13 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 		instrument_option |= INSTRUMENT_BUFFERS;
 
 	/*
+<<<<<<< HEAD
 	 * Start timing.
+=======
+	 * We always collect timing for the entire statement, even when node-level
+	 * timing is off, so we don't look at es->timing here.  (We could skip
+	 * this if !es->summary, but it's hardly worth the complication.)
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	 */
 	INSTR_TIME_SET_CURRENT(starttime);
 
@@ -583,8 +641,20 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 	/* Create textual dump of plan tree */
 	ExplainPrintPlan(es, queryDesc);
 
+	if (es->summary && planduration)
+	{
+		double		plantime = INSTR_TIME_GET_DOUBLE(*planduration);
+
+		if (es->format == EXPLAIN_FORMAT_TEXT)
+			appendStringInfo(es->str, "Planning time: %.3f ms\n",
+							 1000.0 * plantime);
+		else
+			ExplainPropertyFloat("Planning Time", 1000.0 * plantime, 3, es);
+	}
+
 	/* Print info about runtime of triggers */
 	if (es->analyze)
+<<<<<<< HEAD
 	{
 		ResultRelInfo *rInfo;
 		bool		show_relname;
@@ -616,6 +686,9 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 
 		ExplainCloseGroup("Triggers", "Triggers", false, es);
 	}
+=======
+		ExplainPrintTriggers(es, queryDesc);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
     /*
      * Display per-slice and whole-query statistics.
@@ -652,7 +725,7 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 
 	/*
 	 * Close down the query and free resources.  Include time for this in the
-	 * total runtime (although it should be pretty minimal).
+	 * total execution time (although it should be pretty minimal).
 	 */
 	INSTR_TIME_SET_CURRENT(starttime);
 
@@ -668,13 +741,13 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 
 	totaltime += elapsed_time(&starttime);
 
-	if (es->analyze)
+	if (es->summary)
 	{
 		if (es->format == EXPLAIN_FORMAT_TEXT)
-			appendStringInfo(es->str, "Total runtime: %.3f ms\n",
+			appendStringInfo(es->str, "Execution time: %.3f ms\n",
 							 1000.0 * totaltime);
 		else
-			ExplainPropertyFloat("Total Runtime", 1000.0 * totaltime,
+			ExplainPropertyFloat("Execution Time", 1000.0 * totaltime,
 								 3, es);
 	}
 
@@ -686,7 +759,7 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
  *	  convert a QueryDesc's plan tree to text and append it to es->str
  *
  * The caller should have set up the options fields of *es, as well as
- * initializing the output buffer es->str.	Other fields in *es are
+ * initializing the output buffer es->str.  Other fields in *es are
  * initialized here.
  *
  * NB: will not work on utility statements
@@ -694,11 +767,16 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 void
 ExplainPrintPlan(ExplainState *es, QueryDesc *queryDesc)
 {
+<<<<<<< HEAD
 	EState     *estate = queryDesc->estate;
+=======
+	Bitmapset  *rels_used = NULL;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	Assert(queryDesc->plannedstmt != NULL);
 	es->pstmt = queryDesc->plannedstmt;
 	es->rtable = queryDesc->plannedstmt->rtable;
+<<<<<<< HEAD
 	es->showstatctx = queryDesc->showstatctx;
 
 	/* CDB: Find slice table entry for the root slice. */
@@ -718,7 +796,48 @@ ExplainPrintPlan(ExplainState *es, QueryDesc *queryDesc)
                                      es->showstatctx);
 	}
 
+=======
+	ExplainPreScanNode(queryDesc->planstate, &rels_used);
+	es->rtable_names = select_rtable_names_for_explain(es->rtable, rels_used);
+	es->deparse_cxt = deparse_context_for_plan_rtable(es->rtable,
+													  es->rtable_names);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	ExplainNode(queryDesc->planstate, NIL, NULL, NULL, es);
+}
+
+/*
+ * ExplainPrintTriggers -
+ *	  convert a QueryDesc's trigger statistics to text and append it to
+ *	  es->str
+ *
+ * The caller should have set up the options fields of *es, as well as
+ * initializing the output buffer es->str.  Other fields in *es are
+ * initialized here.
+ */
+void
+ExplainPrintTriggers(ExplainState *es, QueryDesc *queryDesc)
+{
+	ResultRelInfo *rInfo;
+	bool		show_relname;
+	int			numrels = queryDesc->estate->es_num_result_relations;
+	List	   *targrels = queryDesc->estate->es_trig_target_relations;
+	int			nr;
+	ListCell   *l;
+
+	ExplainOpenGroup("Triggers", "Triggers", false, es);
+
+	show_relname = (numrels > 1 || targrels != NIL);
+	rInfo = queryDesc->estate->es_result_relations;
+	for (nr = 0; nr < numrels; rInfo++, nr++)
+		report_triggers(rInfo, show_relname, es);
+
+	foreach(l, targrels)
+	{
+		rInfo = (ResultRelInfo *) lfirst(l);
+		report_triggers(rInfo, show_relname, es);
+	}
+
+	ExplainCloseGroup("Triggers", "Triggers", false, es);
 }
 
 /*
@@ -873,6 +992,142 @@ show_dispatch_info(Slice *slice, ExplainState *es)
 }
 
 /*
+ * ExplainPreScanNode -
+ *	  Prescan the planstate tree to identify which RTEs are referenced
+ *
+ * Adds the relid of each referenced RTE to *rels_used.  The result controls
+ * which RTEs are assigned aliases by select_rtable_names_for_explain.
+ * This ensures that we don't confusingly assign un-suffixed aliases to RTEs
+ * that never appear in the EXPLAIN output (such as inheritance parents).
+ */
+static void
+ExplainPreScanNode(PlanState *planstate, Bitmapset **rels_used)
+{
+	Plan	   *plan = planstate->plan;
+
+	switch (nodeTag(plan))
+	{
+		case T_SeqScan:
+		case T_IndexScan:
+		case T_IndexOnlyScan:
+		case T_BitmapHeapScan:
+		case T_TidScan:
+		case T_SubqueryScan:
+		case T_FunctionScan:
+		case T_ValuesScan:
+		case T_CteScan:
+		case T_WorkTableScan:
+		case T_SampleScan:
+			*rels_used = bms_add_member(*rels_used,
+										((Scan *) plan)->scanrelid);
+			break;
+		case T_ForeignScan:
+			*rels_used = bms_add_members(*rels_used,
+										 ((ForeignScan *) plan)->fs_relids);
+			break;
+		case T_CustomScan:
+			*rels_used = bms_add_members(*rels_used,
+									   ((CustomScan *) plan)->custom_relids);
+			break;
+		case T_ModifyTable:
+			*rels_used = bms_add_member(*rels_used,
+									((ModifyTable *) plan)->nominalRelation);
+			if (((ModifyTable *) plan)->exclRelRTI)
+				*rels_used = bms_add_member(*rels_used,
+										 ((ModifyTable *) plan)->exclRelRTI);
+			break;
+		default:
+			break;
+	}
+
+	/* initPlan-s */
+	if (planstate->initPlan)
+		ExplainPreScanSubPlans(planstate->initPlan, rels_used);
+
+	/* lefttree */
+	if (outerPlanState(planstate))
+		ExplainPreScanNode(outerPlanState(planstate), rels_used);
+
+	/* righttree */
+	if (innerPlanState(planstate))
+		ExplainPreScanNode(innerPlanState(planstate), rels_used);
+
+	/* special child plans */
+	switch (nodeTag(plan))
+	{
+		case T_ModifyTable:
+			ExplainPreScanMemberNodes(((ModifyTable *) plan)->plans,
+								  ((ModifyTableState *) planstate)->mt_plans,
+									  rels_used);
+			break;
+		case T_Append:
+			ExplainPreScanMemberNodes(((Append *) plan)->appendplans,
+									((AppendState *) planstate)->appendplans,
+									  rels_used);
+			break;
+		case T_MergeAppend:
+			ExplainPreScanMemberNodes(((MergeAppend *) plan)->mergeplans,
+								((MergeAppendState *) planstate)->mergeplans,
+									  rels_used);
+			break;
+		case T_BitmapAnd:
+			ExplainPreScanMemberNodes(((BitmapAnd *) plan)->bitmapplans,
+								 ((BitmapAndState *) planstate)->bitmapplans,
+									  rels_used);
+			break;
+		case T_BitmapOr:
+			ExplainPreScanMemberNodes(((BitmapOr *) plan)->bitmapplans,
+								  ((BitmapOrState *) planstate)->bitmapplans,
+									  rels_used);
+			break;
+		case T_SubqueryScan:
+			ExplainPreScanNode(((SubqueryScanState *) planstate)->subplan,
+							   rels_used);
+			break;
+		default:
+			break;
+	}
+
+	/* subPlan-s */
+	if (planstate->subPlan)
+		ExplainPreScanSubPlans(planstate->subPlan, rels_used);
+}
+
+/*
+ * Prescan the constituent plans of a ModifyTable, Append, MergeAppend,
+ * BitmapAnd, or BitmapOr node.
+ *
+ * Note: we don't actually need to examine the Plan list members, but
+ * we need the list in order to determine the length of the PlanState array.
+ */
+static void
+ExplainPreScanMemberNodes(List *plans, PlanState **planstates,
+						  Bitmapset **rels_used)
+{
+	int			nplans = list_length(plans);
+	int			j;
+
+	for (j = 0; j < nplans; j++)
+		ExplainPreScanNode(planstates[j], rels_used);
+}
+
+/*
+ * Prescan a list of SubPlans (or initPlans, which also use SubPlan nodes).
+ */
+static void
+ExplainPreScanSubPlans(List *plans, Bitmapset **rels_used)
+{
+	ListCell   *lst;
+
+	foreach(lst, plans)
+	{
+		SubPlanState *sps = (SubPlanState *) lfirst(lst);
+
+		ExplainPreScanNode(sps->planstate, rels_used);
+	}
+}
+
+/*
  * ExplainNode -
  *	  Appends a description of a plan tree to es->str
  *
@@ -909,6 +1164,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
 	const char *sname;			/* node type name for non-text output */
 	const char *strategy = NULL;
 	const char *operation = NULL;
+	const char *custom_name = NULL;
 	int			save_indent = es->indent;
 	bool		haschildren;
 	bool		skip_outer=false;
@@ -1091,6 +1347,31 @@ ExplainNode(PlanState *planstate, List *ancestors,
 		break;
 		case T_ShareInputScan:
 			pname = sname = "Shared Scan";
+			break;
+		case T_CustomScan:
+			sname = "Custom Scan";
+			custom_name = ((CustomScan *) plan)->methods->CustomName;
+			if (custom_name)
+				pname = psprintf("Custom Scan (%s)", custom_name);
+			else
+				pname = sname;
+			break;
+		case T_SampleScan:
+			{
+				/*
+				 * Fetch the tablesample method name from RTE.
+				 *
+				 * It would be nice to also show parameters, but since we
+				 * support arbitrary expressions as parameter it might get
+				 * quite messy.
+				 */
+				RangeTblEntry *rte;
+
+				rte = rt_fetch(((SampleScan *) plan)->scanrelid, es->rtable);
+				custom_name = get_tablesample_method_name(rte->tablesample->tsmid);
+				pname = psprintf("Sample Scan (%s)", custom_name);
+				sname = "Sample Scan";
+			}
 			break;
 		case T_Material:
 			pname = sname = "Materialize";
@@ -1289,8 +1570,13 @@ ExplainNode(PlanState *planstate, List *ancestors,
 			ExplainPropertyText("Parent Relationship", relationship, es);
 		if (plan_name)
 			ExplainPropertyText("Subplan Name", plan_name, es);
+<<<<<<< HEAD
 
 		show_dispatch_info(es->currentSlice, es);
+=======
+		if (custom_name)
+			ExplainPropertyText("Custom Plan Provider", custom_name, es);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	}
 
 	switch (nodeTag(plan))
@@ -1312,7 +1598,14 @@ ExplainNode(PlanState *planstate, List *ancestors,
 		case T_ValuesScan:
 		case T_CteScan:
 		case T_WorkTableScan:
+			ExplainScanTarget((Scan *) plan, es);
+			break;
 		case T_ForeignScan:
+		case T_CustomScan:
+			if (((Scan *) plan)->scanrelid > 0)
+				ExplainScanTarget((Scan *) plan, es);
+			break;
+		case T_SampleScan:
 			ExplainScanTarget((Scan *) plan, es);
 			break;
 		case T_IndexScan:
@@ -1393,7 +1686,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
 					if (((Join *) plan)->jointype != JOIN_INNER)
 						appendStringInfo(es->str, " %s Join", jointype);
 					else if (!IsA(plan, NestLoop))
-						appendStringInfo(es->str, " Join");
+						appendStringInfoString(es->str, " Join");
 				}
 				else
 					ExplainPropertyText("Join Type", jointype, es);
@@ -1490,6 +1783,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
 		}
 	}
 
+<<<<<<< HEAD
 	if (ResManagerPrintOperatorMemoryLimits())
 	{
 		ExplainPropertyInteger("operatorMem", PlanStateOperatorMemKB(planstate), es);
@@ -1498,6 +1792,23 @@ ExplainNode(PlanState *planstate, List *ancestors,
 	/* GPDB_90_MERGE_FIXME: In GPDB, these are printed differently. But does that work
 	 * with the new XML/YAML EXPLAIN output */
 	if (planstate->instrument && planstate->instrument->nloops > 0)
+=======
+	/*
+	 * We have to forcibly clean up the instrumentation state because we
+	 * haven't done ExecutorEnd yet.  This is pretty grotty ...
+	 *
+	 * Note: contrib/auto_explain could cause instrumentation to be set up
+	 * even though we didn't ask for it here.  Be careful not to print any
+	 * instrumentation results the user didn't ask for.  But we do the
+	 * InstrEndLoop call anyway, if possible, to reduce the number of cases
+	 * auto_explain has to contend with.
+	 */
+	if (planstate->instrument)
+		InstrEndLoop(planstate->instrument);
+
+	if (es->analyze &&
+		planstate->instrument && planstate->instrument->nloops > 0)
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	{
  		double		nloops = planstate->instrument->nloops;
 		double		startup_sec = 1000.0 * planstate->instrument->startup / nloops;
@@ -1506,7 +1817,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
 
 		if (es->format == EXPLAIN_FORMAT_TEXT)
 		{
-			if (planstate->instrument->need_timer)
+			if (es->timing)
 				appendStringInfo(es->str,
 							" (actual time=%.3f..%.3f rows=%.0f loops=%.0f)",
 								 startup_sec, total_sec, rows, nloops);
@@ -1517,7 +1828,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
 		}
 		else
 		{
-			if (planstate->instrument->need_timer)
+			if (es->timing)
 			{
 				ExplainPropertyFloat("Actual Startup Time", startup_sec, 3, es);
 				ExplainPropertyFloat("Actual Total Time", total_sec, 3, es);
@@ -1528,20 +1839,18 @@ ExplainNode(PlanState *planstate, List *ancestors,
 	}
 	else if (es->analyze)
 	{
-
 		if (es->format == EXPLAIN_FORMAT_TEXT)
-			appendStringInfo(es->str, " (never executed)");
-		else if (planstate->instrument->need_timer)
-		{
-			ExplainPropertyFloat("Actual Startup Time", 0.0, 3, es);
-			ExplainPropertyFloat("Actual Total Time", 0.0, 3, es);
-		}
+			appendStringInfoString(es->str, " (never executed)");
 		else
 		{
+			if (es->timing)
+			{
+				ExplainPropertyFloat("Actual Startup Time", 0.0, 3, es);
+				ExplainPropertyFloat("Actual Total Time", 0.0, 3, es);
+			}
 			ExplainPropertyFloat("Actual Rows", 0.0, 0, es);
 			ExplainPropertyFloat("Actual Loops", 0.0, 0, es);
 		}
-
 	}
 
 	/* in text format, first line ends here */
@@ -1612,9 +1921,19 @@ ExplainNode(PlanState *planstate, List *ancestors,
 			if (bitmapqualorig)
 				show_instrumentation_count("Rows Removed by Index Recheck", 2,
 										   planstate, es);
+<<<<<<< HEAD
 		}
 
 			/* FALL THRU */
+=======
+			show_scan_qual(plan->qual, "Filter", planstate, ancestors, es);
+			if (plan->qual)
+				show_instrumentation_count("Rows Removed by Filter", 1,
+										   planstate, es);
+			if (es->analyze)
+				show_tidbitmap_info((BitmapHeapScanState *) planstate, es);
+			break;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		case T_SeqScan:
 		case T_ExternalScan:
 		case T_AppendOnlyScan:
@@ -1625,6 +1944,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
 		case T_CteScan:
 		case T_WorkTableScan:
 		case T_SubqueryScan:
+		case T_SampleScan:
 			show_scan_qual(plan->qual, "Filter", planstate, ancestors, es);
 			if (plan->qual)
 				show_instrumentation_count("Rows Removed by Filter", 1,
@@ -1632,9 +1952,21 @@ ExplainNode(PlanState *planstate, List *ancestors,
 			break;
 		case T_FunctionScan:
 			if (es->verbose)
-				show_expression(((FunctionScan *) plan)->funcexpr,
+			{
+				List	   *fexprs = NIL;
+				ListCell   *lc;
+
+				foreach(lc, ((FunctionScan *) plan)->functions)
+				{
+					RangeTblFunction *rtfunc = (RangeTblFunction *) lfirst(lc);
+
+					fexprs = lappend(fexprs, rtfunc->funcexpr);
+				}
+				/* We rely on show_expression to insert commas as needed */
+				show_expression((Node *) fexprs,
 								"Function Call", planstate, ancestors,
 								es->verbose, es);
+			}
 			show_scan_qual(plan->qual, "Filter", planstate, ancestors, es);
 			if (plan->qual)
 				show_instrumentation_count("Rows Removed by Filter", 1,
@@ -1663,6 +1995,18 @@ ExplainNode(PlanState *planstate, List *ancestors,
 				show_instrumentation_count("Rows Removed by Filter", 1,
 										   planstate, es);
 			show_foreignscan_info((ForeignScanState *) planstate, es);
+			break;
+		case T_CustomScan:
+			{
+				CustomScanState *css = (CustomScanState *) planstate;
+
+				show_scan_qual(plan->qual, "Filter", planstate, ancestors, es);
+				if (plan->qual)
+					show_instrumentation_count("Rows Removed by Filter", 1,
+											   planstate, es);
+				if (css->methods->ExplainCustomScan)
+					css->methods->ExplainCustomScan(css, ancestors, es);
+			}
 			break;
 		case T_NestLoop:
 			show_upper_qual(((NestLoop *) plan)->join.joinqual,
@@ -1713,6 +2057,17 @@ ExplainNode(PlanState *planstate, List *ancestors,
 			break;
 		}
 		case T_Agg:
+<<<<<<< HEAD
+=======
+			show_agg_keys((AggState *) planstate, ancestors, es);
+			show_upper_qual(plan->qual, "Filter", planstate, ancestors, es);
+			if (plan->qual)
+				show_instrumentation_count("Rows Removed by Filter", 1,
+										   planstate, es);
+			break;
+		case T_Group:
+			show_group_keys((GroupState *) planstate, ancestors, es);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			show_upper_qual(plan->qual, "Filter", planstate, ancestors, es);
 			if (plan->qual)
 				show_instrumentation_count("Rows Removed by Filter", 1,
@@ -1753,6 +2108,10 @@ ExplainNode(PlanState *planstate, List *ancestors,
 				show_instrumentation_count("Rows Removed by Filter", 1,
 										   planstate, es);
 			break;
+		case T_ModifyTable:
+			show_modifytable_info((ModifyTableState *) planstate, ancestors,
+								  es);
+			break;
 		case T_Hash:
 			show_hash_info((HashState *) planstate, es);
 			break;
@@ -1788,7 +2147,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
 		cdbexplain_showExecStats(planstate, es);
 
 	/* Show buffer usage */
-	if (es->buffers)
+	if (es->buffers && planstate->instrument)
 	{
 		const BufferUsage *usage = &planstate->instrument->bufusage;
 
@@ -1903,6 +2262,8 @@ ExplainNode(PlanState *planstate, List *ancestors,
 		IsA(plan, BitmapAnd) ||
 		IsA(plan, BitmapOr) ||
 		IsA(plan, SubqueryScan) ||
+		(IsA(planstate, CustomScanState) &&
+		 ((CustomScanState *) planstate)->custom_ps != NIL) ||
 		planstate->subPlan;
 	if (haschildren)
 	{
@@ -1971,6 +2332,10 @@ ExplainNode(PlanState *planstate, List *ancestors,
 			ExplainNode(((SubqueryScanState *) planstate)->subplan, ancestors,
 						"Subquery", NULL, es);
 			break;
+		case T_CustomScan:
+			ExplainCustomChildren((CustomScanState *) planstate,
+								  ancestors, es);
+			break;
 		default:
 			break;
 	}
@@ -2022,9 +2387,9 @@ show_plan_tlist(PlanState *planstate, List *ancestors, ExplainState *es)
 		return;
 
 	/* Set up deparsing context */
-	context = deparse_context_for_planstate((Node *) planstate,
-											ancestors,
-											es->rtable);
+	context = set_deparse_context_planstate(es->deparse_cxt,
+											(Node *) planstate,
+											ancestors);
 	useprefix = list_length(es->rtable) > 1;
 
 	/* Deparse each result column (we now include resjunk ones) */
@@ -2053,9 +2418,9 @@ show_expression(Node *node, const char *qlabel,
 	char	   *exprstr;
 
 	/* Set up deparsing context */
-	context = deparse_context_for_planstate((Node *) planstate,
-											ancestors,
-											es->rtable);
+	context = set_deparse_context_planstate(es->deparse_cxt,
+											(Node *) planstate,
+											ancestors);
 
 	/* Deparse the expression */
 	exprstr = deparse_expr_sweet(node, context, useprefix, false);
@@ -2122,6 +2487,7 @@ show_sort_keys(SortState *sortstate, List *ancestors, ExplainState *es)
 	Sort	   *plan = (Sort *) sortstate->ss.ps.plan;
 	const char *SortKeystr;
 
+<<<<<<< HEAD
 	if (sortstate->noduplicates)
 		SortKeystr = "Sort Key (Distinct)";
 	else
@@ -2129,6 +2495,12 @@ show_sort_keys(SortState *sortstate, List *ancestors, ExplainState *es)
 
 	show_sort_group_keys((PlanState *) sortstate, SortKeystr,
 						 plan->numCols, plan->sortColIdx,
+=======
+	show_sort_group_keys((PlanState *) sortstate, "Sort Key",
+						 plan->numCols, plan->sortColIdx,
+						 plan->sortOperators, plan->collations,
+						 plan->nullsFirst,
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 						 ancestors, es);
 }
 
@@ -2238,28 +2610,183 @@ show_merge_append_keys(MergeAppendState *mstate, List *ancestors,
 
 	show_sort_group_keys((PlanState *) mstate, "Sort Key",
 						 plan->numCols, plan->sortColIdx,
+<<<<<<< HEAD
+=======
+						 plan->sortOperators, plan->collations,
+						 plan->nullsFirst,
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 						 ancestors, es);
 }
 
+/*
+ * Show the grouping keys for an Agg node.
+ */
+static void
+<<<<<<< HEAD
+show_sort_group_keys(PlanState *planstate, const char *qlabel,
+					 int nkeys, AttrNumber *keycols,
+=======
+show_agg_keys(AggState *astate, List *ancestors,
+			  ExplainState *es)
+{
+	Agg		   *plan = (Agg *) astate->ss.ps.plan;
+
+	if (plan->numCols > 0 || plan->groupingSets)
+	{
+		/* The key columns refer to the tlist of the child plan */
+		ancestors = lcons(astate, ancestors);
+
+		if (plan->groupingSets)
+			show_grouping_sets(outerPlanState(astate), plan, ancestors, es);
+		else
+			show_sort_group_keys(outerPlanState(astate), "Group Key",
+								 plan->numCols, plan->grpColIdx,
+								 NULL, NULL, NULL,
+								 ancestors, es);
+
+		ancestors = list_delete_first(ancestors);
+	}
+}
+
+static void
+show_grouping_sets(PlanState *planstate, Agg *agg,
+				   List *ancestors, ExplainState *es)
+{
+	List	   *context;
+	bool		useprefix;
+	ListCell   *lc;
+
+	/* Set up deparsing context */
+	context = set_deparse_context_planstate(es->deparse_cxt,
+											(Node *) planstate,
+											ancestors);
+	useprefix = (list_length(es->rtable) > 1 || es->verbose);
+
+	ExplainOpenGroup("Grouping Sets", "Grouping Sets", false, es);
+
+	show_grouping_set_keys(planstate, agg, NULL,
+						   context, useprefix, ancestors, es);
+
+	foreach(lc, agg->chain)
+	{
+		Agg		   *aggnode = lfirst(lc);
+		Sort	   *sortnode = (Sort *) aggnode->plan.lefttree;
+
+		show_grouping_set_keys(planstate, aggnode, sortnode,
+							   context, useprefix, ancestors, es);
+	}
+
+	ExplainCloseGroup("Grouping Sets", "Grouping Sets", false, es);
+}
+
+static void
+show_grouping_set_keys(PlanState *planstate,
+					   Agg *aggnode, Sort *sortnode,
+					   List *context, bool useprefix,
+					   List *ancestors, ExplainState *es)
+{
+	Plan	   *plan = planstate->plan;
+	char	   *exprstr;
+	ListCell   *lc;
+	List	   *gsets = aggnode->groupingSets;
+	AttrNumber *keycols = aggnode->grpColIdx;
+
+	ExplainOpenGroup("Grouping Set", NULL, true, es);
+
+	if (sortnode)
+	{
+		show_sort_group_keys(planstate, "Sort Key",
+							 sortnode->numCols, sortnode->sortColIdx,
+							 sortnode->sortOperators, sortnode->collations,
+							 sortnode->nullsFirst,
+							 ancestors, es);
+		if (es->format == EXPLAIN_FORMAT_TEXT)
+			es->indent++;
+	}
+
+	ExplainOpenGroup("Group Keys", "Group Keys", false, es);
+
+	foreach(lc, gsets)
+	{
+		List	   *result = NIL;
+		ListCell   *lc2;
+
+		foreach(lc2, (List *) lfirst(lc))
+		{
+			Index		i = lfirst_int(lc2);
+			AttrNumber	keyresno = keycols[i];
+			TargetEntry *target = get_tle_by_resno(plan->targetlist,
+												   keyresno);
+
+			if (!target)
+				elog(ERROR, "no tlist entry for key %d", keyresno);
+			/* Deparse the expression, showing any top-level cast */
+			exprstr = deparse_expression((Node *) target->expr, context,
+										 useprefix, true);
+
+			result = lappend(result, exprstr);
+		}
+
+		if (!result && es->format == EXPLAIN_FORMAT_TEXT)
+			ExplainPropertyText("Group Key", "()", es);
+		else
+			ExplainPropertyListNested("Group Key", result, es);
+	}
+
+	ExplainCloseGroup("Group Keys", "Group Keys", false, es);
+
+	if (sortnode && es->format == EXPLAIN_FORMAT_TEXT)
+		es->indent--;
+
+	ExplainCloseGroup("Grouping Set", NULL, true, es);
+}
+
+/*
+ * Show the grouping keys for a Group node.
+ */
+static void
+show_group_keys(GroupState *gstate, List *ancestors,
+				ExplainState *es)
+{
+	Group	   *plan = (Group *) gstate->ss.ps.plan;
+
+	/* The key columns refer to the tlist of the child plan */
+	ancestors = lcons(gstate, ancestors);
+	show_sort_group_keys(outerPlanState(gstate), "Group Key",
+						 plan->numCols, plan->grpColIdx,
+						 NULL, NULL, NULL,
+						 ancestors, es);
+	ancestors = list_delete_first(ancestors);
+}
+
+/*
+ * Common code to show sort/group keys, which are represented in plan nodes
+ * as arrays of targetlist indexes.  If it's a sort key rather than a group
+ * key, also pass sort operators/collations/nullsFirst arrays.
+ */
 static void
 show_sort_group_keys(PlanState *planstate, const char *qlabel,
 					 int nkeys, AttrNumber *keycols,
+					 Oid *sortOperators, Oid *collations, bool *nullsFirst,
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 					 List *ancestors, ExplainState *es)
 {
 	Plan	   *plan = planstate->plan;
 	List	   *context;
 	List	   *result = NIL;
+	StringInfoData sortkeybuf;
 	bool		useprefix;
 	int			keyno;
-	char	   *exprstr;
 
 	if (nkeys <= 0)
 		return;
 
+	initStringInfo(&sortkeybuf);
+
 	/* Set up deparsing context */
-	context = deparse_context_for_planstate((Node *) planstate,
-											ancestors,
-											es->rtable);
+	context = set_deparse_context_planstate(es->deparse_cxt,
+											(Node *) planstate,
+											ancestors);
 	useprefix = (list_length(es->rtable) > 1 || es->verbose);
 
 	for (keyno = 0; keyno < nkeys; keyno++)
@@ -2268,16 +2795,119 @@ show_sort_group_keys(PlanState *planstate, const char *qlabel,
 		AttrNumber	keyresno = keycols[keyno];
 		TargetEntry *target = get_tle_by_resno(plan->targetlist,
 											   keyresno);
+		char	   *exprstr;
 
 		if (!target)
 			elog(ERROR, "no tlist entry for key %d", keyresno);
 		/* Deparse the expression, showing any top-level cast */
 		exprstr = deparse_expr_sweet((Node *) target->expr, context,
 									 useprefix, true);
-		result = lappend(result, exprstr);
+		resetStringInfo(&sortkeybuf);
+		appendStringInfoString(&sortkeybuf, exprstr);
+		/* Append sort order information, if relevant */
+		if (sortOperators != NULL)
+			show_sortorder_options(&sortkeybuf,
+								   (Node *) target->expr,
+								   sortOperators[keyno],
+								   collations[keyno],
+								   nullsFirst[keyno]);
+		/* Emit one property-list item per sort key */
+		result = lappend(result, pstrdup(sortkeybuf.data));
 	}
 
 	ExplainPropertyList(qlabel, result, es);
+<<<<<<< HEAD
+=======
+}
+
+/*
+ * Append nondefault characteristics of the sort ordering of a column to buf
+ * (collation, direction, NULLS FIRST/LAST)
+ */
+static void
+show_sortorder_options(StringInfo buf, Node *sortexpr,
+					   Oid sortOperator, Oid collation, bool nullsFirst)
+{
+	Oid			sortcoltype = exprType(sortexpr);
+	bool		reverse = false;
+	TypeCacheEntry *typentry;
+
+	typentry = lookup_type_cache(sortcoltype,
+								 TYPECACHE_LT_OPR | TYPECACHE_GT_OPR);
+
+	/*
+	 * Print COLLATE if it's not default.  There are some cases where this is
+	 * redundant, eg if expression is a column whose declared collation is
+	 * that collation, but it's hard to distinguish that here.
+	 */
+	if (OidIsValid(collation) && collation != DEFAULT_COLLATION_OID)
+	{
+		char	   *collname = get_collation_name(collation);
+
+		if (collname == NULL)
+			elog(ERROR, "cache lookup failed for collation %u", collation);
+		appendStringInfo(buf, " COLLATE %s", quote_identifier(collname));
+	}
+
+	/* Print direction if not ASC, or USING if non-default sort operator */
+	if (sortOperator == typentry->gt_opr)
+	{
+		appendStringInfoString(buf, " DESC");
+		reverse = true;
+	}
+	else if (sortOperator != typentry->lt_opr)
+	{
+		char	   *opname = get_opname(sortOperator);
+
+		if (opname == NULL)
+			elog(ERROR, "cache lookup failed for operator %u", sortOperator);
+		appendStringInfo(buf, " USING %s", opname);
+		/* Determine whether operator would be considered ASC or DESC */
+		(void) get_equality_op_for_ordering_op(sortOperator, &reverse);
+	}
+
+	/* Add NULLS FIRST/LAST only if it wouldn't be default */
+	if (nullsFirst && !reverse)
+	{
+		appendStringInfoString(buf, " NULLS FIRST");
+	}
+	else if (!nullsFirst && reverse)
+	{
+		appendStringInfoString(buf, " NULLS LAST");
+	}
+}
+
+/*
+ * If it's EXPLAIN ANALYZE, show tuplesort stats for a sort node
+ */
+static void
+show_sort_info(SortState *sortstate, ExplainState *es)
+{
+	Assert(IsA(sortstate, SortState));
+	if (es->analyze && sortstate->sort_Done &&
+		sortstate->tuplesortstate != NULL)
+	{
+		Tuplesortstate *state = (Tuplesortstate *) sortstate->tuplesortstate;
+		const char *sortMethod;
+		const char *spaceType;
+		long		spaceUsed;
+
+		tuplesort_get_stats(state, &sortMethod, &spaceType, &spaceUsed);
+
+		if (es->format == EXPLAIN_FORMAT_TEXT)
+		{
+			appendStringInfoSpaces(es->str, es->indent * 2);
+			appendStringInfo(es->str, "Sort Method: %s  %s: %ldkB\n",
+							 sortMethod, spaceType, spaceUsed);
+		}
+		else
+		{
+			ExplainPropertyText("Sort Method", sortMethod, es);
+			ExplainPropertyLong("Sort Space Used", spaceUsed, es);
+			ExplainPropertyText("Sort Space Type", spaceType, es);
+		}
+	}
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 }
 
 /*
@@ -2298,18 +2928,24 @@ show_hash_info(HashState *hashstate, ExplainState *es)
 		if (es->format != EXPLAIN_FORMAT_TEXT)
 		{
 			ExplainPropertyLong("Hash Buckets", hashtable->nbuckets, es);
+			ExplainPropertyLong("Original Hash Buckets",
+								hashtable->nbuckets_original, es);
 			ExplainPropertyLong("Hash Batches", hashtable->nbatch, es);
 			ExplainPropertyLong("Original Hash Batches",
 								hashtable->nbatch_original, es);
 			ExplainPropertyLong("Peak Memory Usage", spacePeakKb, es);
 		}
-		else if (hashtable->nbatch_original != hashtable->nbatch)
+		else if (hashtable->nbatch_original != hashtable->nbatch ||
+				 hashtable->nbuckets_original != hashtable->nbuckets)
 		{
 			appendStringInfoSpaces(es->str, es->indent * 2);
 			appendStringInfo(es->str,
-			"Buckets: %d  Batches: %d (originally %d)  Memory Usage: %ldkB\n",
-							 hashtable->nbuckets, hashtable->nbatch,
-							 hashtable->nbatch_original, spacePeakKb);
+							 "Buckets: %d (originally %d)  Batches: %d (originally %d)  Memory Usage: %ldkB\n",
+							 hashtable->nbuckets,
+							 hashtable->nbuckets_original,
+							 hashtable->nbatch,
+							 hashtable->nbatch_original,
+							 spacePeakKb);
 		}
 		else
 		{
@@ -2318,6 +2954,32 @@ show_hash_info(HashState *hashstate, ExplainState *es)
 						   "Buckets: %d  Batches: %d  Memory Usage: %ldkB\n",
 							 hashtable->nbuckets, hashtable->nbatch,
 							 spacePeakKb);
+		}
+	}
+}
+
+/*
+ * If it's EXPLAIN ANALYZE, show exact/lossy pages for a BitmapHeapScan node
+ */
+static void
+show_tidbitmap_info(BitmapHeapScanState *planstate, ExplainState *es)
+{
+	if (es->format != EXPLAIN_FORMAT_TEXT)
+	{
+		ExplainPropertyLong("Exact Heap Blocks", planstate->exact_pages, es);
+		ExplainPropertyLong("Lossy Heap Blocks", planstate->lossy_pages, es);
+	}
+	else
+	{
+		if (planstate->exact_pages > 0 || planstate->lossy_pages > 0)
+		{
+			appendStringInfoSpaces(es->str, es->indent * 2);
+			appendStringInfoString(es->str, "Heap Blocks:");
+			if (planstate->exact_pages > 0)
+				appendStringInfo(es->str, " exact=%ld", planstate->exact_pages);
+			if (planstate->lossy_pages > 0)
+				appendStringInfo(es->str, " lossy=%ld", planstate->lossy_pages);
+			appendStringInfoChar(es->str, '\n');
 		}
 	}
 }
@@ -2362,7 +3024,8 @@ show_foreignscan_info(ForeignScanState *fsstate, ExplainState *es)
 	FdwRoutine *fdwroutine = fsstate->fdwroutine;
 
 	/* Let the FDW emit whatever fields it wants */
-	fdwroutine->ExplainForeignScan(fsstate, es);
+	if (fdwroutine->ExplainForeignScan != NULL)
+		fdwroutine->ExplainForeignScan(fsstate, es);
 }
 
 /*
@@ -2441,20 +3104,15 @@ ExplainScanTarget(Scan *plan, ExplainState *es)
 
 /*
  * Show the target of a ModifyTable node
+ *
+ * Here we show the nominal target (ie, the relation that was named in the
+ * original query).  If the actual target(s) is/are different, we'll show them
+ * in show_modifytable_info().
  */
 static void
 ExplainModifyTarget(ModifyTable *plan, ExplainState *es)
 {
-	Index		rti;
-
-	/*
-	 * We show the name of the first target relation.  In multi-target-table
-	 * cases this should always be the parent of the inheritance tree.
-	 */
-	Assert(plan->resultRelations != NIL);
-	rti = linitial_int(plan->resultRelations);
-
-	ExplainTargetRel((Plan *) plan, rti, es);
+	ExplainTargetRel((Plan *) plan, plan->nominalRelation, es);
 }
 
 /*
@@ -2467,9 +3125,16 @@ ExplainTargetRel(Plan *plan, Index rti, ExplainState *es)
 	char	   *namespace = NULL;
 	const char *objecttag = NULL;
 	RangeTblEntry *rte;
+<<<<<<< HEAD
 	int			dynamicScanId = 0;
+=======
+	char	   *refname;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	rte = rt_fetch(rti, es->rtable);
+	refname = (char *) list_nth(es->rtable_names, rti - 1);
+	if (refname == NULL)
+		refname = rte->eref->aliasname;
 
 	switch (nodeTag(plan))
 	{
@@ -2479,6 +3144,8 @@ ExplainTargetRel(Plan *plan, Index rti, ExplainState *es)
 		case T_BitmapHeapScan:
 		case T_TidScan:
 		case T_ForeignScan:
+		case T_CustomScan:
+		case T_SampleScan:
 		case T_ModifyTable:
 		case T_ExternalScan:
 		case T_AppendOnlyScan:
@@ -2504,26 +3171,31 @@ ExplainTargetRel(Plan *plan, Index rti, ExplainState *es)
 			break;
 		case T_FunctionScan:
 			{
-				Node	   *funcexpr;
+				FunctionScan *fscan = (FunctionScan *) plan;
 
 				/* Assert it's on a RangeFunction */
 				Assert(rte->rtekind == RTE_FUNCTION);
 
 				/*
-				 * If the expression is still a function call, we can get the
-				 * real name of the function.  Otherwise, punt (this can
-				 * happen if the optimizer simplified away the function call,
-				 * for example).
+				 * If the expression is still a function call of a single
+				 * function, we can get the real name of the function.
+				 * Otherwise, punt.  (Even if it was a single function call
+				 * originally, the optimizer could have simplified it away.)
 				 */
-				funcexpr = ((FunctionScan *) plan)->funcexpr;
-				if (funcexpr && IsA(funcexpr, FuncExpr))
+				if (list_length(fscan->functions) == 1)
 				{
-					Oid			funcid = ((FuncExpr *) funcexpr)->funcid;
+					RangeTblFunction *rtfunc = (RangeTblFunction *) linitial(fscan->functions);
 
-					objectname = get_func_name(funcid);
-					if (es->verbose)
-						namespace =
-							get_namespace_name(get_func_namespace(funcid));
+					if (IsA(rtfunc->funcexpr, FuncExpr))
+					{
+						FuncExpr   *funcexpr = (FuncExpr *) rtfunc->funcexpr;
+						Oid			funcid = funcexpr->funcid;
+
+						objectname = get_func_name(funcid);
+						if (es->verbose)
+							namespace =
+								get_namespace_name(get_func_namespace(funcid));
+					}
 				}
 				objecttag = "Function Name";
 			}
@@ -2584,6 +3256,7 @@ ExplainTargetRel(Plan *plan, Index rti, ExplainState *es)
 							 quote_identifier(objectname));
 		else if (objectname != NULL)
 			appendStringInfo(es->str, " %s", quote_identifier(objectname));
+<<<<<<< HEAD
 		if (objectname == NULL ||
 			strcmp(rte->eref->aliasname, objectname) != 0)
 			appendStringInfo(es->str, " %s",
@@ -2592,6 +3265,10 @@ ExplainTargetRel(Plan *plan, Index rti, ExplainState *es)
 		if (dynamicScanId != 0)
 			appendStringInfo(es->str, " (dynamic scan id: %d)",
 							 dynamicScanId);
+=======
+		if (objectname == NULL || strcmp(refname, objectname) != 0)
+			appendStringInfo(es->str, " %s", quote_identifier(refname));
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	}
 	else
 	{
@@ -2599,11 +3276,172 @@ ExplainTargetRel(Plan *plan, Index rti, ExplainState *es)
 			ExplainPropertyText(objecttag, objectname, es);
 		if (namespace != NULL)
 			ExplainPropertyText("Schema", namespace, es);
+<<<<<<< HEAD
 		ExplainPropertyText("Alias", rte->eref->aliasname, es);
 
 		if (dynamicScanId != 0)
 			ExplainPropertyInteger("Dynamic Scan Id", dynamicScanId, es);
+=======
+		ExplainPropertyText("Alias", refname, es);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	}
+}
+
+/*
+ * Show extra information for a ModifyTable node
+ *
+ * We have three objectives here.  First, if there's more than one target
+ * table or it's different from the nominal target, identify the actual
+ * target(s).  Second, give FDWs a chance to display extra info about foreign
+ * targets.  Third, show information about ON CONFLICT.
+ */
+static void
+show_modifytable_info(ModifyTableState *mtstate, List *ancestors,
+					  ExplainState *es)
+{
+	ModifyTable *node = (ModifyTable *) mtstate->ps.plan;
+	const char *operation;
+	const char *foperation;
+	bool		labeltargets;
+	int			j;
+	List	   *idxNames = NIL;
+	ListCell   *lst;
+
+	switch (node->operation)
+	{
+		case CMD_INSERT:
+			operation = "Insert";
+			foperation = "Foreign Insert";
+			break;
+		case CMD_UPDATE:
+			operation = "Update";
+			foperation = "Foreign Update";
+			break;
+		case CMD_DELETE:
+			operation = "Delete";
+			foperation = "Foreign Delete";
+			break;
+		default:
+			operation = "???";
+			foperation = "Foreign ???";
+			break;
+	}
+
+	/* Should we explicitly label target relations? */
+	labeltargets = (mtstate->mt_nplans > 1 ||
+					(mtstate->mt_nplans == 1 &&
+	   mtstate->resultRelInfo->ri_RangeTableIndex != node->nominalRelation));
+
+	if (labeltargets)
+		ExplainOpenGroup("Target Tables", "Target Tables", false, es);
+
+	for (j = 0; j < mtstate->mt_nplans; j++)
+	{
+		ResultRelInfo *resultRelInfo = mtstate->resultRelInfo + j;
+		FdwRoutine *fdwroutine = resultRelInfo->ri_FdwRoutine;
+
+		if (labeltargets)
+		{
+			/* Open a group for this target */
+			ExplainOpenGroup("Target Table", NULL, true, es);
+
+			/*
+			 * In text mode, decorate each target with operation type, so that
+			 * ExplainTargetRel's output of " on foo" will read nicely.
+			 */
+			if (es->format == EXPLAIN_FORMAT_TEXT)
+			{
+				appendStringInfoSpaces(es->str, es->indent * 2);
+				appendStringInfoString(es->str,
+									   fdwroutine ? foperation : operation);
+			}
+
+			/* Identify target */
+			ExplainTargetRel((Plan *) node,
+							 resultRelInfo->ri_RangeTableIndex,
+							 es);
+
+			if (es->format == EXPLAIN_FORMAT_TEXT)
+			{
+				appendStringInfoChar(es->str, '\n');
+				es->indent++;
+			}
+		}
+
+		/* Give FDW a chance */
+		if (fdwroutine && fdwroutine->ExplainForeignModify != NULL)
+		{
+			List	   *fdw_private = (List *) list_nth(node->fdwPrivLists, j);
+
+			fdwroutine->ExplainForeignModify(mtstate,
+											 resultRelInfo,
+											 fdw_private,
+											 j,
+											 es);
+		}
+
+		if (labeltargets)
+		{
+			/* Undo the indentation we added in text format */
+			if (es->format == EXPLAIN_FORMAT_TEXT)
+				es->indent--;
+
+			/* Close the group */
+			ExplainCloseGroup("Target Table", NULL, true, es);
+		}
+	}
+
+	/* Gather names of ON CONFLICT arbiter indexes */
+	foreach(lst, node->arbiterIndexes)
+	{
+		char	   *indexname = get_rel_name(lfirst_oid(lst));
+
+		idxNames = lappend(idxNames, indexname);
+	}
+
+	if (node->onConflictAction != ONCONFLICT_NONE)
+	{
+		ExplainProperty("Conflict Resolution",
+						node->onConflictAction == ONCONFLICT_NOTHING ?
+						"NOTHING" : "UPDATE",
+						false, es);
+
+		/*
+		 * Don't display arbiter indexes at all when DO NOTHING variant
+		 * implicitly ignores all conflicts
+		 */
+		if (idxNames)
+			ExplainPropertyList("Conflict Arbiter Indexes", idxNames, es);
+
+		/* ON CONFLICT DO UPDATE WHERE qual is specially displayed */
+		if (node->onConflictWhere)
+		{
+			show_upper_qual((List *) node->onConflictWhere, "Conflict Filter",
+							&mtstate->ps, ancestors, es);
+			show_instrumentation_count("Rows Removed by Conflict Filter", 1, &mtstate->ps, es);
+		}
+
+		/* EXPLAIN ANALYZE display of actual outcome for each tuple proposed */
+		if (es->analyze && mtstate->ps.instrument)
+		{
+			double		total;
+			double		insert_path;
+			double		other_path;
+
+			InstrEndLoop(mtstate->mt_plans[0]->instrument);
+
+			/* count the number of source rows */
+			total = mtstate->mt_plans[0]->instrument->ntuples;
+			other_path = mtstate->ps.instrument->nfiltered2;
+			insert_path = total - other_path;
+
+			ExplainPropertyFloat("Tuples Inserted", insert_path, 0, es);
+			ExplainPropertyFloat("Conflicting Tuples", other_path, 0, es);
+		}
+	}
+
+	if (labeltargets)
+		ExplainCloseGroup("Target Tables", "Target Tables", false, es);
 }
 
 /*
@@ -2659,6 +3497,20 @@ ExplainSubPlans(List *plans, List *ancestors,
 	}
 
 	es->currentSlice = saved_slice;
+}
+
+/*
+ * Explain a list of children of a CustomScan.
+ */
+static void
+ExplainCustomChildren(CustomScanState *css, List *ancestors, ExplainState *es)
+{
+	ListCell   *cell;
+	const char *label =
+		(list_length(css->custom_ps) != 1 ? "children" : "child");
+
+	foreach (cell, css->custom_ps)
+		ExplainNode((PlanState *) lfirst(cell), ancestors, label, NULL, es);
 }
 
 /*
@@ -2727,6 +3579,52 @@ ExplainPropertyList(const char *qlabel, List *data, ExplainState *es)
 				appendStringInfoString(es->str, "- ");
 				escape_yaml(es->str, (const char *) lfirst(lc));
 			}
+			break;
+	}
+}
+
+/*
+ * Explain a property that takes the form of a list of unlabeled items within
+ * another list.  "data" is a list of C strings.
+ */
+void
+ExplainPropertyListNested(const char *qlabel, List *data, ExplainState *es)
+{
+	ListCell   *lc;
+	bool		first = true;
+
+	switch (es->format)
+	{
+		case EXPLAIN_FORMAT_TEXT:
+		case EXPLAIN_FORMAT_XML:
+			ExplainPropertyList(qlabel, data, es);
+			return;
+
+		case EXPLAIN_FORMAT_JSON:
+			ExplainJSONLineEnding(es);
+			appendStringInfoSpaces(es->str, es->indent * 2);
+			appendStringInfoChar(es->str, '[');
+			foreach(lc, data)
+			{
+				if (!first)
+					appendStringInfoString(es->str, ", ");
+				escape_json(es->str, (const char *) lfirst(lc));
+				first = false;
+			}
+			appendStringInfoChar(es->str, ']');
+			break;
+
+		case EXPLAIN_FORMAT_YAML:
+			ExplainYAMLLineStarting(es);
+			appendStringInfoString(es->str, "- [");
+			foreach(lc, data)
+			{
+				if (!first)
+					appendStringInfoString(es->str, ", ");
+				escape_yaml(es->str, (const char *) lfirst(lc));
+				first = false;
+			}
+			appendStringInfoChar(es->str, ']');
 			break;
 	}
 }
@@ -3126,7 +4024,7 @@ ExplainXMLTag(const char *tagname, int flags, ExplainState *es)
 /*
  * Emit a JSON line ending.
  *
- * JSON requires a comma after each property but the last.	To facilitate this,
+ * JSON requires a comma after each property but the last.  To facilitate this,
  * in JSON format, the text emitted for each property begins just prior to the
  * preceding line-break (and comma, if applicable).
  */
@@ -3147,7 +4045,7 @@ ExplainJSONLineEnding(ExplainState *es)
  * YAML lines are ordinarily indented by two spaces per indentation level.
  * The text emitted for each property begins just prior to the preceding
  * line-break, except for the first property in an unlabelled group, for which
- * it begins immediately after the "- " that introduces the group.	The first
+ * it begins immediately after the "- " that introduces the group.  The first
  * property of the group appears on the same line as the opening "- ".
  */
 static void

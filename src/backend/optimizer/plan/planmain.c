@@ -9,9 +9,13 @@
  * shorn of features like subselects, inheritance, aggregates, grouping,
  * and so on.  (Those are the things planner.c deals with.)
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2005-2008, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -22,12 +26,12 @@
  */
 #include "postgres.h"
 
-#include "miscadmin.h"
-#include "optimizer/cost.h"
+#include "optimizer/orclauses.h"
 #include "optimizer/pathnode.h"
 #include "optimizer/paths.h"
 #include "optimizer/placeholder.h"
 #include "optimizer/planmain.h"
+<<<<<<< HEAD
 #include "optimizer/tlist.h"
 #include "utils/selfuncs.h"
 
@@ -39,6 +43,8 @@ static Bitmapset *distcols_in_groupclause(List *gc, Bitmapset *bms);
 
 /* Local functions */
 static void canonicalize_all_pathkeys(PlannerInfo *root);
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 
 /*
@@ -47,88 +53,56 @@ static void canonicalize_all_pathkeys(PlannerInfo *root);
  *	  which may involve joins but not any fancier features.
  *
  * Since query_planner does not handle the toplevel processing (grouping,
- * sorting, etc) it cannot select the best path by itself.	It selects
- * two paths: the cheapest path that produces all the required tuples,
- * independent of any ordering considerations, and the cheapest path that
- * produces the expected fraction of the required tuples in the required
- * ordering, if there is a path that is cheaper for this than just sorting
- * the output of the cheapest overall path.  The caller (grouping_planner)
- * will make the final decision about which to use.
+ * sorting, etc) it cannot select the best path by itself.  Instead, it
+ * returns the RelOptInfo for the top level of joining, and the caller
+ * (grouping_planner) can choose one of the surviving paths for the rel.
+ * Normally it would choose either the rel's cheapest path, or the cheapest
+ * path for the desired sort order.
  *
- * Input parameters:
  * root describes the query to plan
  * tlist is the target list the query should produce
  *		(this is NOT necessarily root->parse->targetList!)
- * tuple_fraction is the fraction of tuples we expect will be retrieved
- * limit_tuples is a hard limit on number of tuples to retrieve,
- *		or -1 if no limit
+ * qp_callback is a function to compute query_pathkeys once it's safe to do so
+ * qp_extra is optional extra data to pass to qp_callback
  *
- * Output parameters:
- * *cheapest_path receives the overall-cheapest path for the query
- * *sorted_path receives the cheapest presorted path for the query,
- *				if any (NULL if there is no useful presorted path)
- * *num_groups receives the estimated number of groups, or 1 if query
- *				does not use grouping
- *
- * Note: the PlannerInfo node also includes a query_pathkeys field, which is
- * both an input and an output of query_planner().	The input value signals
- * query_planner that the indicated sort order is wanted in the final output
- * plan.  But this value has not yet been "canonicalized", since the needed
- * info does not get computed until we scan the qual clauses.  We canonicalize
- * it as soon as that task is done.  (The main reason query_pathkeys is a
- * PlannerInfo field and not a passed parameter is that the low-level routines
- * in indxpath.c need to see it.)
- *
- * Note: the PlannerInfo node includes other pathkeys fields besides
- * query_pathkeys, all of which need to be canonicalized once the info is
- * available.  See canonicalize_all_pathkeys.
- *
- * tuple_fraction is interpreted as follows:
- *	  0: expect all tuples to be retrieved (normal case)
- *	  0 < tuple_fraction < 1: expect the given fraction of tuples available
- *		from the plan to be retrieved
- *	  tuple_fraction >= 1: tuple_fraction is the absolute number of tuples
- *		expected to be retrieved (ie, a LIMIT specification)
- * Note that a nonzero tuple_fraction could come from outer context; it is
- * therefore not redundant with limit_tuples.  We use limit_tuples to determine
- * whether a bounded sort can be used at runtime.
+ * Note: the PlannerInfo node also includes a query_pathkeys field, which
+ * tells query_planner the sort order that is desired in the final output
+ * plan.  This value is *not* available at call time, but is computed by
+ * qp_callback once we have completed merging the query's equivalence classes.
+ * (We cannot construct canonical pathkeys until that's done.)
  */
-void
+RelOptInfo *
 query_planner(PlannerInfo *root, List *tlist,
-			  double tuple_fraction, double limit_tuples,
-			  Path **cheapest_path, Path **sorted_path,
-			  double *num_groups)
+			  query_pathkeys_callback qp_callback, void *qp_extra)
 {
 	Query	   *parse = root->parse;
 	List	   *joinlist;
 	RelOptInfo *final_rel;
-	Path	   *cheapestpath;
-	Path	   *sortedpath;
 	Index		rti;
 	double		total_pages;
 
-	/* Make tuple_fraction, limit_tuples accessible to lower-level routines */
-	root->tuple_fraction = tuple_fraction;
-	root->limit_tuples = limit_tuples;
-
-	*num_groups = 1;			/* default result */
-
 	/*
 	 * If the query has an empty join tree, then it's something easy like
-	 * "SELECT 2+2;" or "INSERT ... VALUES()".	Fall through quickly.
+	 * "SELECT 2+2;" or "INSERT ... VALUES()".  Fall through quickly.
 	 */
 	if (parse->jointree->fromlist == NIL)
 	{
-		/* We need a trivial path result */
-		*cheapest_path = (Path *)
-			create_result_path((List *) parse->jointree->quals);
-		*sorted_path = NULL;
+		/* We need a dummy joinrel to describe the empty set of baserels */
+		final_rel = build_empty_join_rel(root);
+
+		/* The only path for it is a trivial Result path */
+		add_path(final_rel, (Path *)
+				 create_result_path((List *) parse->jointree->quals));
+
+		/* Select cheapest path (pretty easy in this case...) */
+		set_cheapest(final_rel);
 
 		/*
-		 * We still are required to canonicalize any pathkeys, in case it's
-		 * something like "SELECT 2+2 ORDER BY 1".
+		 * We still are required to call qp_callback, in case it's something
+		 * like "SELECT 2+2 ORDER BY 1".
 		 */
 		root->canon_pathkeys = NIL;
+<<<<<<< HEAD
 		canonicalize_all_pathkeys(root);
 
 		{
@@ -142,6 +116,11 @@ query_planner(PlannerInfo *root, List *tlist,
 				CdbPathLocus_MakeStrewn(&(*cheapest_path)->locus);
 		}
 		return;
+=======
+		(*qp_callback) (root, qp_extra);
+
+		return final_rel;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	}
 
 	/*
@@ -159,6 +138,7 @@ query_planner(PlannerInfo *root, List *tlist,
 	root->right_join_clauses = NIL;
 	root->full_join_clauses = NIL;
 	root->join_info_list = NIL;
+	root->lateral_info_list = NIL;
 	root->placeholder_list = NIL;
 	root->initial_rels = NIL;
 
@@ -185,7 +165,7 @@ query_planner(PlannerInfo *root, List *tlist,
 	/*
 	 * Examine the targetlist and join tree, adding entries to baserel
 	 * targetlists for all referenced Vars, and generating PlaceHolderInfo
-	 * entries for all referenced PlaceHolderVars.	Restrict and join clauses
+	 * entries for all referenced PlaceHolderVars.  Restrict and join clauses
 	 * are added to appropriate lists belonging to the mentioned relations. We
 	 * also build EquivalenceClasses for provably equivalent expressions. The
 	 * SpecialJoinInfo list is also built to hold information about join order
@@ -195,6 +175,8 @@ query_planner(PlannerInfo *root, List *tlist,
 	build_base_rel_tlists(root, tlist);
 
 	find_placeholders_in_jointree(root);
+
+	find_lateral_references(root);
 
 	joinlist = deconstruct_jointree(root);
 
@@ -213,22 +195,22 @@ query_planner(PlannerInfo *root, List *tlist,
 
 	/*
 	 * If we formed any equivalence classes, generate additional restriction
-	 * clauses as appropriate.	(Implied join clauses are formed on-the-fly
+	 * clauses as appropriate.  (Implied join clauses are formed on-the-fly
 	 * later.)
 	 */
 	generate_base_implied_equalities(root);
 
 	/*
 	 * We have completed merging equivalence sets, so it's now possible to
-	 * convert previously generated pathkeys (in particular, the requested
-	 * query_pathkeys) to canonical form.
+	 * generate pathkeys in canonical form; so compute query_pathkeys and
+	 * other pathkeys fields in PlannerInfo.
 	 */
-	canonicalize_all_pathkeys(root);
+	(*qp_callback) (root, qp_extra);
 
 	/*
 	 * Examine any "placeholder" expressions generated during subquery pullup.
 	 * Make sure that the Vars they need are marked as needed at the relevant
-	 * join level.	This must be done before join removal because it might
+	 * join level.  This must be done before join removal because it might
 	 * cause Vars or placeholders to be needed above a join when they weren't
 	 * so marked before.
 	 */
@@ -247,6 +229,19 @@ query_planner(PlannerInfo *root, List *tlist,
 	 * placeholder is evaluatable at a base rel.
 	 */
 	add_placeholders_to_base_rels(root);
+
+	/*
+	 * Create the LateralJoinInfo list now that we have finalized
+	 * PlaceHolderVar eval levels and made any necessary additions to the
+	 * lateral_vars lists for lateral references within PlaceHolderVars.
+	 */
+	create_lateral_join_info(root);
+
+	/*
+	 * Look for join OR clauses that we can extract single-relation
+	 * restriction OR clauses from.
+	 */
+	extract_restriction_or_clauses(root);
 
 	/*
 	 * We should now have size estimates for every actual table involved in
@@ -282,10 +277,13 @@ query_planner(PlannerInfo *root, List *tlist,
 	 */
 	final_rel = make_one_rel(root, joinlist);
 
-	if (!final_rel || !final_rel->cheapest_total_path)
+	/* Check that we got at least one usable path */
+	if (!final_rel || !final_rel->cheapest_total_path ||
+		final_rel->cheapest_total_path->param_info != NULL)
 		elog(ERROR, "failed to construct the join relation");
 	Insist(final_rel->cheapest_startup_path);
 
+<<<<<<< HEAD
 	/*
 	 * If there's grouping going on, estimate the number of result groups. We
 	 * couldn't do this any earlier because it depends on relation size
@@ -462,6 +460,9 @@ canonicalize_all_pathkeys(PlannerInfo *root)
 	root->window_pathkeys = canonicalize_pathkeys(root, root->window_pathkeys);
 	root->distinct_pathkeys = canonicalize_pathkeys(root, root->distinct_pathkeys);
 	root->sort_pathkeys = canonicalize_pathkeys(root, root->sort_pathkeys);
+=======
+	return final_rel;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 }
 
 

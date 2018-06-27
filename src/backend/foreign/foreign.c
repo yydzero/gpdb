@@ -3,7 +3,7 @@
  * foreign.c
  *		  support for foreign-data wrappers, servers and user mappings.
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
  *		  src/backend/foreign/foreign.c
@@ -12,6 +12,7 @@
  */
 #include "postgres.h"
 
+#include "access/htup_details.h"
 #include "access/reloptions.h"
 #include "catalog/pg_foreign_data_wrapper.h"
 #include "catalog/pg_foreign_server.h"
@@ -19,8 +20,11 @@
 #include "catalog/pg_user_mapping.h"
 #include "foreign/fdwapi.h"
 #include "foreign/foreign.h"
+#include "lib/stringinfo.h"
 #include "miscadmin.h"
 #include "utils/builtins.h"
+#include "utils/memutils.h"
+#include "utils/rel.h"
 #include "utils/syscache.h"
 
 
@@ -300,27 +304,39 @@ GetFdwRoutine(Oid fdwhandler)
 
 
 /*
- * GetFdwRoutineByRelId - look up the handler of the foreign-data wrapper
- * for the given foreign table, and retrieve its FdwRoutine struct.
+ * GetForeignServerIdByRelId - look up the foreign server
+ * for the given foreign table, and return its OID.
  */
-FdwRoutine *
-GetFdwRoutineByRelId(Oid relid)
+Oid
+GetForeignServerIdByRelId(Oid relid)
 {
 	HeapTuple	tp;
-	Form_pg_foreign_data_wrapper fdwform;
-	Form_pg_foreign_server serverform;
 	Form_pg_foreign_table tableform;
 	Oid			serverid;
-	Oid			fdwid;
-	Oid			fdwhandler;
 
-	/* Get server OID for the foreign table. */
 	tp = SearchSysCache1(FOREIGNTABLEREL, ObjectIdGetDatum(relid));
 	if (!HeapTupleIsValid(tp))
 		elog(ERROR, "cache lookup failed for foreign table %u", relid);
 	tableform = (Form_pg_foreign_table) GETSTRUCT(tp);
 	serverid = tableform->ftserver;
 	ReleaseSysCache(tp);
+
+	return serverid;
+}
+
+
+/*
+ * GetFdwRoutineByServerId - look up the handler of the foreign-data wrapper
+ * for the given foreign server, and retrieve its FdwRoutine struct.
+ */
+FdwRoutine *
+GetFdwRoutineByServerId(Oid serverid)
+{
+	HeapTuple	tp;
+	Form_pg_foreign_data_wrapper fdwform;
+	Form_pg_foreign_server serverform;
+	Oid			fdwid;
+	Oid			fdwhandler;
 
 	/* Get foreign-data wrapper OID for the server. */
 	tp = SearchSysCache1(FOREIGNSERVEROID, ObjectIdGetDatum(serverid));
@@ -348,6 +364,108 @@ GetFdwRoutineByRelId(Oid relid)
 
 	/* And finally, call the handler function. */
 	return GetFdwRoutine(fdwhandler);
+}
+
+
+/*
+ * GetFdwRoutineByRelId - look up the handler of the foreign-data wrapper
+ * for the given foreign table, and retrieve its FdwRoutine struct.
+ */
+FdwRoutine *
+GetFdwRoutineByRelId(Oid relid)
+{
+	Oid			serverid;
+
+	/* Get server OID for the foreign table. */
+	serverid = GetForeignServerIdByRelId(relid);
+
+	/* Now retrieve server's FdwRoutine struct. */
+	return GetFdwRoutineByServerId(serverid);
+}
+
+/*
+ * GetFdwRoutineForRelation - look up the handler of the foreign-data wrapper
+ * for the given foreign table, and retrieve its FdwRoutine struct.
+ *
+ * This function is preferred over GetFdwRoutineByRelId because it caches
+ * the data in the relcache entry, saving a number of catalog lookups.
+ *
+ * If makecopy is true then the returned data is freshly palloc'd in the
+ * caller's memory context.  Otherwise, it's a pointer to the relcache data,
+ * which will be lost in any relcache reset --- so don't rely on it long.
+ */
+FdwRoutine *
+GetFdwRoutineForRelation(Relation relation, bool makecopy)
+{
+	FdwRoutine *fdwroutine;
+	FdwRoutine *cfdwroutine;
+
+	if (relation->rd_fdwroutine == NULL)
+	{
+		/* Get the info by consulting the catalogs and the FDW code */
+		fdwroutine = GetFdwRoutineByRelId(RelationGetRelid(relation));
+
+		/* Save the data for later reuse in CacheMemoryContext */
+		cfdwroutine = (FdwRoutine *) MemoryContextAlloc(CacheMemoryContext,
+														sizeof(FdwRoutine));
+		memcpy(cfdwroutine, fdwroutine, sizeof(FdwRoutine));
+		relation->rd_fdwroutine = cfdwroutine;
+
+		/* Give back the locally palloc'd copy regardless of makecopy */
+		return fdwroutine;
+	}
+
+	/* We have valid cached data --- does the caller want a copy? */
+	if (makecopy)
+	{
+		fdwroutine = (FdwRoutine *) palloc(sizeof(FdwRoutine));
+		memcpy(fdwroutine, relation->rd_fdwroutine, sizeof(FdwRoutine));
+		return fdwroutine;
+	}
+
+	/* Only a short-lived reference is needed, so just hand back cached copy */
+	return relation->rd_fdwroutine;
+}
+
+
+/*
+ * IsImportableForeignTable - filter table names for IMPORT FOREIGN SCHEMA
+ *
+ * Returns TRUE if given table name should be imported according to the
+ * statement's import filter options.
+ */
+bool
+IsImportableForeignTable(const char *tablename,
+						 ImportForeignSchemaStmt *stmt)
+{
+	ListCell   *lc;
+
+	switch (stmt->list_type)
+	{
+		case FDW_IMPORT_SCHEMA_ALL:
+			return true;
+
+		case FDW_IMPORT_SCHEMA_LIMIT_TO:
+			foreach(lc, stmt->table_list)
+			{
+				RangeVar   *rv = (RangeVar *) lfirst(lc);
+
+				if (strcmp(tablename, rv->relname) == 0)
+					return true;
+			}
+			return false;
+
+		case FDW_IMPORT_SCHEMA_EXCEPT:
+			foreach(lc, stmt->table_list)
+			{
+				RangeVar   *rv = (RangeVar *) lfirst(lc);
+
+				if (strcmp(tablename, rv->relname) == 0)
+					return false;
+			}
+			return true;
+	}
+	return false;				/* shouldn't get here */
 }
 
 
@@ -483,11 +601,15 @@ is_conninfo_option(const char *option, Oid context)
 
 /*
  * Validate the generic option given to SERVER or USER MAPPING.
- * Raise an ERROR if the option or its value is considered
- * invalid.
+ * Raise an ERROR if the option or its value is considered invalid.
  *
  * Valid server options are all libpq conninfo options except
  * user and password -- these may only appear in USER MAPPING options.
+ *
+ * Caution: this function is deprecated, and is now meant only for testing
+ * purposes, because the list of options it knows about doesn't necessarily
+ * square with those known to whichever libpq instance you might be using.
+ * Inquire of libpq itself, instead.
  */
 Datum
 postgresql_fdw_validator(PG_FUNCTION_ARGS)
@@ -552,7 +674,7 @@ get_foreign_data_wrapper_oid(const char *fdwname, bool missing_ok)
 
 
 /*
- * get_foreign_server_oid - given a FDW name, look up the OID
+ * get_foreign_server_oid - given a server name, look up the OID
  *
  * If missing_ok is false, throw an error if name not found.  If true, just
  * return InvalidOid.

@@ -5,9 +5,13 @@
  *	  along with the relation's initial contents.
  *
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2006-2010, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/catalog/pg_attribute.h
@@ -56,13 +60,13 @@ CATALOG(pg_attribute,1249) BKI_BOOTSTRAP BKI_WITHOUT_OIDS BKI_ROWTYPE_OID(75) BK
 	 * that no value has been explicitly set for this column, so ANALYZE
 	 * should use the default setting.
 	 */
-	int4		attstattarget;
+	int32		attstattarget;
 
 	/*
 	 * attlen is a copy of the typlen field from pg_type for this attribute.
 	 * See atttypid comments above.
 	 */
-	int2		attlen;
+	int16		attlen;
 
 	/*
 	 * attnum is the "attribute number" for the attribute:	A value that
@@ -77,13 +81,13 @@ CATALOG(pg_attribute,1249) BKI_BOOTSTRAP BKI_WITHOUT_OIDS BKI_ROWTYPE_OID(75) BK
 	 *
 	 * Note that (attnum - 1) is often used as the index to an array.
 	 */
-	int2		attnum;
+	int16		attnum;
 
 	/*
 	 * attndims is the declared number of dimensions, if an array type,
 	 * otherwise zero.
 	 */
-	int4		attndims;
+	int32		attndims;
 
 	/*
 	 * fastgetattr() uses attcacheoff to cache byte offsets of attributes in
@@ -92,7 +96,7 @@ CATALOG(pg_attribute,1249) BKI_BOOTSTRAP BKI_WITHOUT_OIDS BKI_ROWTYPE_OID(75) BK
 	 * descriptor, we may then update attcacheoff in the copies. This speeds
 	 * up the attribute walking process.
 	 */
-	int4		attcacheoff;
+	int32		attcacheoff;
 
 	/*
 	 * atttypmod records type-specific data supplied at table creation time
@@ -100,7 +104,7 @@ CATALOG(pg_attribute,1249) BKI_BOOTSTRAP BKI_WITHOUT_OIDS BKI_ROWTYPE_OID(75) BK
 	 * type-specific input and output functions as the third argument. The
 	 * value will generally be -1 for types that do not need typmod.
 	 */
-	int4		atttypmod;
+	int32		atttypmod;
 
 	/*
 	 * attbyval is a copy of the typbyval field from pg_type for this
@@ -138,11 +142,19 @@ CATALOG(pg_attribute,1249) BKI_BOOTSTRAP BKI_WITHOUT_OIDS BKI_ROWTYPE_OID(75) BK
 	/* Is dropped (ie, logically invisible) or not */
 	bool		attisdropped;
 
-	/* Has a local definition (hence, do not drop when attinhcount is 0) */
+	/*
+	 * This flag specifies whether this column has ever had a local
+	 * definition.  It is set for normal non-inherited columns, but also for
+	 * columns that are inherited from parents if also explicitly listed in
+	 * CREATE TABLE INHERITS.  It is also set when inheritance is removed from
+	 * a table with ALTER TABLE NO INHERIT.  If the flag is set, the column is
+	 * not dropped by a parent's DROP COLUMN even if this causes the column's
+	 * attinhcount to become zero.
+	 */
 	bool		attislocal;
 
 	/* Number of times inherited from direct parent relation(s) */
-	int4		attinhcount;
+	int32		attinhcount;
 
 	/* attribute's collation */
 	Oid			attcollation;
@@ -167,7 +179,7 @@ FOREIGN_KEY(atttypid REFERENCES pg_type(oid));
 
 /*
  * ATTRIBUTE_FIXED_PART_SIZE is the size of the fixed-layout,
- * guaranteed-not-null part of a pg_attribute row.	This is in fact as much
+ * guaranteed-not-null part of a pg_attribute row.  This is in fact as much
  * of the row as gets copied into tuple descriptors, so don't expect you
  * can access fields beyond attcollation except in a real tuple!
  */

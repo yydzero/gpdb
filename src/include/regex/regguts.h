@@ -1,7 +1,7 @@
 /*
  * Internal interface definitions, etc., for the reg package
  *
- * Copyright (c) 1998, 1999 Henry Spencer.	All rights reserved.
+ * Copyright (c) 1998, 1999 Henry Spencer.  All rights reserved.
  *
  * Development of this software was funded, in part, by Cray Research Inc.,
  * UUNET Communications Services Inc., Sun Microsystems Inc., and Scriptics
@@ -126,8 +126,8 @@
 
 
 /*
- * We dissect a chr into byts for colormap table indexing.	Here we define
- * a byt, which will be the same as a byte on most machines...	The exact
+ * We dissect a chr into byts for colormap table indexing.  Here we define
+ * a byt, which will be the same as a byte on most machines...  The exact
  * size of a byt is not critical, but about 8 bits is good, and extraction
  * of 8-bit chunks is sometimes especially fast.
  */
@@ -148,6 +148,7 @@
 typedef short color;			/* colors of characters */
 typedef int pcolor;				/* what color promotes to */
 
+#define MAX_COLOR	32767		/* max color (must fit in 'color' datatype) */
 #define COLORLESS	(-1)		/* impossible color */
 #define WHITE		0			/* default color, parent of all others */
 
@@ -155,12 +156,16 @@ typedef int pcolor;				/* what color promotes to */
 
 /*
  * A colormap is a tree -- more precisely, a DAG -- indexed at each level
- * by a byt of the chr, to map the chr to a color efficiently.	Because
+ * by a byt of the chr, to map the chr to a color efficiently.  Because
  * lower sections of the tree can be shared, it can exploit the usual
- * sparseness of such a mapping table.	The tree is always NBYTS levels
+ * sparseness of such a mapping table.  The tree is always NBYTS levels
  * deep (in the past it was shallower during construction but was "filled"
  * to full depth at the end of that); areas that are unaltered as yet point
  * to "fill blocks" which are entirely WHITE in color.
+ *
+ * Leaf-level tree blocks are of type "struct colors", while upper-level
+ * blocks are of type "struct ptrs".  Pointers into the tree are generally
+ * declared as "union tree *" to be agnostic about what level they point to.
  */
 
 /* the tree itself */
@@ -178,6 +183,7 @@ union tree
 	struct ptrs ptrs;
 };
 
+/* use these pseudo-field names when dereferencing a "union tree" pointer */
 #define tcolor	colors.ccolor
 #define tptr	ptrs.pptr
 
@@ -186,12 +192,12 @@ union tree
  *
  * If "sub" is not NOSUB then it is the number of the color's current
  * subcolor, i.e. we are in process of dividing this color (character
- * equivalence class) into two colors.	See src/backend/regex/README for
+ * equivalence class) into two colors.  See src/backend/regex/README for
  * discussion of subcolors.
  *
  * Currently-unused colors have the FREECOL bit set and are linked into a
  * freelist using their "sub" fields, but only if their color numbers are
- * less than colormap.max.	Any array entries beyond "max" are just garbage.
+ * less than colormap.max.  Any array entries beyond "max" are just garbage.
  */
 struct colordesc
 {
@@ -203,16 +209,17 @@ struct colordesc
 	int			flags;			/* bit values defined next */
 #define  FREECOL 01				/* currently free */
 #define  PSEUDO  02				/* pseudocolor, no real chars */
-#define  UNUSEDCOLOR(cd) ((cd)->flags&FREECOL)
+#define  UNUSEDCOLOR(cd) ((cd)->flags & FREECOL)
 	union tree *block;			/* block of solid color, if any */
 };
 
 /*
  * The color map itself
  *
- * Only the "tree" part is used at execution time, and that only via the
- * GETCOLOR() macro.  Possibly that should be separated from the compile-time
- * data.
+ * Much of the data in the colormap struct is only used at compile time.
+ * However, the bulk of the space usage is in the "tree" structure, so it's
+ * not clear that there's much point in converting the rest to a more compact
+ * form when compilation is finished.
  */
 struct colormap
 {
@@ -329,8 +336,8 @@ struct nfa
 	color		bos[2];			/* colors, if any, assigned to BOS and BOL */
 	color		eos[2];			/* colors, if any, assigned to EOS and EOL */
 	size_t		size;			/* Current NFA size; differs from nstates as
-								 * it also counts the number of states created
-								 * by children of this state. */
+								 * it also counts the number of states in
+								 * children of this NFA. */
 	struct vars *v;				/* simplifies compile error reporting */
 	struct nfa *parent;			/* parent NFA, if any */
 };
@@ -444,8 +451,11 @@ struct subre
 struct fns
 {
 	void		FUNCPTR(free, (regex_t *));
+	int			FUNCPTR(cancel_requested, (void));
 };
 
+#define CANCEL_REQUESTED(re)  \
+	((*((struct fns *) (re)->re_fns)->cancel_requested) ())
 
 
 /*

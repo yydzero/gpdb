@@ -4,7 +4,7 @@
  *	  prototypes for postgres.c.
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/tcop/tcopprot.h
@@ -19,8 +19,9 @@
 #ifndef TCOPPROT_H
 #define TCOPPROT_H
 
-#include "executor/execdesc.h"
+#include "nodes/params.h"
 #include "nodes/parsenodes.h"
+#include "nodes/plannodes.h"
 #include "storage/procsignal.h"
 #include "utils/guc.h"
 
@@ -61,12 +62,17 @@ extern bool check_max_stack_depth(int *newval, void **extra, GucSource source);
 extern void assign_max_stack_depth(int newval, void *extra);
 
 extern void die(SIGNAL_ARGS);
+<<<<<<< HEAD
 extern void quickdie(SIGNAL_ARGS);
 extern void quickdie_impl(void);
+=======
+extern void quickdie(SIGNAL_ARGS) pg_attribute_noreturn();
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern void StatementCancelHandler(SIGNAL_ARGS);
-extern void FloatExceptionHandler(SIGNAL_ARGS);
+extern void FloatExceptionHandler(SIGNAL_ARGS) pg_attribute_noreturn();
 extern void RecoveryConflictInterrupt(ProcSignalReason reason); /* called from SIGUSR1
 																 * handler */
+<<<<<<< HEAD
 extern void prepare_for_client_read(void);
 extern void client_read_ended(void);
 extern void prepare_for_client_write(void);
@@ -75,6 +81,16 @@ extern void process_postgres_switches(int argc, char *argv[],
 						  GucContext ctx, const char **dbname);
 extern int	PostgresMain(int argc, char *argv[],
 			 const char *dbname, const char *username);
+=======
+extern void ProcessClientReadInterrupt(bool blocked);
+extern void ProcessClientWriteInterrupt(bool blocked);
+
+extern void process_postgres_switches(int argc, char *argv[],
+						  GucContext ctx, const char **dbname);
+extern void PostgresMain(int argc, char *argv[],
+			 const char *dbname,
+			 const char *username) pg_attribute_noreturn();
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern long get_stack_depth_rlimit(void);
 extern void ResetUsage(void);
 extern void ShowUsage(const char *title);

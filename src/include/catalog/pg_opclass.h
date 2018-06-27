@@ -17,15 +17,15 @@
  * don't support partial indexes on system catalogs.)
  *
  * Normally opckeytype = InvalidOid (zero), indicating that the data stored
- * in the index is the same as the data in the indexed column.	If opckeytype
+ * in the index is the same as the data in the indexed column.  If opckeytype
  * is nonzero then it indicates that a conversion step is needed to produce
  * the stored index data, which will be of type opckeytype (which might be
- * the same or different from the input datatype).	Performing such a
+ * the same or different from the input datatype).  Performing such a
  * conversion is the responsibility of the index access method --- not all
  * AMs support this.
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/catalog/pg_opclass.h
@@ -42,7 +42,7 @@
 #include "catalog/genbki.h"
 
 /* ----------------
- *		pg_opclass definition.	cpp turns this into
+ *		pg_opclass definition.  cpp turns this into
  *		typedef struct FormData_pg_opclass
  * ----------------
  */
@@ -116,6 +116,7 @@ DATA(insert OID = 3123 ( 403	float8_ops	PGNSP PGUID 1970  701 t 0 ));
 DATA(insert (	405		float8_ops			PGNSP PGUID 1971  701 t 0 ));
 DATA(insert (	403		inet_ops			PGNSP PGUID 1974  869 t 0 ));
 DATA(insert (	405		inet_ops			PGNSP PGUID 1975  869 t 0 ));
+DATA(insert (	783		inet_ops			PGNSP PGUID 3550  869 f 0 ));
 DATA(insert OID = 1979 ( 403	int2_ops	PGNSP PGUID 1976   21 t 0 ));
 #define INT2_BTREE_OPS_OID 1979
 DATA(insert (	405		int2_ops			PGNSP PGUID 1977   21 t 0 ));
@@ -148,6 +149,7 @@ DATA(insert (	405		oid_ops				PGNSP PGUID 1990   26 t 0 ));
 DATA(insert (	403		oidvector_ops		PGNSP PGUID 1991   30 t 0 ));
 DATA(insert (	405		oidvector_ops		PGNSP PGUID 1992   30 t 0 ));
 DATA(insert (	403		record_ops			PGNSP PGUID 2994 2249 t 0 ));
+DATA(insert (	403		record_image_ops	PGNSP PGUID 3194 2249 f 0 ));
 DATA(insert OID = 3126 ( 403	text_ops	PGNSP PGUID 1994   25 t 0 ));
 #define TEXT_BTREE_OPS_OID 3126
 DATA(insert (	405		text_ops			PGNSP PGUID 1995   25 t 0 ));
@@ -219,6 +221,8 @@ DATA(insert (	2742	_reltime_ops		PGNSP PGUID 2745  1024 t 703 ));
 DATA(insert (	2742	_tinterval_ops		PGNSP PGUID 2745  1025 t 704 ));
 DATA(insert (	403		uuid_ops			PGNSP PGUID 2968  2950 t 0 ));
 DATA(insert (	405		uuid_ops			PGNSP PGUID 2969  2950 t 0 ));
+DATA(insert (	403		pg_lsn_ops			PGNSP PGUID 3253  3220 t 0 ));
+DATA(insert (	405		pg_lsn_ops			PGNSP PGUID 3254  3220 t 0 ));
 DATA(insert (	403		enum_ops			PGNSP PGUID 3522  3500 t 0 ));
 DATA(insert (	405		enum_ops			PGNSP PGUID 3523  3500 t 0 ));
 DATA(insert (	403		tsvector_ops		PGNSP PGUID 3626  3614 t 0 ));
@@ -229,9 +233,50 @@ DATA(insert (	783		tsquery_ops			PGNSP PGUID 3702  3615 t 20 ));
 DATA(insert (	403		range_ops			PGNSP PGUID 3901  3831 t 0 ));
 DATA(insert (	405		range_ops			PGNSP PGUID 3903  3831 t 0 ));
 DATA(insert (	783		range_ops			PGNSP PGUID 3919  3831 t 0 ));
+DATA(insert (	4000	range_ops			PGNSP PGUID 3474  3831 t 0 ));
 DATA(insert (	4000	quad_point_ops		PGNSP PGUID 4015  600 t 0 ));
 DATA(insert (	4000	kd_point_ops		PGNSP PGUID 4016  600 f 0 ));
 DATA(insert (	4000	text_ops			PGNSP PGUID 4017  25 t 0 ));
+DATA(insert (	403		jsonb_ops			PGNSP PGUID 4033  3802 t 0 ));
+DATA(insert (	405		jsonb_ops			PGNSP PGUID 4034  3802 t 0 ));
+DATA(insert (	2742	jsonb_ops			PGNSP PGUID 4036  3802 t 25 ));
+DATA(insert (	2742	jsonb_path_ops		PGNSP PGUID 4037  3802 f 23 ));
+
+/* BRIN operator classes */
+/* no brin opclass for bool */
+DATA(insert (	3580	bytea_minmax_ops		PGNSP PGUID 4064	17 t 17 ));
+DATA(insert (	3580	char_minmax_ops			PGNSP PGUID 4062	18 t 18 ));
+DATA(insert (	3580	name_minmax_ops			PGNSP PGUID 4065	19 t 19 ));
+DATA(insert (	3580	int8_minmax_ops			PGNSP PGUID 4054	20 t 20 ));
+DATA(insert (	3580	int2_minmax_ops			PGNSP PGUID 4054	21 t 21 ));
+DATA(insert (	3580	int4_minmax_ops			PGNSP PGUID 4054	23 t 23 ));
+DATA(insert (	3580	text_minmax_ops			PGNSP PGUID 4056	25 t 25 ));
+DATA(insert (	3580	oid_minmax_ops			PGNSP PGUID 4068	26 t 26 ));
+DATA(insert (	3580	tid_minmax_ops			PGNSP PGUID 4069	27 t 27 ));
+DATA(insert (	3580	float4_minmax_ops		PGNSP PGUID 4070   700 t 700 ));
+DATA(insert (	3580	float8_minmax_ops		PGNSP PGUID 4070   701 t 701 ));
+DATA(insert (	3580	abstime_minmax_ops		PGNSP PGUID 4072   702 t 702 ));
+DATA(insert (	3580	reltime_minmax_ops		PGNSP PGUID 4073   703 t 703 ));
+DATA(insert (	3580	macaddr_minmax_ops		PGNSP PGUID 4074   829 t 829 ));
+DATA(insert (	3580	inet_minmax_ops			PGNSP PGUID 4075   869 f 869 ));
+DATA(insert (	3580	inet_inclusion_ops		PGNSP PGUID 4102   869 t 869 ));
+DATA(insert (	3580	bpchar_minmax_ops		PGNSP PGUID 4076  1042 t 1042 ));
+DATA(insert (	3580	time_minmax_ops			PGNSP PGUID 4077  1083 t 1083 ));
+DATA(insert (	3580	date_minmax_ops			PGNSP PGUID 4059  1082 t 1082 ));
+DATA(insert (	3580	timestamp_minmax_ops	PGNSP PGUID 4059  1114 t 1114 ));
+DATA(insert (	3580	timestamptz_minmax_ops	PGNSP PGUID 4059  1184 t 1184 ));
+DATA(insert (	3580	interval_minmax_ops		PGNSP PGUID 4078  1186 t 1186 ));
+DATA(insert (	3580	timetz_minmax_ops		PGNSP PGUID 4058  1266 t 1266 ));
+DATA(insert (	3580	bit_minmax_ops			PGNSP PGUID 4079  1560 t 1560 ));
+DATA(insert (	3580	varbit_minmax_ops		PGNSP PGUID 4080  1562 t 1562 ));
+DATA(insert (	3580	numeric_minmax_ops		PGNSP PGUID 4055  1700 t 1700 ));
+/* no brin opclass for record, anyarray */
+DATA(insert (	3580	uuid_minmax_ops			PGNSP PGUID 4081  2950 t 2950 ));
+DATA(insert (	3580	range_inclusion_ops		PGNSP PGUID 4103  3831 t 3831 ));
+DATA(insert (	3580	pg_lsn_minmax_ops		PGNSP PGUID 4082  3220 t 3220 ));
+/* no brin opclass for enum, tsvector, tsquery, jsonb */
+DATA(insert (	3580	box_inclusion_ops		PGNSP PGUID 4104   603 t 603 ));
+/* no brin opclass for the geometric types except box */
 
 DATA(insert (	403		xlogloc_ops			PGNSP PGUID 7080  3310 t 0 ));
 

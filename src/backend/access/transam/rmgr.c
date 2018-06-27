@@ -8,24 +8,35 @@
 #include "postgres.h"
 
 #include "access/clog.h"
+<<<<<<< HEAD
 #include "access/distributedlog.h"
 #include "access/gin.h"
 #include "access/gist_private.h"
 #include "access/hash.h"
 #include "access/bitmap.h"
 #include "access/heapam.h"
+=======
+#include "access/commit_ts.h"
+#include "access/gin.h"
+#include "access/gist_private.h"
+#include "access/hash.h"
+#include "access/heapam_xlog.h"
+#include "access/brin_xlog.h"
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include "access/multixact.h"
 #include "access/nbtree.h"
 #include "access/spgist.h"
 #include "access/xact.h"
 #include "access/xlog_internal.h"
-#include "catalog/storage.h"
-#include "commands/dbcommands.h"
+#include "catalog/storage_xlog.h"
+#include "commands/dbcommands_xlog.h"
 #include "commands/sequence.h"
 #include "commands/tablespace.h"
+#include "replication/origin.h"
 #include "storage/standby.h"
 #include "utils/relmapper.h"
 
+<<<<<<< HEAD
 #include "cdb/cdbappendonlyam.h"
 
 
@@ -50,4 +61,12 @@ const RmgrData RmgrTable[RM_MAX_ID + 1] = {
 	{"Bitmap", bitmap_redo, bitmap_desc, bitmap_xlog_startup, bitmap_xlog_cleanup, bitmap_safe_restartpoint, NULL},
 	{"DistributedLog", DistributedLog_redo, DistributedLog_desc, NULL, NULL, NULL, NULL},
 	{"Appendonly Table Log Records", appendonly_redo, appendonly_desc, NULL, NULL, NULL, NULL}
+=======
+/* must be kept in sync with RmgrData definition in xlog_internal.h */
+#define PG_RMGR(symname,name,redo,desc,identify,startup,cleanup) \
+	{ name, redo, desc, identify, startup, cleanup },
+
+const RmgrData RmgrTable[RM_MAX_ID + 1] = {
+#include "access/rmgrlist.h"
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 };

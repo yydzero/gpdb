@@ -3,7 +3,7 @@
  * hash.c
  *	  Implementation of Margo Seltzer's Hashing package for postgres.
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -78,7 +78,7 @@ hashbuild(PG_FUNCTION_ARGS)
 	 * (assuming their hash codes are pretty random) there will be no locality
 	 * of access to the index, and if the index is bigger than available RAM
 	 * then we'll thrash horribly.  To prevent that scenario, we can sort the
-	 * tuples by (expected) bucket number.	However, such a sort is useless
+	 * tuples by (expected) bucket number.  However, such a sort is useless
 	 * overhead when the index does fit in RAM.  We choose to sort if the
 	 * initial index size exceeds NBuffers.
 	 *
@@ -86,7 +86,7 @@ hashbuild(PG_FUNCTION_ARGS)
 	 * one page.
 	 */
 	if (num_buckets >= (uint32) NBuffers)
-		buildstate.spool = _h_spoolinit(index, num_buckets);
+		buildstate.spool = _h_spoolinit(heap, index, num_buckets);
 	else
 		buildstate.spool = NULL;
 
@@ -142,26 +142,30 @@ hashbuildCallback(Relation index,
 	HashBuildState *buildstate = (HashBuildState *) state;
 	IndexTuple	itup;
 
+<<<<<<< HEAD
 	/* form an index tuple and point it at the heap tuple */
 	itup = _hash_form_tuple(index, values, isnull);
 	itup->t_tid = *tupleId;
 
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	/* Hash indexes don't index nulls, see notes in hashinsert */
-	if (IndexTupleHasNulls(itup))
-	{
-		pfree(itup);
+	if (isnull[0])
 		return;
-	}
 
 	/* Either spool the tuple for sorting, or just put it into the index */
 	if (buildstate->spool)
-		_h_spool(itup, buildstate->spool);
+		_h_spool(buildstate->spool, &htup->t_self, values, isnull);
 	else
+	{
+		/* form an index tuple and point it at the heap tuple */
+		itup = _hash_form_tuple(index, values, isnull);
+		itup->t_tid = htup->t_self;
 		_hash_doinsert(index, itup);
+		pfree(itup);
+	}
 
 	buildstate->indtuples += 1;
-
-	pfree(itup);
 }
 
 /*
@@ -184,10 +188,6 @@ hashinsert(PG_FUNCTION_ARGS)
 #endif
 	IndexTuple	itup;
 
-	/* generate an index tuple */
-	itup = _hash_form_tuple(rel, values, isnull);
-	itup->t_tid = *ht_ctid;
-
 	/*
 	 * If the single index key is null, we don't insert it into the index.
 	 * Hash tables support scans on '='. Relational algebra says that A = B
@@ -197,11 +197,12 @@ hashinsert(PG_FUNCTION_ARGS)
 	 * NOTNULL scans, but that's an artifact of the strategy map architecture
 	 * chosen in 1986, not of the way nulls are handled here.
 	 */
-	if (IndexTupleHasNulls(itup))
-	{
-		pfree(itup);
+	if (isnull[0])
 		PG_RETURN_BOOL(false);
-	}
+
+	/* generate an index tuple */
+	itup = _hash_form_tuple(rel, values, isnull);
+	itup->t_tid = *ht_ctid;
 
 	_hash_doinsert(rel, itup);
 
@@ -248,7 +249,7 @@ hashgettuple(PG_FUNCTION_ARGS)
 		/*
 		 * An insertion into the current index page could have happened while
 		 * we didn't have read lock on it.  Re-find our position by looking
-		 * for the TID we previously returned.	(Because we hold share lock on
+		 * for the TID we previously returned.  (Because we hold share lock on
 		 * the bucket, no deletions or splits could have occurred; therefore
 		 * we can expect that the TID still exists in the current index page,
 		 * at an offset >= where we were.)
@@ -287,7 +288,11 @@ hashgettuple(PG_FUNCTION_ARGS)
 			/*
 			 * Since this can be redone later if needed, mark as a hint.
 			 */
+<<<<<<< HEAD
 			MarkBufferDirtyHint(so->hashso_curbuf);
+=======
+			MarkBufferDirtyHint(buf, true);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		}
 
 		/*
@@ -532,7 +537,7 @@ hashbulkdelete(PG_FUNCTION_ARGS)
 	/*
 	 * Read the metapage to fetch original bucket and tuple counts.  Also, we
 	 * keep a copy of the last-seen metapage so that we can use its
-	 * hashm_spares[] values to compute bucket page addresses.	This is a bit
+	 * hashm_spares[] values to compute bucket page addresses.  This is a bit
 	 * hokey but perfectly safe, since the interesting entries in the spares
 	 * array cannot change under us; and it beats rereading the metapage for
 	 * each bucket.
@@ -664,7 +669,7 @@ loop_top:
 	{
 		/*
 		 * Otherwise, our count is untrustworthy since we may have
-		 * double-scanned tuples in split buckets.	Proceed by dead-reckoning.
+		 * double-scanned tuples in split buckets.  Proceed by dead-reckoning.
 		 * (Note: we still return estimated_count = false, because using this
 		 * count is better than not updating reltuples at all.)
 		 */
@@ -715,6 +720,7 @@ hashvacuumcleanup(PG_FUNCTION_ARGS)
 
 
 void
+<<<<<<< HEAD
 hash_redo(XLogRecPtr beginLoc __attribute__((unused)), XLogRecPtr lsn __attribute__((unused)), XLogRecord *record __attribute__((unused)))
 {
 	elog(PANIC, "hash_redo: unimplemented");
@@ -724,3 +730,9 @@ void
 hash_desc(StringInfo buf __attribute__((unused)), XLogRecPtr beginLoc, XLogRecord *record __attribute__((unused)))
 {
 }
+=======
+hash_redo(XLogReaderState *record)
+{
+	elog(PANIC, "hash_redo: unimplemented");
+}
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8

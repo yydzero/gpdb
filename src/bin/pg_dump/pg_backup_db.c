@@ -9,10 +9,12 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "postgres_fe.h"
 
-#include "pg_backup_db.h"
-#include "dumpmem.h"
 #include "dumputils.h"
+#include "pg_backup_archiver.h"
+#include "pg_backup_db.h"
+#include "pg_backup_utils.h"
 
 #include <unistd.h>
 #include <ctype.h>
@@ -23,45 +25,30 @@
 
 #define DB_MAX_ERR_STMT 128
 
+/* translator: this is a module name */
 static const char *modulename = gettext_noop("archiver (db)");
 
 static void _check_database_version(ArchiveHandle *AH);
 static PGconn *_connectDB(ArchiveHandle *AH, const char *newdbname, const char *newUser);
 static void notice_processor(void *arg __attribute__((unused)), const char *message);
 
-static int
-_parse_version(const char *versionString)
-{
-	int			v;
-
-	v = parse_version(versionString);
-	if (v < 0)
-		exit_horribly(modulename, "could not parse version string \"%s\"\n", versionString);
-
-	return v;
-}
-
 static void
 _check_database_version(ArchiveHandle *AH)
 {
-	int			myversion;
 	const char *remoteversion_str;
 	int			remoteversion;
 
-	myversion = _parse_version(PG_VERSION);
-
 	remoteversion_str = PQparameterStatus(AH->connection, "server_version");
-	if (!remoteversion_str)
+	remoteversion = PQserverVersion(AH->connection);
+	if (remoteversion == 0 || !remoteversion_str)
 		exit_horribly(modulename, "could not get server_version from libpq\n");
-
-	remoteversion = _parse_version(remoteversion_str);
 
 	AH->public.remoteVersionStr = pg_strdup(remoteversion_str);
 	AH->public.remoteVersion = remoteversion;
 	if (!AH->archiveRemoteVersion)
 		AH->archiveRemoteVersion = AH->public.remoteVersionStr;
 
-	if (myversion != remoteversion
+	if (remoteversion != PG_VERSION_NUM
 		&& (remoteversion < AH->public.minRemoteVersion ||
 			remoteversion > AH->public.maxRemoteVersion))
 	{
@@ -74,7 +61,7 @@ _check_database_version(ArchiveHandle *AH)
 /*
  * Reconnect to the server.  If dbname is not NULL, use that database,
  * else the one associated with the archive handle.  If username is
- * not NULL, use that user name, else the one from the handle.	If
+ * not NULL, use that user name, else the one from the handle.  If
  * both the database and the user match the existing connection already,
  * nothing will be done.
  *
@@ -115,7 +102,7 @@ ReconnectToServer(ArchiveHandle *AH, const char *dbname, const char *username)
  *
  * Note: it's not really all that sensible to use a single-entry password
  * cache if the username keeps changing.  In current usage, however, the
- * username never does change, so one savedPassword is sufficient.	We do
+ * username never does change, so one savedPassword is sufficient.  We do
  * update the cache on the off chance that the password has changed since the
  * start of the run.
  */
@@ -231,8 +218,12 @@ ConnectDatabase(Archive *AHX,
 				const char *pghost,
 				const char *pgport,
 				const char *username,
+<<<<<<< HEAD
 				enum trivalue prompt_password,
 				bool binary_upgrade)
+=======
+				trivalue prompt_password)
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 {
 	ArchiveHandle *AH = (ArchiveHandle *) AHX;
 	char	   *password = AH->savedPassword;
@@ -311,7 +302,8 @@ ConnectDatabase(Archive *AHX,
 	/* check to see that the backend connection was successfully made */
 	if (PQstatus(AH->connection) == CONNECTION_BAD)
 		exit_horribly(modulename, "connection to database \"%s\" failed: %s",
-					  PQdb(AH->connection), PQerrorMessage(AH->connection));
+					  PQdb(AH->connection) ? PQdb(AH->connection) : "",
+					  PQerrorMessage(AH->connection));
 
 	/* check for version mismatch */
 	_check_database_version(AH);
@@ -319,12 +311,30 @@ ConnectDatabase(Archive *AHX,
 	PQsetNoticeProcessor(AH->connection, notice_processor, NULL);
 }
 
+/*
+ * Close the connection to the database and also cancel off the query if we
+ * have one running.
+ */
 void
 DisconnectDatabase(Archive *AHX)
 {
 	ArchiveHandle *AH = (ArchiveHandle *) AHX;
+	PGcancel   *cancel;
+	char		errbuf[1];
 
-	PQfinish(AH->connection);	/* noop if AH->connection is NULL */
+	if (!AH->connection)
+		return;
+
+	if (PQtransactionStatus(AH->connection) == PQTRANS_ACTIVE)
+	{
+		if ((cancel = PQgetCancel(AH->connection)))
+		{
+			PQcancel(cancel, errbuf, sizeof(errbuf));
+			PQfreeCancel(cancel);
+		}
+	}
+
+	PQfinish(AH->connection);
 	AH->connection = NULL;
 }
 
@@ -404,7 +414,7 @@ ExecuteSqlCommand(ArchiveHandle *AH, const char *qry, const char *desc)
 			break;
 		default:
 			/* trouble */
-			strncpy(errStmt, qry, DB_MAX_ERR_STMT);
+			strncpy(errStmt, qry, DB_MAX_ERR_STMT);		/* strncpy required here */
 			if (errStmt[DB_MAX_ERR_STMT - 1] != '\0')
 			{
 				errStmt[DB_MAX_ERR_STMT - 4] = '.';
@@ -434,9 +444,14 @@ ExecuteSqlCommand(ArchiveHandle *AH, const char *qry, const char *desc)
  * identifiers, so that we can recognize statement-terminating semicolons.
  * We assume that INSERT data will not contain SQL comments, E'' literals,
  * or dollar-quoted strings, so this is much simpler than a full SQL lexer.
+ *
+ * Note: when restoring from a pre-9.0 dump file, this code is also used to
+ * process BLOB COMMENTS data, which has the same problem of containing
+ * multiple SQL commands that might be split across bufferloads.  Fortunately,
+ * that data won't contain anything complicated to lex either.
  */
 static void
-ExecuteInsertCommands(ArchiveHandle *AH, const char *buf, size_t bufLen)
+ExecuteSimpleCommands(ArchiveHandle *AH, const char *buf, size_t bufLen)
 {
 	const char *qry = buf;
 	const char *eos = buf + bufLen;
@@ -501,8 +516,10 @@ ExecuteInsertCommands(ArchiveHandle *AH, const char *buf, size_t bufLen)
  * Implement ahwrite() for direct-to-DB restore
  */
 int
-ExecuteSqlCommandBuf(ArchiveHandle *AH, const char *buf, size_t bufLen)
+ExecuteSqlCommandBuf(Archive *AHX, const char *buf, size_t bufLen)
 {
+	ArchiveHandle *AH = (ArchiveHandle *) AHX;
+
 	if (AH->outputKind == OUTPUT_COPYDATA)
 	{
 		/*
@@ -520,9 +537,10 @@ ExecuteSqlCommandBuf(ArchiveHandle *AH, const char *buf, size_t bufLen)
 	else if (AH->outputKind == OUTPUT_OTHERDATA)
 	{
 		/*
-		 * Table data expressed as INSERT commands.
+		 * Table data expressed as INSERT commands; or, in old dump files,
+		 * BLOB COMMENTS data (which is expressed as COMMENT ON commands).
 		 */
-		ExecuteInsertCommands(AH, buf, bufLen);
+		ExecuteSimpleCommands(AH, buf, bufLen);
 	}
 	else
 	{
@@ -546,15 +564,17 @@ ExecuteSqlCommandBuf(ArchiveHandle *AH, const char *buf, size_t bufLen)
 		}
 	}
 
-	return 1;
+	return bufLen;
 }
 
 /*
  * Terminate a COPY operation during direct-to-DB restore
  */
 void
-EndDBCopyMode(ArchiveHandle *AH, TocEntry *te)
+EndDBCopyMode(Archive *AHX, const char *tocEntryTag)
 {
+	ArchiveHandle *AH = (ArchiveHandle *) AHX;
+
 	if (AH->pgCopyIn)
 	{
 		PGresult   *res;
@@ -567,7 +587,7 @@ EndDBCopyMode(ArchiveHandle *AH, TocEntry *te)
 		res = PQgetResult(AH->connection);
 		if (PQresultStatus(res) != PGRES_COMMAND_OK)
 			warn_or_exit_horribly(AH, modulename, "COPY failed for table \"%s\": %s",
-								  te->tag, PQerrorMessage(AH->connection));
+								tocEntryTag, PQerrorMessage(AH->connection));
 		PQclear(res);
 
 		AH->pgCopyIn = false;
@@ -575,14 +595,18 @@ EndDBCopyMode(ArchiveHandle *AH, TocEntry *te)
 }
 
 void
-StartTransaction(ArchiveHandle *AH)
+StartTransaction(Archive *AHX)
 {
+	ArchiveHandle *AH = (ArchiveHandle *) AHX;
+
 	ExecuteSqlCommand(AH, "BEGIN", "could not start database transaction");
 }
 
 void
-CommitTransaction(ArchiveHandle *AH)
+CommitTransaction(Archive *AHX)
 {
+	ArchiveHandle *AH = (ArchiveHandle *) AHX;
+
 	ExecuteSqlCommand(AH, "COMMIT", "could not commit database transaction");
 }
 

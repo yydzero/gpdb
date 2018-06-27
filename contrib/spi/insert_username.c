@@ -17,8 +17,6 @@
 
 PG_MODULE_MAGIC;
 
-extern Datum insert_username(PG_FUNCTION_ARGS);
-
 PG_FUNCTION_INFO_V1(insert_username);
 
 Datum
@@ -81,7 +79,7 @@ insert_username(PG_FUNCTION_ARGS)
 						args[0], relname)));
 
 	/* create fields containing name */
-	newval = CStringGetTextDatum(GetUserNameFromId(GetUserId()));
+	newval = CStringGetTextDatum(GetUserNameFromId(GetUserId(), false));
 
 	/* construct new tuple */
 	rettuple = SPI_modifytuple(rel, rettuple, 1, &attnum, &newval, NULL);

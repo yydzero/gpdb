@@ -3,9 +3,13 @@
  * nodeMaterial.c
  *	  Routines to handle materialization nodes.
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2005-2008, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -282,7 +286,7 @@ ExecInitMaterial(Material *node, EState *estate, int eflags)
 	/*
 	 * Tuplestore's interpretation of the flag bits is subtly different from
 	 * the general executor meaning: it doesn't think BACKWARD necessarily
-	 * means "backwards all the way to start".	If told to support BACKWARD we
+	 * means "backwards all the way to start".  If told to support BACKWARD we
 	 * must include REWIND in the tuplestore eflags, else tuplestore_trim
 	 * might throw away too much.
 	 */
@@ -548,6 +552,8 @@ ExecChildRescan(MaterialState *node)
 void
 ExecReScanMaterial(MaterialState *node)
 {
+	PlanState  *outerPlan = outerPlanState(node);
+
 	ExecClearTuple(node->ss.ps.ps_ResultTupleSlot);
 
 	if (node->eflags != 0)
@@ -579,12 +585,20 @@ ExecReScanMaterial(MaterialState *node)
 		 * Otherwise we can just rewind and rescan the stored output. The
 		 * state of the subnode does not change.
 		 */
-		if (node->ss.ps.lefttree->chgParam != NULL ||
+		if (outerPlan->chgParam != NULL ||
 			(node->eflags & EXEC_FLAG_REWIND) == 0)
 		{
+<<<<<<< HEAD
 			DestroyTupleStore(node);
 			if (node->ss.ps.lefttree->chgParam == NULL)
 				ExecReScan(node->ss.ps.lefttree);
+=======
+			tuplestore_end(node->tuplestorestate);
+			node->tuplestorestate = NULL;
+			if (outerPlan->chgParam == NULL)
+				ExecReScan(outerPlan);
+			node->eof_underlying = false;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		}
 		else
 		{
@@ -638,6 +652,16 @@ ExecEagerFreeMaterial(MaterialState *node)
 		}
 		Assert(node->ts_pos);
 
+<<<<<<< HEAD
 		DestroyTupleStore(node);
+=======
+		/*
+		 * if chgParam of subnode is not null then plan will be re-scanned by
+		 * first ExecProcNode.
+		 */
+		if (outerPlan->chgParam == NULL)
+			ExecReScan(outerPlan);
+		node->eof_underlying = false;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	}
 }

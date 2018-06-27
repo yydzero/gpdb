@@ -3,9 +3,13 @@
  * nodeLimit.c
  *	  Routines to handle limiting of query results where appropriate
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2005-2008, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -124,7 +128,7 @@ ExecLimit(LimitState *node)
 
 			/*
 			 * The subplan is known to return no tuples (or not more than
-			 * OFFSET tuples, in general).	So we return no tuples.
+			 * OFFSET tuples, in general).  So we return no tuples.
 			 */
 			ExecSquelchNode(outerPlan); /* CDB */
 			return NULL;

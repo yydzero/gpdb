@@ -4,7 +4,7 @@
  *		Common support routines for bin/scripts/
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/bin/scripts/common.c
@@ -14,53 +14,18 @@
 
 #include "postgres_fe.h"
 
-#include <pwd.h>
 #include <signal.h>
 #include <unistd.h>
 
 #include "common.h"
-#include "libpq/pqsignal.h"
 
-static void SetCancelConn(PGconn *conn);
-static void ResetCancelConn(void);
 
 static PGcancel *volatile cancelConn = NULL;
+bool		CancelRequested = false;
 
 #ifdef WIN32
 static CRITICAL_SECTION cancelConnLock;
 #endif
-
-/*
- * Returns the current user name.
- */
-const char *
-get_user_name(const char *progname)
-{
-#ifndef WIN32
-	struct passwd *pw;
-
-	pw = getpwuid(geteuid());
-	if (!pw)
-	{
-		fprintf(stderr, _("%s: could not obtain information about current user: %s\n"),
-				progname, strerror(errno));
-		exit(1);
-	}
-	return pw->pw_name;
-#else
-	static char username[128];	/* remains after function exit */
-	DWORD		len = sizeof(username) - 1;
-
-	if (!GetUserName(username, &len))
-	{
-		fprintf(stderr, _("%s: could not get current user name: %s\n"),
-				progname, strerror(errno));
-		exit(1);
-	}
-	return username;
-#endif
-}
-
 
 /*
  * Provide strictly harmonized handling of --help and --version
@@ -109,14 +74,8 @@ connectDatabase(const char *dbname, const char *pghost, const char *pgport,
 	do
 	{
 #define PARAMS_ARRAY_SIZE	7
-		const char **keywords = malloc(PARAMS_ARRAY_SIZE * sizeof(*keywords));
-		const char **values = malloc(PARAMS_ARRAY_SIZE * sizeof(*values));
-
-		if (!keywords || !values)
-		{
-			fprintf(stderr, _("%s: out of memory\n"), progname);
-			exit(1);
-		}
+		const char **keywords = pg_malloc(PARAMS_ARRAY_SIZE * sizeof(*keywords));
+		const char **values = pg_malloc(PARAMS_ARRAY_SIZE * sizeof(*values));
 
 		keywords[0] = "host";
 		values[0] = pghost;
@@ -284,29 +243,7 @@ executeMaintenanceCommand(PGconn *conn, const char *query, bool echo)
 }
 
 /*
- * "Safe" wrapper around strdup().	Pulled from psql/common.c
- */
-char *
-pg_strdup(const char *string)
-{
-	char	   *tmp;
-
-	if (!string)
-	{
-		fprintf(stderr, _("pg_strdup: cannot duplicate null pointer (internal error)\n"));
-		exit(EXIT_FAILURE);
-	}
-	tmp = strdup(string);
-	if (!tmp)
-	{
-		fprintf(stderr, _("out of memory\n"));
-		exit(EXIT_FAILURE);
-	}
-	return tmp;
-}
-
-/*
- * Check yes/no answer in a localized way.	1=yes, 0=no, -1=neither.
+ * Check yes/no answer in a localized way.  1=yes, 0=no, -1=neither.
  */
 
 /* translator: abbreviation for "yes" */
@@ -353,7 +290,7 @@ yesno_prompt(const char *question)
  *
  * Set cancelConn to point to the current database connection.
  */
-static void
+void
 SetCancelConn(PGconn *conn)
 {
 	PGcancel   *oldCancelConn;
@@ -383,7 +320,7 @@ SetCancelConn(PGconn *conn)
  *
  * Free the current cancel connection, if any, and set to NULL.
  */
-static void
+void
 ResetCancelConn(void)
 {
 	PGcancel   *oldCancelConn;
@@ -407,9 +344,8 @@ ResetCancelConn(void)
 
 #ifndef WIN32
 /*
- * Handle interrupt signals by canceling the current command,
- * if it's being executed through executeMaintenanceCommand(),
- * and thus has a cancelConn set.
+ * Handle interrupt signals by canceling the current command, if a cancelConn
+ * is set.
  */
 static void
 handle_sigint(SIGNAL_ARGS)
@@ -421,10 +357,15 @@ handle_sigint(SIGNAL_ARGS)
 	if (cancelConn != NULL)
 	{
 		if (PQcancel(cancelConn, errbuf, sizeof(errbuf)))
+		{
+			CancelRequested = true;
 			fprintf(stderr, _("Cancel request sent\n"));
+		}
 		else
 			fprintf(stderr, _("Could not send cancel request: %s"), errbuf);
 	}
+	else
+		CancelRequested = true;
 
 	errno = save_errno;			/* just in case the write changed it */
 }
@@ -454,10 +395,16 @@ consoleHandler(DWORD dwCtrlType)
 		if (cancelConn != NULL)
 		{
 			if (PQcancel(cancelConn, errbuf, sizeof(errbuf)))
+			{
 				fprintf(stderr, _("Cancel request sent\n"));
+				CancelRequested = true;
+			}
 			else
 				fprintf(stderr, _("Could not send cancel request: %s"), errbuf);
 		}
+		else
+			CancelRequested = true;
+
 		LeaveCriticalSection(&cancelConnLock);
 
 		return TRUE;

@@ -3,7 +3,7 @@
  * lsyscache.h
  *	  Convenience routines for common queries in the system catalog cache.
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/utils/lsyscache.h
@@ -13,11 +13,16 @@
 #ifndef LSYSCACHE_H
 #define LSYSCACHE_H
 
+#include "access/attnum.h"
 #include "access/htup.h"
+<<<<<<< HEAD
 #include "catalog/gp_policy.h"
 #include "nodes/pg_list.h"
 #include "utils/relcache.h"
 #include "parser/parse_coerce.h"
+=======
+#include "nodes/pg_list.h"
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* Result list element for get_op_btree_interpretation */
 typedef struct OpBtreeInterpretation
@@ -86,10 +91,13 @@ extern Oid get_opfamily_member(Oid opfamily, Oid lefttype, Oid righttype,
 					int16 strategy);
 extern bool get_ordering_op_properties(Oid opno,
 						   Oid *opfamily, Oid *opcintype, int16 *strategy);
+<<<<<<< HEAD
 extern bool get_compare_function_for_ordering_op(Oid opno,
 												 Oid *cmpfunc, bool *reverse);
 extern bool get_sort_function_for_ordering_op(Oid opno, Oid *sortfunc,
 								  bool *issupport, bool *reverse);
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern Oid	get_equality_op_for_ordering_op(Oid opno, bool *reverse);
 extern Oid	get_ordering_op_for_equality_op(Oid opno, bool use_lhs_type);
 extern List *get_mergejoin_opfamilies(Oid opno);
@@ -110,6 +118,7 @@ extern void get_atttypetypmodcoll(Oid relid, AttrNumber attnum,
 					  Oid *typid, int32 *typmod, Oid *collid);
 extern char *get_collation_name(Oid colloid);
 extern char *get_constraint_name(Oid conoid);
+extern char *get_language_name(Oid langoid, bool missing_ok);
 extern Oid	get_opclass_family(Oid opclass);
 extern Oid	get_opclass_input_type(Oid opclass);
 extern RegProcedure get_opcode(Oid opno);
@@ -157,7 +166,12 @@ extern Oid	get_rel_type_id(Oid relid);
 extern char get_rel_relkind(Oid relid);
 extern char get_rel_relstorage(Oid relid);
 extern Oid	get_rel_tablespace(Oid relid);
+<<<<<<< HEAD
 extern char *get_type_name(Oid typid);
+=======
+extern Oid	get_transform_fromsql(Oid typid, Oid langid, List *trftypes);
+extern Oid	get_transform_tosql(Oid typid, Oid langid, List *trftypes);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern bool get_typisdefined(Oid typid);
 extern int16 get_typlen(Oid typid);
 extern bool get_typbyval(Oid typid);
@@ -185,6 +199,7 @@ extern void get_type_category_preferred(Oid typid,
 extern Oid	get_typ_typrelid(Oid typid);
 extern Oid	get_element_type(Oid typid);
 extern Oid	get_array_type(Oid typid);
+extern Oid	get_promoted_array_type(Oid typid);
 extern Oid	get_base_element_type(Oid typid);
 extern void getTypeInputInfo(Oid type, Oid *typInput, Oid *typIOParam);
 extern void getTypeOutputInfo(Oid type, Oid *typOutput, bool *typIsVarlena);
@@ -202,7 +217,9 @@ extern bool get_attstatsslot(AttStatsSlot *sslot, HeapTuple statstuple,
 				 int reqkind, Oid reqop, int flags);
 extern void free_attstatsslot(AttStatsSlot *sslot);
 extern char *get_namespace_name(Oid nspid);
+extern char *get_namespace_name_or_temp(Oid nspid);
 extern Oid	get_range_subtype(Oid rangeOid);
+extern char *get_tablesample_method_name(Oid tsmid);
 
 extern List *relation_oids(void);
 extern List *operator_oids(void);

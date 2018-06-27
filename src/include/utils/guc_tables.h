@@ -5,9 +5,13 @@
  *
  * See src/backend/utils/misc/README for design notes.
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2006-2008, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  *
  *	  src/include/utils/guc_tables.h
  *
@@ -100,6 +104,7 @@ enum config_group
 
 	CLIENT_CONN_STATEMENT,
 	CLIENT_CONN_LOCALE,
+	CLIENT_CONN_PRELOAD,
 	CLIENT_CONN_OTHER,
 	LOCK_MANAGEMENT,
 	COMPAT_OPTIONS,
@@ -213,6 +218,7 @@ struct config_generic
  * Caution: the GUC_IS_IN_FILE bit is transient state for ProcessConfigFile.
  * Do not assume that its value represents useful information elsewhere.
  */
+#define GUC_PENDING_RESTART 0x0002
 
 /* upper limit for GUC variables measured in kilobytes of memory */
 /* note that various places assume the byte size fits in a "long" variable */
@@ -316,6 +322,7 @@ extern const char *config_enum_lookup_by_value(struct config_enum * record, int 
 extern bool config_enum_lookup_by_name(struct config_enum * record,
 						   const char *value, int *retval);
 
+<<<<<<< HEAD
 extern bool parse_int(const char *value, int *result, int flags, const char **hintmsg);
 
 /* guc_gp.c needs this from guc.c */
@@ -328,4 +335,6 @@ extern struct config_real ConfigureNamesReal_gp[];
 extern struct config_string ConfigureNamesString_gp[];
 extern struct config_enum ConfigureNamesEnum_gp[];
 
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #endif   /* GUC_TABLES_H */

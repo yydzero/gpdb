@@ -266,6 +266,24 @@ CONTEXT:  PL/Python function "result_empty_test"
  
 (1 row)
 
+CREATE FUNCTION result_str_test(cmd text) RETURNS text
+AS $$
+plan = plpy.prepare(cmd)
+result = plpy.execute(plan)
+return str(result)
+$$ LANGUAGE plpythonu;
+SELECT result_str_test($$SELECT 1 AS foo UNION SELECT 2$$);
+                      result_str_test                       
+------------------------------------------------------------
+ <PLyResult status=5 nrows=2 rows=[{'foo': 1}, {'foo': 2}]>
+(1 row)
+
+SELECT result_str_test($$CREATE TEMPORARY TABLE foo1 (a int, b text)$$);
+           result_str_test            
+--------------------------------------
+ <PLyResult status=4 nrows=0 rows=[]>
+(1 row)
+
 -- cursor objects
 CREATE FUNCTION simple_cursor_test() RETURNS int AS $$
 res = plpy.cursor("select fname, lname from users")
@@ -361,6 +379,15 @@ plan = plpy.prepare("select fname, lname from users where fname like $1 || '%'",
                     ["text"])
 c = plpy.cursor(plan, ["a", "b"])
 $$ LANGUAGE plpythonu;
+CREATE TYPE test_composite_type AS (
+  a1 int,
+  a2 varchar
+);
+CREATE OR REPLACE FUNCTION plan_composite_args() RETURNS test_composite_type AS $$
+plan = plpy.prepare("select $1 as c1", ["test_composite_type"])
+res = plpy.execute(plan, [{"a1": 3, "a2": "label"}])
+return res[0]["c1"]
+$$ LANGUAGE plpythonu;
 SELECT simple_cursor_test();
  simple_cursor_test 
 --------------------
@@ -417,3 +444,9 @@ CONTEXT:  Traceback (most recent call last):
   PL/Python function "cursor_plan_wrong_args", line 4, in <module>
     c = plpy.cursor(plan, ["a", "b"])
 PL/Python function "cursor_plan_wrong_args"
+SELECT plan_composite_args();
+ plan_composite_args 
+---------------------
+ (3,label)
+(1 row)
+

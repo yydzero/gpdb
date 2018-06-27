@@ -6,7 +6,7 @@
  * See also lsyscache.h, which provides convenience routines for
  * common cache-lookup operations.
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/utils/syscache.h
@@ -16,7 +16,9 @@
 #ifndef SYSCACHE_H
 #define SYSCACHE_H
 
-#include "utils/catcache.h"
+#include "access/attnum.h"
+#include "access/htup.h"
+/* we intentionally do not include utils/catcache.h here */
 
 /*
  *		SysCache identifiers.
@@ -54,6 +56,8 @@ enum SysCacheIdentifier
 	DEFACLROLENSPOBJ,
 	ENUMOID,
 	ENUMTYPOIDNAME,
+	EVENTTRIGGERNAME,
+	EVENTTRIGGEROID,
 	FOREIGNDATAWRAPPERNAME,
 	FOREIGNDATAWRAPPEROID,
 	FOREIGNSERVERNAME,
@@ -76,11 +80,20 @@ enum SysCacheIdentifier
 	RANGETYPE,
 	RELNAMENSP,
 	RELOID,
+<<<<<<< HEAD
 	RESGROUPOID,
 	RESGROUPNAME,
+=======
+	REPLORIGIDENT,
+	REPLORIGNAME,
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	RULERELNAME,
 	STATRELATTINH,
+	TABLESAMPLEMETHODNAME,
+	TABLESAMPLEMETHODOID,
 	TABLESPACEOID,
+	TRFOID,
+	TRFTYPELANG,
 	TSCONFIGMAP,
 	TSCONFIGNAMENSP,
 	TSCONFIGOID,
@@ -123,8 +136,13 @@ extern uint32 GetSysCacheHashValue(int cacheId,
 					 Datum key1, Datum key2, Datum key3, Datum key4);
 
 /* list-search interface.  Users of this must import catcache.h too */
+struct catclist;
 extern struct catclist *SearchSysCacheList(int cacheId, int nkeys,
 				   Datum key1, Datum key2, Datum key3, Datum key4);
+
+extern bool RelationInvalidatesSnapshotsOnly(Oid relid);
+extern bool RelationHasSysCache(Oid relid);
+extern bool RelationSupportsSysCache(Oid relid);
 
 /*
  * The use of the macros below rather than direct calls to the corresponding

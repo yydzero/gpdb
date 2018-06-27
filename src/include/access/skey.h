@@ -4,7 +4,7 @@
  *	  POSTGRES scan key definitions.
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/access/skey.h
@@ -15,34 +15,13 @@
 #define SKEY_H
 
 #include "access/attnum.h"
+#include "access/stratnum.h"
 #include "fmgr.h"
 
 
 /*
- * Strategy numbers identify the semantics that particular operators have
- * with respect to particular operator classes.  In some cases a strategy
- * subtype (an OID) is used as further information.
- */
-typedef uint16 StrategyNumber;
-
-#define InvalidStrategy ((StrategyNumber) 0)
-
-/*
- * We define the strategy numbers for B-tree indexes here, to avoid having
- * to import access/nbtree.h into a lot of places that shouldn't need it.
- */
-#define BTLessStrategyNumber			1
-#define BTLessEqualStrategyNumber		2
-#define BTEqualStrategyNumber			3
-#define BTGreaterEqualStrategyNumber	4
-#define BTGreaterStrategyNumber			5
-
-#define BTMaxStrategyNumber				5
-
-
-/*
  * A ScanKey represents the application of a comparison operator between
- * a table or index column and a constant.	When it's part of an array of
+ * a table or index column and a constant.  When it's part of an array of
  * ScanKeys, the comparison conditions are implicitly ANDed.  The index
  * column is the left argument of the operator, if it's a binary operator.
  * (The data structure can support unary indexable operators too; in that
@@ -115,7 +94,7 @@ typedef ScanKeyData *ScanKey;
  * must be sorted according to the leading column number.
  *
  * The subsidiary ScanKey array appears in logical column order of the row
- * comparison, which may be different from index column order.	The array
+ * comparison, which may be different from index column order.  The array
  * elements are like a normal ScanKey array except that:
  *		sk_flags must include SK_ROW_MEMBER, plus SK_ROW_END in the last
  *				element (needed since row header does not include a count)

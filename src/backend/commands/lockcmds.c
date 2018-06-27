@@ -3,7 +3,7 @@
  * lockcmds.c
  *	  LOCK command support code
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -40,11 +40,13 @@ LockTableCommand(LockStmt *lockstmt)
 {
 	ListCell   *p;
 
-	/*
-	 * During recovery we only accept these variations: LOCK TABLE foo IN
-	 * ACCESS SHARE MODE LOCK TABLE foo IN ROW SHARE MODE LOCK TABLE foo IN
-	 * ROW EXCLUSIVE MODE This test must match the restrictions defined in
-	 * LockAcquire()
+	/*---------
+	 * During recovery we only accept these variations:
+	 * LOCK TABLE foo IN ACCESS SHARE MODE
+	 * LOCK TABLE foo IN ROW SHARE MODE
+	 * LOCK TABLE foo IN ROW EXCLUSIVE MODE
+	 * This test must match the restrictions defined in LockAcquireExtended()
+	 *---------
 	 */
 	if (lockstmt->mode > RowExclusiveLock)
 		PreventCommandDuringRecovery("LOCK TABLE");
@@ -178,13 +180,17 @@ static AclResult
 LockTableAclCheck(Oid reloid, LOCKMODE lockmode)
 {
 	AclResult	aclresult;
+	AclMode		aclmask;
 
 	/* Verify adequate privilege */
 	if (lockmode == AccessShareLock)
-		aclresult = pg_class_aclcheck(reloid, GetUserId(),
-									  ACL_SELECT);
+		aclmask = ACL_SELECT;
+	else if (lockmode == RowExclusiveLock)
+		aclmask = ACL_INSERT | ACL_UPDATE | ACL_DELETE | ACL_TRUNCATE;
 	else
-		aclresult = pg_class_aclcheck(reloid, GetUserId(),
-									  ACL_UPDATE | ACL_DELETE | ACL_TRUNCATE);
+		aclmask = ACL_UPDATE | ACL_DELETE | ACL_TRUNCATE;
+
+	aclresult = pg_class_aclcheck(reloid, GetUserId(), aclmask);
+
 	return aclresult;
 }

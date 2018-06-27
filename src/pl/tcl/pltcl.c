@@ -18,10 +18,20 @@
 #define CONST84
 #endif
 
+<<<<<<< HEAD
 #include "catalog/namespace.h"
+=======
+/* ... and for Tcl 8.6. */
+#ifndef CONST86
+#define CONST86
+#endif
+
+#include "access/htup_details.h"
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include "access/xact.h"
 #include "catalog/pg_proc.h"
 #include "catalog/pg_type.h"
+#include "commands/event_trigger.h"
 #include "commands/trigger.h"
 #include "executor/spi.h"
 #include "fmgr.h"
@@ -58,13 +68,17 @@
 static unsigned char *
 utf_u2e(unsigned char *src)
 {
-	return pg_do_encoding_conversion(src, strlen(src), PG_UTF8, GetDatabaseEncoding());
+	return (unsigned char *) pg_any_to_server((char *) src,
+											  strlen(src),
+											  PG_UTF8);
 }
 
 static unsigned char *
 utf_e2u(unsigned char *src)
 {
-	return pg_do_encoding_conversion(src, strlen(src), GetDatabaseEncoding(), PG_UTF8);
+	return (unsigned char *) pg_server_to_any((char *) src,
+											  strlen(src),
+											  PG_UTF8);
 }
 
 #define PLTCL_UTF
@@ -183,8 +197,6 @@ static pltcl_proc_desc *pltcl_current_prodesc = NULL;
 /**********************************************************************
  * Forward declarations
  **********************************************************************/
-Datum		pltcl_call_handler(PG_FUNCTION_ARGS);
-Datum		pltclu_call_handler(PG_FUNCTION_ARGS);
 void		_PG_init(void);
 
 static void pltcl_init_interp(pltcl_interp_desc *interp_desc, bool pltrusted);
@@ -196,10 +208,12 @@ static Datum pltcl_handler(PG_FUNCTION_ARGS, bool pltrusted);
 static Datum pltcl_func_handler(PG_FUNCTION_ARGS, bool pltrusted);
 
 static HeapTuple pltcl_trigger_handler(PG_FUNCTION_ARGS, bool pltrusted);
+static void pltcl_event_trigger_handler(PG_FUNCTION_ARGS, bool pltrusted);
 
 static void throw_tcl_error(Tcl_Interp *interp, const char *proname);
 
 static pltcl_proc_desc *compile_pltcl_function(Oid fn_oid, Oid tgreloid,
+					   bool is_event_trigger,
 					   bool pltrusted);
 
 static int pltcl_elog(ClientData cdata, Tcl_Interp *interp,
@@ -260,7 +274,7 @@ pltcl_FinalizeNotifier(ClientData clientData)
 }
 
 static void
-pltcl_SetTimer(Tcl_Time *timePtr)
+pltcl_SetTimer(CONST86 Tcl_Time *timePtr)
 {
 }
 
@@ -286,7 +300,7 @@ pltcl_ServiceModeHook(int mode)
 }
 
 static int
-pltcl_WaitForEvent(Tcl_Time *timePtr)
+pltcl_WaitForEvent(CONST86 Tcl_Time *timePtr)
 {
 	return 0;
 }
@@ -369,11 +383,10 @@ _PG_init(void)
 	memset(&hash_ctl, 0, sizeof(hash_ctl));
 	hash_ctl.keysize = sizeof(Oid);
 	hash_ctl.entrysize = sizeof(pltcl_interp_desc);
-	hash_ctl.hash = oid_hash;
 	pltcl_interp_htab = hash_create("PL/Tcl interpreters",
 									8,
 									&hash_ctl,
-									HASH_ELEM | HASH_FUNCTION);
+									HASH_ELEM | HASH_BLOBS);
 
 	/************************************************************
 	 * Create the hash table for function lookup
@@ -381,11 +394,10 @@ _PG_init(void)
 	memset(&hash_ctl, 0, sizeof(hash_ctl));
 	hash_ctl.keysize = sizeof(pltcl_proc_key);
 	hash_ctl.entrysize = sizeof(pltcl_proc_ptr);
-	hash_ctl.hash = tag_hash;
 	pltcl_proc_htab = hash_create("PL/Tcl functions",
 								  100,
 								  &hash_ctl,
-								  HASH_ELEM | HASH_FUNCTION);
+								  HASH_ELEM | HASH_BLOBS);
 
 	pltcl_pm_init_done = true;
 }
@@ -521,8 +533,9 @@ pltcl_init_load_unknown(Tcl_Interp *interp)
 >>>>>>> 80edfd76591fdb9beec061de3c05ef4e9d96ce56
 	if (pmrel == NULL)
 		return;
-	/* must be table or view, else ignore */
+	/* sanity-check the relation kind */
 	if (!(pmrel->rd_rel->relkind == RELKIND_RELATION ||
+		  pmrel->rd_rel->relkind == RELKIND_MATVIEW ||
 		  pmrel->rd_rel->relkind == RELKIND_VIEW))
 	{
 		relation_close(pmrel, AccessShareLock);
@@ -660,6 +673,12 @@ pltcl_handler(PG_FUNCTION_ARGS, bool pltrusted)
 			pltcl_current_fcinfo = NULL;
 			retval = PointerGetDatum(pltcl_trigger_handler(fcinfo, pltrusted));
 		}
+		else if (CALLED_AS_EVENT_TRIGGER(fcinfo))
+		{
+			pltcl_current_fcinfo = NULL;
+			pltcl_event_trigger_handler(fcinfo, pltrusted);
+			retval = (Datum) 0;
+		}
 		else
 		{
 			pltcl_current_fcinfo = fcinfo;
@@ -701,7 +720,7 @@ pltcl_func_handler(PG_FUNCTION_ARGS, bool pltrusted)
 
 	/* Find or compile the function */
 	prodesc = compile_pltcl_function(fcinfo->flinfo->fn_oid, InvalidOid,
-									 pltrusted);
+									 false, pltrusted);
 
 	pltcl_current_prodesc = prodesc;
 
@@ -860,6 +879,7 @@ pltcl_trigger_handler(PG_FUNCTION_ARGS, bool pltrusted)
 	/* Find or compile the function */
 	prodesc = compile_pltcl_function(fcinfo->flinfo->fn_oid,
 									 RelationGetRelid(trigdata->tg_relation),
+									 false,		/* not an event trigger */
 									 pltrusted);
 
 	pltcl_current_prodesc = prodesc;
@@ -1146,6 +1166,47 @@ pltcl_trigger_handler(PG_FUNCTION_ARGS, bool pltrusted)
 	return rettup;
 }
 
+/**********************************************************************
+ * pltcl_event_trigger_handler()	- Handler for event trigger calls
+ **********************************************************************/
+static void
+pltcl_event_trigger_handler(PG_FUNCTION_ARGS, bool pltrusted)
+{
+	pltcl_proc_desc *prodesc;
+	Tcl_Interp *volatile interp;
+	EventTriggerData *tdata = (EventTriggerData *) fcinfo->context;
+	Tcl_DString tcl_cmd;
+	int			tcl_rc;
+
+	/* Connect to SPI manager */
+	if (SPI_connect() != SPI_OK_CONNECT)
+		elog(ERROR, "could not connect to SPI manager");
+
+	/* Find or compile the function */
+	prodesc = compile_pltcl_function(fcinfo->flinfo->fn_oid,
+									 InvalidOid, true, pltrusted);
+
+	pltcl_current_prodesc = prodesc;
+
+	interp = prodesc->interp_desc->interp;
+
+	/* Create the tcl command and call the internal proc */
+	Tcl_DStringInit(&tcl_cmd);
+	Tcl_DStringAppendElement(&tcl_cmd, prodesc->internal_proname);
+	Tcl_DStringAppendElement(&tcl_cmd, tdata->event);
+	Tcl_DStringAppendElement(&tcl_cmd, tdata->tag);
+
+	tcl_rc = Tcl_GlobalEval(interp, Tcl_DStringValue(&tcl_cmd));
+	Tcl_DStringFree(&tcl_cmd);
+
+	/* Check for errors reported by Tcl. */
+	if (tcl_rc != TCL_OK)
+		throw_tcl_error(interp, prodesc->user_proname);
+
+	if (SPI_finish() != SPI_OK_FINISH)
+		elog(ERROR, "SPI_finish() failed");
+}
+
 
 /**********************************************************************
  * throw_tcl_error	- ereport an error returned from the Tcl interpreter
@@ -1184,7 +1245,8 @@ throw_tcl_error(Tcl_Interp *interp, const char *proname)
  * (InvalidOid) when compiling a plain function.
  **********************************************************************/
 static pltcl_proc_desc *
-compile_pltcl_function(Oid fn_oid, Oid tgreloid, bool pltrusted)
+compile_pltcl_function(Oid fn_oid, Oid tgreloid,
+					   bool is_event_trigger, bool pltrusted)
 {
 	HeapTuple	procTup;
 	Form_pg_proc procStruct;
@@ -1221,7 +1283,7 @@ compile_pltcl_function(Oid fn_oid, Oid tgreloid, bool pltrusted)
 	{
 		bool		uptodate;
 
-		uptodate = (prodesc->fn_xmin == HeapTupleHeaderGetXmin(procTup->t_data) &&
+		uptodate = (prodesc->fn_xmin == HeapTupleHeaderGetRawXmin(procTup->t_data) &&
 					ItemPointerEquals(&prodesc->fn_tid, &procTup->t_self));
 
 		if (!uptodate)
@@ -1261,10 +1323,13 @@ compile_pltcl_function(Oid fn_oid, Oid tgreloid, bool pltrusted)
 		 * "_trigger" when appropriate to ensure the normal and trigger
 		 * cases are kept separate.
 		 ************************************************************/
-		if (!is_trigger)
+		if (!is_trigger && !is_event_trigger)
 			snprintf(internal_proname, sizeof(internal_proname),
 					 "__PLTcl_proc_%u", fn_oid);
-		else
+		else if (is_event_trigger)
+			snprintf(internal_proname, sizeof(internal_proname),
+					 "__PLTcl_proc_%u_evttrigger", fn_oid);
+		else if (is_trigger)
 			snprintf(internal_proname, sizeof(internal_proname),
 					 "__PLTcl_proc_%u_trigger", fn_oid);
 
@@ -1283,7 +1348,7 @@ compile_pltcl_function(Oid fn_oid, Oid tgreloid, bool pltrusted)
 			ereport(ERROR,
 					(errcode(ERRCODE_OUT_OF_MEMORY),
 					 errmsg("out of memory")));
-		prodesc->fn_xmin = HeapTupleHeaderGetXmin(procTup->t_data);
+		prodesc->fn_xmin = HeapTupleHeaderGetRawXmin(procTup->t_data);
 		prodesc->fn_tid = procTup->t_self;
 
 		/* Remember if function is STABLE/IMMUTABLE */
@@ -1302,7 +1367,7 @@ compile_pltcl_function(Oid fn_oid, Oid tgreloid, bool pltrusted)
 		 * Get the required information for input conversion of the
 		 * return value.
 		 ************************************************************/
-		if (!is_trigger)
+		if (!is_trigger && !is_event_trigger)
 		{
 			typeTup =
 				SearchSysCache1(TYPEOID,
@@ -1322,7 +1387,8 @@ compile_pltcl_function(Oid fn_oid, Oid tgreloid, bool pltrusted)
 			{
 				if (procStruct->prorettype == VOIDOID)
 					 /* okay */ ;
-				else if (procStruct->prorettype == TRIGGEROID)
+				else if (procStruct->prorettype == TRIGGEROID ||
+						 procStruct->prorettype == EVTTRIGGEROID)
 				{
 					free(prodesc->user_proname);
 					free(prodesc->internal_proname);
@@ -1363,7 +1429,7 @@ compile_pltcl_function(Oid fn_oid, Oid tgreloid, bool pltrusted)
 		 * Get the required information for output conversion
 		 * of all procedure arguments
 		 ************************************************************/
-		if (!is_trigger)
+		if (!is_trigger && !is_event_trigger)
 		{
 			prodesc->nargs = procStruct->pronargs;
 			proc_internal_args[0] = '\0';
@@ -1413,11 +1479,16 @@ compile_pltcl_function(Oid fn_oid, Oid tgreloid, bool pltrusted)
 				ReleaseSysCache(typeTup);
 			}
 		}
-		else
+		else if (is_trigger)
 		{
 			/* trigger procedure has fixed args */
 			strcpy(proc_internal_args,
 				   "TG_name TG_relid TG_table_name TG_table_schema TG_relatts TG_when TG_level TG_op __PLTcl_Tup_NEW __PLTcl_Tup_OLD args");
+		}
+		else if (is_event_trigger)
+		{
+			/* event trigger procedure has fixed args */
+			strcpy(proc_internal_args, "TG_event TG_tag");
 		}
 
 		/************************************************************
@@ -1438,20 +1509,7 @@ compile_pltcl_function(Oid fn_oid, Oid tgreloid, bool pltrusted)
 		Tcl_DStringAppend(&proc_internal_body, "upvar #0 ", -1);
 		Tcl_DStringAppend(&proc_internal_body, internal_proname, -1);
 		Tcl_DStringAppend(&proc_internal_body, " GD\n", -1);
-		if (!is_trigger)
-		{
-			for (i = 0; i < prodesc->nargs; i++)
-			{
-				if (prodesc->arg_is_rowtype[i])
-				{
-					snprintf(buf, sizeof(buf),
-							 "array set %d $__PLTcl_Tup_%d\n",
-							 i + 1, i + 1);
-					Tcl_DStringAppend(&proc_internal_body, buf, -1);
-				}
-			}
-		}
-		else
+		if (is_trigger)
 		{
 			Tcl_DStringAppend(&proc_internal_body,
 							  "array set NEW $__PLTcl_Tup_NEW\n", -1);
@@ -1466,6 +1524,23 @@ compile_pltcl_function(Oid fn_oid, Oid tgreloid, bool pltrusted)
 							  "  set $i $v\n"
 							  "}\n"
 							  "unset i v\n\n", -1);
+		}
+		else if (is_event_trigger)
+		{
+			/* no argument support for event triggers */
+		}
+		else
+		{
+			for (i = 0; i < prodesc->nargs; i++)
+			{
+				if (prodesc->arg_is_rowtype[i])
+				{
+					snprintf(buf, sizeof(buf),
+							 "array set %d $__PLTcl_Tup_%d\n",
+							 i + 1, i + 1);
+					Tcl_DStringAppend(&proc_internal_body, buf, -1);
+				}
+			}
 		}
 
 		/************************************************************
@@ -1556,7 +1631,7 @@ pltcl_elog(ClientData cdata, Tcl_Interp *interp,
 	if (level == ERROR)
 	{
 		/*
-		 * We just pass the error back to Tcl.	If it's not caught, it'll
+		 * We just pass the error back to Tcl.  If it's not caught, it'll
 		 * eventually get converted to a PG error when we reach the call
 		 * handler.
 		 */
@@ -2112,7 +2187,7 @@ pltcl_SPI_prepare(ClientData cdata, Tcl_Interp *interp,
 						typIOParam;
 			int32		typmod;
 
-			parseTypeString(args[i], &typId, &typmod);
+			parseTypeString(args[i], &typId, &typmod, false);
 
 			getTypeInputInfo(typId, &typInput, &typIOParam);
 
@@ -2184,9 +2259,9 @@ pltcl_SPI_execute_plan(ClientData cdata, Tcl_Interp *interp,
 	int			j;
 	Tcl_HashEntry *hashent;
 	pltcl_query_desc *qdesc;
-	const char *volatile nulls = NULL;
-	CONST84 char *volatile arrayname = NULL;
-	CONST84 char *volatile loop_body = NULL;
+	const char *nulls = NULL;
+	CONST84 char *arrayname = NULL;
+	CONST84 char *loop_body = NULL;
 	int			count = 0;
 	int			callnargs;
 	CONST84 char **callargs = NULL;
@@ -2316,6 +2391,8 @@ pltcl_SPI_execute_plan(ClientData cdata, Tcl_Interp *interp,
 	if (i != argc)
 	{
 		Tcl_SetResult(interp, usage, TCL_STATIC);
+		if (callargs)
+			ckfree((char *) callargs);
 		return TCL_ERROR;
 	}
 
@@ -2354,10 +2431,6 @@ pltcl_SPI_execute_plan(ClientData cdata, Tcl_Interp *interp,
 			}
 		}
 
-		if (callargs)
-			ckfree((char *) callargs);
-		callargs = NULL;
-
 		/************************************************************
 		 * Execute the plan
 		 ************************************************************/
@@ -2383,6 +2456,9 @@ pltcl_SPI_execute_plan(ClientData cdata, Tcl_Interp *interp,
 		return TCL_ERROR;
 	}
 	PG_END_TRY();
+
+	if (callargs)
+		ckfree((char *) callargs);
 
 	return my_rc;
 }

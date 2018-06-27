@@ -3,9 +3,13 @@
  * lsyscache.c
  *	  Convenience routines for common queries in the system catalog cache.
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2007-2009, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
@@ -19,23 +23,37 @@
 
 #include "access/genam.h"
 #include "access/hash.h"
+#include "access/htup_details.h"
 #include "access/nbtree.h"
 #include "bootstrap/bootstrap.h"
+<<<<<<< HEAD
 #include "catalog/heap.h"                   /* SystemAttributeDefinition() */
 #include "catalog/pg_aggregate.h"
+=======
+#include "catalog/namespace.h"
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include "catalog/pg_amop.h"
 #include "catalog/pg_amproc.h"
 #include "catalog/pg_collation.h"
 #include "catalog/pg_constraint.h"
+<<<<<<< HEAD
 #include "catalog/pg_inherits.h"
 #include "catalog/pg_inherits_fn.h"
+=======
+#include "catalog/pg_language.h"
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include "catalog/pg_namespace.h"
 #include "catalog/pg_opclass.h"
 #include "catalog/pg_operator.h"
 #include "catalog/pg_proc.h"
 #include "catalog/pg_range.h"
 #include "catalog/pg_statistic.h"
+<<<<<<< HEAD
 #include "catalog/pg_trigger.h"
+=======
+#include "catalog/pg_transform.h"
+#include "catalog/pg_tablesample_method.h"
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include "catalog/pg_type.h"
 #include "cdb/cdbpartition.h"
 #include "commands/tablecmds.h"
@@ -46,6 +64,7 @@
 #include "parser/parse_coerce.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
+#include "utils/catcache.h"
 #include "utils/datum.h"
 #include "utils/fmgroids.h"
 #include "utils/guc.h"
@@ -201,13 +220,13 @@ get_opfamily_member(Oid opfamily, Oid lefttype, Oid righttype,
  * (This indicates that the operator is not a valid ordering operator.)
  *
  * Note: the operator could be registered in multiple families, for example
- * if someone were to build a "reverse sort" opfamily.	This would result in
+ * if someone were to build a "reverse sort" opfamily.  This would result in
  * uncertainty as to whether "ORDER BY USING op" would default to NULLS FIRST
  * or NULLS LAST, as well as inefficient planning due to failure to match up
  * pathkeys that should be the same.  So we want a determinate result here.
  * Because of the way the syscache search works, we'll use the interpretation
  * associated with the opfamily with smallest OID, which is probably
- * determinate enough.	Since there is no longer any particularly good reason
+ * determinate enough.  Since there is no longer any particularly good reason
  * to build reverse-sort opfamilies, it doesn't seem worth expending any
  * additional effort on ensuring consistency.
  */
@@ -261,6 +280,7 @@ get_ordering_op_properties(Oid opno,
 }
 
 /*
+<<<<<<< HEAD
  * get_compare_function_for_ordering_op
  *		Get the OID of the datatype-specific btree comparison function
  *		associated with an ordering operator (a "<" or ">" operator).
@@ -360,6 +380,8 @@ get_sort_function_for_ordering_op(Oid opno, Oid *sortfunc,
 }
 
 /*
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * get_equality_op_for_ordering_op
  *		Get the OID of the datatype-specific btree equality operator
  *		associated with an ordering operator (a "<" or ">" operator).
@@ -461,7 +483,7 @@ get_ordering_op_for_equality_op(Oid opno, bool use_lhs_type)
  *
  * The planner currently uses simple equal() tests to compare the lists
  * returned by this function, which makes the list order relevant, though
- * strictly speaking it should not be.	Because of the way syscache list
+ * strictly speaking it should not be.  Because of the way syscache list
  * searches are handled, in normal operation the result will be sorted by OID
  * so everything works fine.  If running with system index usage disabled,
  * the result ordering is unspecified and hence the planner might fail to
@@ -1100,6 +1122,30 @@ get_constraint_name(Oid conoid)
 		return NULL;
 }
 
+/*				---------- LANGUAGE CACHE ----------					 */
+
+char *
+get_language_name(Oid langoid, bool missing_ok)
+{
+	HeapTuple	tp;
+
+	tp = SearchSysCache1(LANGOID, ObjectIdGetDatum(langoid));
+	if (HeapTupleIsValid(tp))
+	{
+		Form_pg_language lantup = (Form_pg_language) GETSTRUCT(tp);
+		char	   *result;
+
+		result = pstrdup(NameStr(lantup->lanname));
+		ReleaseSysCache(tp);
+		return result;
+	}
+
+	if (!missing_ok)
+		elog(ERROR, "cache lookup failed for language %u",
+			 langoid);
+	return NULL;
+}
+
 /*				---------- OPCLASS CACHE ----------						 */
 
 /*
@@ -1280,7 +1326,7 @@ op_mergejoinable(Oid opno, Oid inputtype)
  *
  * In some cases (currently only array_eq), hashjoinability depends on the
  * specific input data type the operator is invoked for, so that must be
- * passed as well.	We currently assume that only one input's type is needed
+ * passed as well.  We currently assume that only one input's type is needed
  * to check this --- by convention, pass the left input's data type.
  */
 bool
@@ -1915,6 +1961,7 @@ get_func_signature(Oid funcid, Oid **argtypes, int *nargs)
 }
 
 /*
+<<<<<<< HEAD
  * pfree_ptr_array
  * 		Free an array of pointers, after freeing each individual element
  */
@@ -2014,6 +2061,8 @@ get_func_arg_types(Oid funcid)
 }
 
 /*
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * get_func_variadictype
  *		Given procedure id, return the function's provariadic field.
  */
@@ -2373,6 +2422,55 @@ get_rel_relstorage(Oid relid)
 		return '\0';
 }
 
+<<<<<<< HEAD
+=======
+
+/*				---------- TRANSFORM CACHE ----------						 */
+
+Oid
+get_transform_fromsql(Oid typid, Oid langid, List *trftypes)
+{
+	HeapTuple	tup;
+
+	if (!list_member_oid(trftypes, typid))
+		return InvalidOid;
+
+	tup = SearchSysCache2(TRFTYPELANG, typid, langid);
+	if (HeapTupleIsValid(tup))
+	{
+		Oid			funcid;
+
+		funcid = ((Form_pg_transform) GETSTRUCT(tup))->trffromsql;
+		ReleaseSysCache(tup);
+		return funcid;
+	}
+	else
+		return InvalidOid;
+}
+
+Oid
+get_transform_tosql(Oid typid, Oid langid, List *trftypes)
+{
+	HeapTuple	tup;
+
+	if (!list_member_oid(trftypes, typid))
+		return InvalidOid;
+
+	tup = SearchSysCache2(TRFTYPELANG, typid, langid);
+	if (HeapTupleIsValid(tup))
+	{
+		Oid			funcid;
+
+		funcid = ((Form_pg_transform) GETSTRUCT(tup))->trftosql;
+		ReleaseSysCache(tup);
+		return funcid;
+	}
+	else
+		return InvalidOid;
+}
+
+
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /*				---------- TYPE CACHE ----------						 */
 
 /*
@@ -2455,7 +2553,7 @@ get_typbyval(Oid typid)
  *		A two-fer: given the type OID, return both typlen and typbyval.
  *
  *		Since both pieces of info are needed to know how to copy a Datum,
- *		many places need both.	Might as well get them with one cache lookup
+ *		many places need both.  Might as well get them with one cache lookup
  *		instead of two.  Also, this routine raises an error instead of
  *		returning a bogus value when given a bad type OID.
  */
@@ -2983,6 +3081,27 @@ get_array_type(Oid typid)
 		ReleaseSysCache(tp);
 	}
 	return result;
+}
+
+/*
+ * get_promoted_array_type
+ *
+ *		The "promoted" type is what you'd get from an ARRAY(SELECT ...)
+ *		construct, that is, either the corresponding "true" array type
+ *		if the input is a scalar type that has such an array type,
+ *		or the same type if the input is already a "true" array type.
+ *		Returns InvalidOid if neither rule is satisfied.
+ */
+Oid
+get_promoted_array_type(Oid typid)
+{
+	Oid			array_type = get_array_type(typid);
+
+	if (OidIsValid(array_type))
+		return array_type;
+	if (OidIsValid(get_element_type(typid)))
+		return typid;
+	return InvalidOid;
 }
 
 /*
@@ -3535,6 +3654,20 @@ get_namespace_name(Oid nspid)
 		return NULL;
 }
 
+/*
+ * get_namespace_name_or_temp
+ *		As above, but if it is this backend's temporary namespace, return
+ *		"pg_temp" instead.
+ */
+char *
+get_namespace_name_or_temp(Oid nspid)
+{
+	if (isTempNamespace(nspid))
+		return "pg_temp";
+	else
+		return get_namespace_name(nspid);
+}
+
 /*				---------- PG_RANGE CACHE ----------				 */
 
 /*
@@ -3562,6 +3695,7 @@ get_range_subtype(Oid rangeOid)
 		return InvalidOid;
 }
 
+<<<<<<< HEAD
 /*
  * relation_oids
  *	  Extract all relation oids from the catalog.
@@ -4390,4 +4524,30 @@ child_triggers(Oid relationId, int32 triggerType)
 	
 	/* no child triggers matching the given type */
 	return found;
+=======
+/*				---------- PG_TABLESAMPLE_METHOD CACHE ----------			 */
+
+/*
+ * get_tablesample_method_name - given a tablesample method OID,
+ * look up the name or NULL if not found
+ */
+char *
+get_tablesample_method_name(Oid tsmid)
+{
+	HeapTuple	tuple;
+
+	tuple = SearchSysCache1(TABLESAMPLEMETHODOID, ObjectIdGetDatum(tsmid));
+	if (HeapTupleIsValid(tuple))
+	{
+		Form_pg_tablesample_method tup =
+		(Form_pg_tablesample_method) GETSTRUCT(tuple);
+		char	   *result;
+
+		result = pstrdup(NameStr(tup->tsmname));
+		ReleaseSysCache(tuple);
+		return result;
+	}
+	else
+		return NULL;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 }

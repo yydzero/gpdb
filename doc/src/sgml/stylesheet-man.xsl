@@ -173,6 +173,17 @@
   </xsl:template>
 
 
+  <!-- https://sourceforge.net/tracker/?func=detail&aid=3545150&group_id=21935&atid=373747 -->
+  <xsl:template match="step/title">
+    <xsl:apply-templates/>
+    <xsl:text>: </xsl:text>
+  </xsl:template>
+
+
+  <!-- http://sourceforge.net/p/docbook/bugs/1340/ -->
+  <xsl:template match="indexterm"/>
+
+
 <!-- Gentext customization -->
 
 <!-- see http://www.sagehill.net/docbookxsl/CustomGentext.html -->

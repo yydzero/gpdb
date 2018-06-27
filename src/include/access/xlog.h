@@ -3,7 +3,7 @@
  *
  * PostgreSQL transaction log manager
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/access/xlog.h
@@ -13,6 +13,7 @@
 
 #include "access/rmgr.h"
 #include "access/xlogdefs.h"
+<<<<<<< HEAD
 #include "catalog/gp_segment_config.h"
 #include "catalog/pg_control.h"
 #include "lib/stringinfo.h"
@@ -95,6 +96,15 @@ typedef struct XLogRecord
 #define XLR_BKP_BLOCK_2			XLR_SET_BKP_BLOCK(1)	/* 0x04 */
 #define XLR_BKP_BLOCK_3			XLR_SET_BKP_BLOCK(2)	/* 0x02 */
 #define XLR_BKP_BLOCK_4			XLR_SET_BKP_BLOCK(3)	/* 0x01 */
+=======
+#include "access/xloginsert.h"
+#include "access/xlogreader.h"
+#include "datatype/timestamp.h"
+#include "lib/stringinfo.h"
+#include "nodes/pg_list.h"
+#include "storage/fd.h"
+
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* Sync methods */
 #define SYNC_METHOD_FSYNC		0
@@ -104,6 +114,7 @@ typedef struct XLogRecord
 #define SYNC_METHOD_OPEN_DSYNC	4		/* for O_DSYNC */
 extern int	sync_method;
 
+<<<<<<< HEAD
 /*
  * The rmgr data to be written by XLogInsert() is defined by a chain of
  * one or more XLogRecData structs.  (Multiple structs would be used when
@@ -143,6 +154,8 @@ typedef struct XLogRecData
 	struct XLogRecData *next;	/* next struct in chain, or NULL */
 } XLogRecData;
 
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern PGDLLIMPORT TimeLineID ThisTimeLineID;	/* current TLI */
 
 /*
@@ -196,19 +209,22 @@ typedef enum
 	RECOVERY_TARGET_UNSET,
 	RECOVERY_TARGET_XID,
 	RECOVERY_TARGET_TIME,
-	RECOVERY_TARGET_NAME
+	RECOVERY_TARGET_NAME,
+	RECOVERY_TARGET_IMMEDIATE
 } RecoveryTargetType;
 
 extern XLogRecPtr XactLastRecEnd;
+extern PGDLLIMPORT XLogRecPtr XactLastCommitEnd;
 
 extern bool reachedConsistency;
 
 /* these variables are GUC parameters related to XLOG */
-extern int	CheckPointSegments;
+extern int	min_wal_size;
+extern int	max_wal_size;
 extern int	wal_keep_segments;
 extern int	XLOGbuffers;
 extern int	XLogArchiveTimeout;
-extern bool XLogArchiveMode;
+extern int	wal_retrieve_retry_interval;
 extern char *XLogArchiveCommand;
 extern bool EnableHotStandby;
 extern bool gp_keep_all_xlog;
@@ -218,18 +234,37 @@ extern bool *wal_consistency_checking;
 extern char *wal_consistency_checking_string;
 
 extern bool fullPageWrites;
+extern bool wal_log_hints;
+extern bool wal_compression;
 extern bool log_checkpoints;
+
+extern int	CheckPointSegments;
+
+/* Archive modes */
+typedef enum ArchiveMode
+{
+	ARCHIVE_MODE_OFF = 0,		/* disabled */
+	ARCHIVE_MODE_ON,			/* enabled while server is running normally */
+	ARCHIVE_MODE_ALWAYS			/* enabled always (even during recovery) */
+} ArchiveMode;
+extern int	XLogArchiveMode;
 
 /* WAL levels */
 typedef enum WalLevel
 {
 	WAL_LEVEL_MINIMAL = 0,
 	WAL_LEVEL_ARCHIVE,
-	WAL_LEVEL_HOT_STANDBY
+	WAL_LEVEL_HOT_STANDBY,
+	WAL_LEVEL_LOGICAL
 } WalLevel;
 extern int	wal_level;
 
-#define XLogArchivingActive()	(XLogArchiveMode && wal_level >= WAL_LEVEL_ARCHIVE)
+/* Is WAL archiving enabled (always or only while server is running normally)? */
+#define XLogArchivingActive() \
+	(XLogArchiveMode > ARCHIVE_MODE_OFF && wal_level >= WAL_LEVEL_ARCHIVE)
+/* Is WAL archiving enabled always (even during recovery)? */
+#define XLogArchivingAlways() \
+	(XLogArchiveMode == ARCHIVE_MODE_ALWAYS && wal_level >= WAL_LEVEL_ARCHIVE)
 #define XLogArchiveCommandSet() (XLogArchiveCommand[0] != '\0')
 
 /*
@@ -238,10 +273,26 @@ extern int	wal_level;
  */
 #define XLogIsNeeded() (wal_level >= WAL_LEVEL_ARCHIVE)
 
-/* Do we need to WAL-log information required only for Hot Standby? */
+/*
+ * Is a full-page image needed for hint bit updates?
+ *
+ * Normally, we don't WAL-log hint bit updates, but if checksums are enabled,
+ * we have to protect them against torn page writes.  When you only set
+ * individual bits on a page, it's still consistent no matter what combination
+ * of the bits make it to disk, but the checksum wouldn't match.  Also WAL-log
+ * them if forced by wal_log_hints=on.
+ */
+#define XLogHintBitIsNeeded() (DataChecksumsEnabled() || wal_log_hints)
+
+/* Do we need to WAL-log information required only for Hot Standby and logical replication? */
 #define XLogStandbyInfoActive() (wal_level >= WAL_LEVEL_HOT_STANDBY)
 
+<<<<<<< HEAD
 extern bool am_startup;
+=======
+/* Do we need to WAL-log information required only for logical replication? */
+#define XLogLogicalInfoActive() (wal_level >= WAL_LEVEL_LOGICAL)
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #ifdef WAL_DEBUG
 extern bool XLOG_DEBUG;
@@ -260,11 +311,13 @@ extern bool XLOG_DEBUG;
 												 * recovery */
 #define CHECKPOINT_IMMEDIATE	0x0004	/* Do it without delays */
 #define CHECKPOINT_FORCE		0x0008	/* Force even if no activity */
+#define CHECKPOINT_FLUSH_ALL	0x0010	/* Flush all pages, including those
+										 * belonging to unlogged tables */
 /* These are important to RequestCheckpoint */
-#define CHECKPOINT_WAIT			0x0010	/* Wait for completion */
+#define CHECKPOINT_WAIT			0x0020	/* Wait for completion */
 /* These indicate the cause of a checkpoint request */
-#define CHECKPOINT_CAUSE_XLOG	0x0020	/* XLOG consumption */
-#define CHECKPOINT_CAUSE_TIME	0x0040	/* Elapsed time */
+#define CHECKPOINT_CAUSE_XLOG	0x0040	/* XLOG consumption */
+#define CHECKPOINT_CAUSE_TIME	0x0080	/* Elapsed time */
 
 /* Checkpoint statistics */
 typedef struct CheckpointStatsData
@@ -291,6 +344,7 @@ typedef struct CheckpointStatsData
 
 extern CheckpointStatsData CheckpointStats;
 
+<<<<<<< HEAD
 /* File path names (all relative to $PGDATA) */
 #define RECOVERY_COMMAND_FILE	"recovery.conf"
 #define RECOVERY_COMMAND_DONE	"recovery.done"
@@ -299,13 +353,18 @@ extern CheckpointStatsData CheckpointStats;
 extern XLogRecPtr XLogInsert(RmgrId rmid, uint8 info, XLogRecData *rdata);
 extern XLogRecPtr XLogInsert_OverrideXid(RmgrId rmid, uint8 info, XLogRecData *rdata, TransactionId overrideXid);
 extern XLogRecPtr XLogLastInsertBeginLoc(void);
+=======
+struct XLogRecData;
+
+extern XLogRecPtr XLogInsertRecord(struct XLogRecData *rdata, XLogRecPtr fpw_lsn);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern void XLogFlush(XLogRecPtr RecPtr);
 extern bool XLogBackgroundFlush(void);
 extern bool XLogNeedsFlush(XLogRecPtr RecPtr);
-extern int XLogFileInit(uint32 log, uint32 seg,
-			 bool *use_existent, bool use_lock);
-extern int	XLogFileOpen(uint32 log, uint32 seg);
+extern int	XLogFileInit(XLogSegNo segno, bool *use_existent, bool use_lock);
+extern int	XLogFileOpen(XLogSegNo segno);
 
+<<<<<<< HEAD
 extern void XLogGetLastRemoved(uint32 *log, uint32 *seg);
 extern void XLogSetAsyncXactLSN(XLogRecPtr record);
 extern XLogRecPtr XLogSaveBufferForHint(Buffer buffer);
@@ -318,25 +377,47 @@ extern void xlog_redo(XLogRecPtr beginLoc __attribute__((unused)), XLogRecPtr ls
 extern void xlog_desc(StringInfo buf, XLogRecPtr beginLoc, XLogRecord *record);
 
 extern void issue_xlog_fsync(int fd, uint32 log, uint32 seg);
+=======
+extern void CheckXLogRemoved(XLogSegNo segno, TimeLineID tli);
+extern XLogSegNo XLogGetLastRemovedSegno(void);
+extern void XLogSetAsyncXactLSN(XLogRecPtr record);
+extern void XLogSetReplicationSlotMinimumLSN(XLogRecPtr lsn);
+
+extern void xlog_redo(XLogReaderState *record);
+extern void xlog_desc(StringInfo buf, XLogReaderState *record);
+extern const char *xlog_identify(uint8 info);
+
+extern void issue_xlog_fsync(int fd, XLogSegNo segno);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 
 extern bool RecoveryInProgress(void);
 extern bool HotStandbyActive(void);
+extern bool HotStandbyActiveInReplay(void);
 extern bool XLogInsertAllowed(void);
 extern void GetXLogReceiptTime(TimestampTz *rtime, bool *fromStream);
+<<<<<<< HEAD
 
 extern XLogRecPtr GetXLogReplayRecPtr(TimeLineID *targetTLI);
 extern XLogRecPtr GetStandbyFlushRecPtr(TimeLineID *targetTLI);
+=======
+extern XLogRecPtr GetXLogReplayRecPtr(TimeLineID *replayTLI);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern XLogRecPtr GetXLogInsertRecPtr(void);
 extern XLogRecPtr GetXLogWriteRecPtr(void);
 extern bool RecoveryIsPaused(void);
 extern void SetRecoveryPause(bool recoveryPause);
 extern TimestampTz GetLatestXTime(void);
 extern TimestampTz GetCurrentChunkReplayStartTime(void);
+extern char *XLogFileNameP(TimeLineID tli, XLogSegNo segno);
 
 extern void UpdateControlFile(void);
 extern uint64 GetSystemIdentifier(void);
 extern bool DataChecksumsEnabled(void);
+<<<<<<< HEAD
+=======
+extern XLogRecPtr GetFakeLSNForUnloggedRel(void);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern Size XLOGShmemSize(void);
 extern void XLOGShmemInit(void);
 extern void BootStrapXLOG(void);
@@ -351,11 +432,11 @@ extern void XLogPutNextOid(Oid nextOid);
 extern void XLogPutNextRelfilenode(Oid nextRelfilenode);
 extern XLogRecPtr XLogRestorePoint(const char *rpName);
 extern void UpdateFullPageWrites(void);
+extern void GetFullPageWriteInfo(XLogRecPtr *RedoRecPtr_p, bool *doPageWrites_p);
 extern XLogRecPtr GetRedoRecPtr(void);
 extern XLogRecPtr GetInsertRecPtr(void);
 extern XLogRecPtr GetFlushRecPtr(void);
 extern void GetNextXidAndEpoch(TransactionId *xid, uint32 *epoch);
-extern TimeLineID GetRecoveryTargetTLI(void);
 
 extern void XLogGetRecoveryStart(char *callerStr, char *reasonStr, XLogRecPtr *redoCheckPointLoc, CheckPoint *redoCheckPoint);
 extern char *XLogLocationToString(XLogRecPtr *loc);
@@ -375,17 +456,25 @@ extern bool CheckPromoteSignal(bool do_unlink);
 extern void WakeupRecovery(void);
 extern void SetWalWriterSleeping(bool sleeping);
 
+extern void assign_max_wal_size(int newval, void *extra);
+extern void assign_checkpoint_completion_target(double newval, void *extra);
+
 /*
  * Starting/stopping a base backup
  */
-extern XLogRecPtr do_pg_start_backup(const char *backupidstr, bool fast, char **labelfile);
-extern XLogRecPtr do_pg_stop_backup(char *labelfile, bool waitforarchive);
+extern XLogRecPtr do_pg_start_backup(const char *backupidstr, bool fast,
+				   TimeLineID *starttli_p, char **labelfile, DIR *tblspcdir,
+				   List **tablespaces, char **tblspcmapfile, bool infotbssize,
+				   bool needtblspcmapfile);
+extern XLogRecPtr do_pg_stop_backup(char *labelfile, bool waitforarchive,
+				  TimeLineID *stoptli_p);
 extern void do_pg_abort_backup(void);
 
 /* File path names (all relative to $PGDATA) */
 #define BACKUP_LABEL_FILE		"backup_label"
 #define BACKUP_LABEL_OLD		"backup_label.old"
 
+<<<<<<< HEAD
 extern void xlog_print_redo_lsn_application(
 		RelFileNode		*rnode,
 		BlockNumber 	blkno,
@@ -411,5 +500,9 @@ extern bool IsBkpBlockApplied(XLogRecord *record, uint8 block_id);
 
 extern XLogRecPtr
 last_xlog_replay_location(void);
+=======
+#define TABLESPACE_MAP			"tablespace_map"
+#define TABLESPACE_MAP_OLD		"tablespace_map.old"
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #endif   /* XLOG_H */

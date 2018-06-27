@@ -3,7 +3,7 @@
  * regexp.c
  *	  Postgres' interface to the regular expression package.
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -31,6 +31,7 @@
 
 #include "catalog/pg_type.h"
 #include "funcapi.h"
+#include "miscadmin.h"
 #include "regex/regex.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
@@ -141,7 +142,7 @@ RE_compile_and_cache(text *text_re, int cflags, Oid collation)
 	char		errMsg[100];
 
 	/*
-	 * Look for a match among previously compiled REs.	Since the data
+	 * Look for a match among previously compiled REs.  Since the data
 	 * structure is self-organizing with most-used entries at the front, our
 	 * search strategy can just be to scan from the front.
 	 */
@@ -188,6 +189,18 @@ RE_compile_and_cache(text *text_re, int cflags, Oid collation)
 	if (regcomp_result != REG_OKAY)
 	{
 		/* re didn't compile (no need for pg_regfree, if so) */
+<<<<<<< HEAD
+=======
+
+		/*
+		 * Here and in other places in this file, do CHECK_FOR_INTERRUPTS
+		 * before reporting a regex error.  This is so that if the regex
+		 * library aborts and returns REG_CANCEL, we don't print an error
+		 * message that implies the regex was invalid.
+		 */
+		CHECK_FOR_INTERRUPTS();
+
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		pg_regerror(regcomp_result, &re_temp.cre_re, errMsg, sizeof(errMsg));
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_REGULAR_EXPRESSION),
@@ -268,6 +281,7 @@ RE_wchar_execute(regex_t *re, pg_wchar *data, int data_len,
 	if (regexec_result != REG_OKAY && regexec_result != REG_NOMATCH)
 	{
 		/* re failed??? */
+		CHECK_FOR_INTERRUPTS();
 		pg_regerror(regexec_result, re, errMsg, sizeof(errMsg));
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_REGULAR_EXPRESSION),
@@ -287,7 +301,7 @@ RE_wchar_execute(regex_t *re, pg_wchar *data, int data_len,
  *	dat_len --- the length of the data string
  *	nmatch, pmatch	--- optional return area for match details
  *
- * Data is given in the database encoding.	We internally
+ * Data is given in the database encoding.  We internally
  * convert to array of pg_wchar which is what Spencer's regex package wants.
  */
 static bool
@@ -677,11 +691,16 @@ similar_escape(PG_FUNCTION_ARGS)
 		elen = VARSIZE_ANY_EXHDR(esc_text);
 		if (elen == 0)
 			e = NULL;			/* no escape character */
-		else if (elen != 1)
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_ESCAPE_SEQUENCE),
-					 errmsg("invalid escape string"),
+		else
+		{
+			int			escape_mblen = pg_mbstrlen_with_len(e, elen);
+
+			if (escape_mblen > 1)
+				ereport(ERROR,
+						(errcode(ERRCODE_INVALID_ESCAPE_SEQUENCE),
+						 errmsg("invalid escape string"),
 				  errhint("Escape string must be empty or one character.")));
+		}
 	}
 
 	/*----------
@@ -713,6 +732,55 @@ similar_escape(PG_FUNCTION_ARGS)
 	{
 		char		pchar = *p;
 
+		/*
+		 * If both the escape character and the current character from the
+		 * pattern are multi-byte, we need to take the slow path.
+		 *
+		 * But if one of them is single-byte, we can process the pattern one
+		 * byte at a time, ignoring multi-byte characters.  (This works
+		 * because all server-encodings have the property that a valid
+		 * multi-byte character representation cannot contain the
+		 * representation of a valid single-byte character.)
+		 */
+
+		if (elen > 1)
+		{
+			int			mblen = pg_mblen(p);
+
+			if (mblen > 1)
+			{
+				/* slow, multi-byte path */
+				if (afterescape)
+				{
+					*r++ = '\\';
+					memcpy(r, p, mblen);
+					r += mblen;
+					afterescape = false;
+				}
+				else if (e && elen == mblen && memcmp(e, p, mblen) == 0)
+				{
+					/* SQL99 escape character; do not send to output */
+					afterescape = true;
+				}
+				else
+				{
+					/*
+					 * We know it's a multi-byte character, so we don't need
+					 * to do all the comparisons to single-byte characters
+					 * that we do below.
+					 */
+					memcpy(r, p, mblen);
+					r += mblen;
+				}
+
+				p += mblen;
+				plen -= mblen;
+
+				continue;
+			}
+		}
+
+		/* fast path */
 		if (afterescape)
 		{
 			if (pchar == '"' && !incharclass)	/* for SUBSTRING patterns */
@@ -957,14 +1025,13 @@ setup_regexp_matches(text *orig_str, text *pattern, text *flags,
 			break;
 
 		/*
-		 * Advance search position.  Normally we start just after the end of
-		 * the previous match, but always advance at least one character (the
-		 * special case can occur if the pattern matches zero characters just
-		 * after the prior match or at the end of the string).
+		 * Advance search position.  Normally we start the next search at the
+		 * end of the previous match; but if the match was of zero length, we
+		 * have to advance by one character, or we'd just find the same match
+		 * again.
 		 */
-		if (start_search < pmatch[0].rm_eo)
-			start_search = pmatch[0].rm_eo;
-		else
+		start_search = prev_match_end;
+		if (pmatch[0].rm_so == pmatch[0].rm_eo)
 			start_search++;
 		if (start_search > wide_len)
 			break;
@@ -1217,6 +1284,10 @@ regexp_fixed_prefix(text *text_re, bool case_insensitive, Oid collation,
 
 		default:
 			/* re failed??? */
+<<<<<<< HEAD
+=======
+			CHECK_FOR_INTERRUPTS();
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			pg_regerror(re_result, re, errMsg, sizeof(errMsg));
 			ereport(ERROR,
 					(errcode(ERRCODE_INVALID_REGULAR_EXPRESSION),

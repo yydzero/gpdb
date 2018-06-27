@@ -68,7 +68,7 @@ create aggregate aggfstr(integer,integer,text) (
 );
 
 create aggregate aggfns(integer,integer,text) (
-   sfunc = aggfns_trans, stype = aggtype[],
+   sfunc = aggfns_trans, stype = aggtype[], sspace = 10000,
    initcond = '{}'
 );
 
@@ -104,6 +104,7 @@ alter aggregate my_rank(VARIADIC "any" ORDER BY VARIADIC "any")
 
 \da test_*
 
+<<<<<<< HEAD
 
 -- Negative test: "ordered aggregate prefunc is not supported"
 create ordered aggregate should_error(integer,integer,text) (
@@ -130,3 +131,45 @@ select string_concat(t) from (select * from aggtest2 limit 2000) tmp;
 drop table aggtest2;
 drop aggregate string_concat(text);
 drop function str_concat(text, text);
+=======
+-- moving-aggregate options
+
+CREATE AGGREGATE sumdouble (float8)
+(
+    stype = float8,
+    sfunc = float8pl,
+    mstype = float8,
+    msfunc = float8pl,
+    minvfunc = float8mi
+);
+
+-- invalid: nonstrict inverse with strict forward function
+
+CREATE FUNCTION float8mi_n(float8, float8) RETURNS float8 AS
+$$ SELECT $1 - $2; $$
+LANGUAGE SQL;
+
+CREATE AGGREGATE invalidsumdouble (float8)
+(
+    stype = float8,
+    sfunc = float8pl,
+    mstype = float8,
+    msfunc = float8pl,
+    minvfunc = float8mi_n
+);
+
+-- invalid: non-matching result types
+
+CREATE FUNCTION float8mi_int(float8, float8) RETURNS int AS
+$$ SELECT CAST($1 - $2 AS INT); $$
+LANGUAGE SQL;
+
+CREATE AGGREGATE wrongreturntype (float8)
+(
+    stype = float8,
+    sfunc = float8pl,
+    mstype = float8,
+    msfunc = float8pl,
+    minvfunc = float8mi_int
+);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8

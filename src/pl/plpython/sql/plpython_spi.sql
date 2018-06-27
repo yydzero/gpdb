@@ -172,6 +172,16 @@ $$ LANGUAGE plpythonu;
 
 SELECT result_empty_test();
 
+CREATE FUNCTION result_str_test(cmd text) RETURNS text
+AS $$
+plan = plpy.prepare(cmd)
+result = plpy.execute(plan)
+return str(result)
+$$ LANGUAGE plpythonu;
+
+SELECT result_str_test($$SELECT 1 AS foo UNION SELECT 2$$);
+SELECT result_str_test($$CREATE TEMPORARY TABLE foo1 (a int, b text)$$);
+
 -- cursor objects
 
 CREATE FUNCTION simple_cursor_test() RETURNS int AS $$
@@ -277,6 +287,17 @@ plan = plpy.prepare("select fname, lname from users where fname like $1 || '%'",
 c = plpy.cursor(plan, ["a", "b"])
 $$ LANGUAGE plpythonu;
 
+CREATE TYPE test_composite_type AS (
+  a1 int,
+  a2 varchar
+);
+
+CREATE OR REPLACE FUNCTION plan_composite_args() RETURNS test_composite_type AS $$
+plan = plpy.prepare("select $1 as c1", ["test_composite_type"])
+res = plpy.execute(plan, [{"a1": 3, "a2": "label"}])
+return res[0]["c1"]
+$$ LANGUAGE plpythonu;
+
 SELECT simple_cursor_test();
 SELECT double_cursor_close();
 SELECT cursor_fetch();
@@ -286,3 +307,4 @@ SELECT next_after_close();
 SELECT cursor_fetch_next_empty();
 SELECT cursor_plan();
 SELECT cursor_plan_wrong_args();
+SELECT plan_composite_args();

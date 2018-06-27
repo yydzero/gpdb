@@ -27,7 +27,7 @@
  * always be so; try to be careful to maintain the distinction.)
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/nodes/pg_list.h
@@ -73,24 +73,39 @@ struct ListCell
  * them as macros, since we want to avoid double-evaluation of macro
  * arguments. Therefore, we implement them using static inline functions
  * if supported by the compiler, or as regular functions otherwise.
+ * See STATIC_IF_INLINE in c.h.
  */
+<<<<<<< HEAD
 static inline ListCell *
+=======
+#ifndef PG_USE_INLINE
+extern ListCell *list_head(const List *l);
+extern ListCell *list_tail(List *l);
+extern int	list_length(const List *l);
+#endif   /* PG_USE_INLINE */
+#if defined(PG_USE_INLINE) || defined(PG_LIST_INCLUDE_DEFINITIONS)
+STATIC_IF_INLINE ListCell *
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 list_head(const List *l)
 {
 	return l ? l->head : NULL;
 }
 
-static inline ListCell *
+STATIC_IF_INLINE ListCell *
 list_tail(List *l)
 {
 	return l ? l->tail : NULL;
 }
 
-static inline int
+STATIC_IF_INLINE int
 list_length(const List *l)
 {
 	return l ? l->length : 0;
 }
+<<<<<<< HEAD
+=======
+#endif   /*-- PG_USE_INLINE || PG_LIST_INCLUDE_DEFINITIONS */
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /*
  * NB: There is an unfortunate legacy from a previous incarnation of
@@ -232,8 +247,9 @@ extern List *list_union_int(const List *list1, const List *list2);
 extern List *list_union_oid(const List *list1, const List *list2);
 
 extern List *list_intersection(const List *list1, const List *list2);
+extern List *list_intersection_int(const List *list1, const List *list2);
 
-/* currently, there's no need for list_intersection_int etc */
+/* currently, there's no need for list_intersection_ptr etc */
 
 extern List *list_difference(const List *list1, const List *list2);
 extern List *list_difference_ptr(const List *list1, const List *list2);

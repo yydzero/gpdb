@@ -66,12 +66,14 @@
 
 #define USES_WINSOCK
 
-/* defines for dynamic linking on Win32 platform */
-#if defined(WIN32) || defined(__CYGWIN__)
+/* defines for dynamic linking on Win32 platform
+ *
+ *	http://support.microsoft.com/kb/132044
+ *	http://msdn.microsoft.com/en-us/library/8fskxacy(v=vs.80).aspx
+ *	http://msdn.microsoft.com/en-us/library/a90k134d(v=vs.80).aspx
+ */
 
-#if __GNUC__ && ! defined (__declspec)
-#error You need egcs 1.1 or newer for compiling!
-#endif
+#if defined(WIN32) || defined(__CYGWIN__)
 
 #ifdef BUILDING_DLL
 #define PGDLLIMPORT __declspec (dllexport)
@@ -119,7 +121,7 @@
  *	Signal stuff
  *
  *	For WIN32, there is no wait() call so there are no wait() macros
- *	to interpret the return value of system().	Instead, system()
+ *	to interpret the return value of system().  Instead, system()
  *	return values < 0x100 are used for exit() termination, and higher
  *	values are used to indicated non-exit() termination, which is
  *	similar to a unix-style signal exit (think SIGSEGV ==
@@ -157,7 +159,7 @@
  *		NTSTATUS.H from the Windows NT DDK.
  *
  *	Some day we might want to print descriptions for the most common
- *	exceptions, rather than printing an include file name.	We could use
+ *	exceptions, rather than printing an include file name.  We could use
  *	RtlNtStatusToDosError() and pass to FormatMessage(), which can print
  *	the text of error values, but MinGW does not support
  *	RtlNtStatusToDosError().
@@ -275,6 +277,7 @@ typedef int pid_t;
 #undef EAGAIN
 #define EAGAIN WSAEWOULDBLOCK
 <<<<<<< HEAD
+<<<<<<< HEAD
 #undef EMSGSIZE
 #define EMSGSIZE WSAEMSGSIZE
 #undef EAFNOSUPPORT
@@ -292,40 +295,43 @@ typedef int pid_t;
 #undef ECONNREFUSED
 =======
 #ifndef EMSGSIZE
+=======
+#undef EMSGSIZE
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #define EMSGSIZE WSAEMSGSIZE
-#endif
-#ifndef EAFNOSUPPORT
+#undef EAFNOSUPPORT
 #define EAFNOSUPPORT WSAEAFNOSUPPORT
-#endif
-#ifndef EWOULDBLOCK
+#undef EWOULDBLOCK
 #define EWOULDBLOCK WSAEWOULDBLOCK
-#endif
-#ifndef ECONNRESET
+#undef ECONNRESET
 #define ECONNRESET WSAECONNRESET
-#endif
-#ifndef EINPROGRESS
+#undef EINPROGRESS
 #define EINPROGRESS WSAEINPROGRESS
-#endif
-#ifndef ENOBUFS
+#undef ENOBUFS
 #define ENOBUFS WSAENOBUFS
-#endif
-#ifndef EPROTONOSUPPORT
+#undef EPROTONOSUPPORT
 #define EPROTONOSUPPORT WSAEPROTONOSUPPORT
+<<<<<<< HEAD
 #endif
 #ifndef ECONNREFUSED
 >>>>>>> 80edfd76591fdb9beec061de3c05ef4e9d96ce56
+=======
+#undef ECONNREFUSED
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #define ECONNREFUSED WSAECONNREFUSED
-#endif
-#ifndef EBADFD
+#undef EBADFD
 #define EBADFD WSAENOTSOCK
+<<<<<<< HEAD
 <<<<<<< HEAD
 #undef EOPNOTSUPP
 =======
 #endif
 #ifndef EOPNOTSUPP
 >>>>>>> 80edfd76591fdb9beec061de3c05ef4e9d96ce56
+=======
+#undef EOPNOTSUPP
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #define EOPNOTSUPP WSAEOPNOTSUPP
-#endif
 
 /*
  * For Microsoft Visual Studio 2010 and above we intentionally redefine
@@ -375,6 +381,7 @@ typedef int pid_t;
 #define isspace_l _isspace_l
 #define iswspace_l _iswspace_l
 #define strcoll_l _strcoll_l
+#define strxfrm_l _strxfrm_l
 #define wcscoll_l _wcscoll_l
 #define wcstombs_l _wcstombs_l
 #define mbstowcs_l _mbstowcs_l
@@ -475,8 +482,10 @@ typedef unsigned short mode_t;
 #define W_OK 2
 #define R_OK 4
 
+#if (_MSC_VER < 1800)
 #define isinf(x) ((_fpclass(x) == _FPCLASS_PINF) || (_fpclass(x) == _FPCLASS_NINF))
 #define isnan(x) _isnan(x)
+#endif
 
 /* Pulled from Makefile.port in mingw */
 #define DLSUFFIX ".dll"

@@ -3,7 +3,7 @@
  * storage.c
  *	  code to create and destroy physical storage for relations
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -21,9 +21,12 @@
 
 #include "access/visibilitymap.h"
 #include "access/xact.h"
+#include "access/xlog.h"
+#include "access/xloginsert.h"
 #include "access/xlogutils.h"
 #include "catalog/catalog.h"
 #include "catalog/storage.h"
+#include "catalog/storage_xlog.h"
 #include "storage/freespace.h"
 #include "storage/smgr.h"
 #include "utils/memutils.h"
@@ -59,30 +62,6 @@ typedef struct PendingRelDelete
 } PendingRelDelete;
 
 static PendingRelDelete *pendingDeletes = NULL; /* head of linked list */
-
-/*
- * Declarations for smgr-related XLOG records
- *
- * Note: we log file creation and truncation here, but logging of deletion
- * actions is handled by xact.c, because it is part of transaction commit.
- */
-
-/* XLOG gives us high 4 bits */
-#define XLOG_SMGR_CREATE	0x10
-#define XLOG_SMGR_TRUNCATE	0x20
-
-typedef struct xl_smgr_create
-{
-	RelFileNode rnode;
-	ForkNumber	forkNum;
-} xl_smgr_create;
-
-typedef struct xl_smgr_truncate
-{
-	BlockNumber blkno;
-	RelFileNode rnode;
-} xl_smgr_truncate;
-
 
 /*
  * RelationCreateStorage
@@ -140,13 +119,12 @@ RelationCreateStorage(RelFileNode rnode, char relpersistence)
 }
 
 /*
- * Perform XLogInsert of a XLOG_SMGR_CREATE record to WAL.
+ * Perform XLogInsert of an XLOG_SMGR_CREATE record to WAL.
  */
 void
 log_smgrcreate(RelFileNode *rnode, ForkNumber forkNum)
 {
 	xl_smgr_create xlrec;
-	XLogRecData rdata;
 
 	/*
 	 * Make an XLOG entry reporting the file creation.
@@ -154,12 +132,9 @@ log_smgrcreate(RelFileNode *rnode, ForkNumber forkNum)
 	xlrec.rnode = *rnode;
 	xlrec.forkNum = forkNum;
 
-	rdata.data = (char *) &xlrec;
-	rdata.len = sizeof(xlrec);
-	rdata.buffer = InvalidBuffer;
-	rdata.next = NULL;
-
-	XLogInsert(RM_SMGR_ID, XLOG_SMGR_CREATE, &rdata);
+	XLogBeginInsert();
+	XLogRegisterData((char *) &xlrec, sizeof(xlrec));
+	XLogInsert(RM_SMGR_ID, XLOG_SMGR_CREATE | XLR_SPECIAL_REL_UPDATE);
 }
 
 /*
@@ -289,18 +264,16 @@ RelationTruncate(Relation rel, BlockNumber nblocks)
 		 * Make an XLOG entry reporting the file truncation.
 		 */
 		XLogRecPtr	lsn;
-		XLogRecData rdata;
 		xl_smgr_truncate xlrec;
 
 		xlrec.blkno = nblocks;
 		xlrec.rnode = rel->rd_node;
 
-		rdata.data = (char *) &xlrec;
-		rdata.len = sizeof(xlrec);
-		rdata.buffer = InvalidBuffer;
-		rdata.next = NULL;
+		XLogBeginInsert();
+		XLogRegisterData((char *) &xlrec, sizeof(xlrec));
 
-		lsn = XLogInsert(RM_SMGR_ID, XLOG_SMGR_TRUNCATE, &rdata);
+		lsn = XLogInsert(RM_SMGR_ID,
+						 XLOG_SMGR_TRUNCATE | XLR_SPECIAL_REL_UPDATE);
 
 		/*
 		 * Flush, because otherwise the truncation of the main relation might
@@ -335,6 +308,10 @@ smgrDoPendingDeletes(bool isCommit)
 	PendingRelDelete *pending;
 	PendingRelDelete *prev;
 	PendingRelDelete *next;
+	int			nrels = 0,
+				i = 0,
+				maxrels = 0;
+	SMgrRelation *srels = NULL;
 
 	prev = NULL;
 	for (pending = pendingDeletes; pending != NULL; pending = next)
@@ -359,13 +336,39 @@ smgrDoPendingDeletes(bool isCommit)
 
 				srel = smgropen(pending->relnode, pending->backend);
 
+<<<<<<< HEAD
 				smgrdounlink(srel, false);
 				smgrclose(srel);
+=======
+				/* allocate the initial array, or extend it, if needed */
+				if (maxrels == 0)
+				{
+					maxrels = 8;
+					srels = palloc(sizeof(SMgrRelation) * maxrels);
+				}
+				else if (maxrels <= nrels)
+				{
+					maxrels *= 2;
+					srels = repalloc(srels, sizeof(SMgrRelation) * maxrels);
+				}
+
+				srels[nrels++] = srel;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			}
 			/* must explicitly free the list entry */
 			pfree(pending);
 			/* prev does not change */
 		}
+	}
+
+	if (nrels > 0)
+	{
+		smgrdounlinkall(srels, nrels, false);
+
+		for (i = 0; i < nrels; i++)
+			smgrclose(srels[i]);
+
+		pfree(srels);
 	}
 }
 
@@ -376,7 +379,7 @@ smgrDoPendingDeletes(bool isCommit)
  * *ptr is set to point to a freshly-palloc'd array of RelFileNodes.
  * If there are no relations to be deleted, *ptr is set to NULL.
  *
- * Only non-temporary relations are included in the returned list.	This is OK
+ * Only non-temporary relations are included in the returned list.  This is OK
  * because the list is used only in contexts where temporary relations don't
  * matter: we're either writing to the two-phase state file (and transactions
  * that have touched temp tables can't be prepared) or we're writing to xlog
@@ -493,12 +496,17 @@ AtSubAbort_smgr(void)
 }
 
 void
+<<<<<<< HEAD
 smgr_redo(XLogRecPtr beginLoc, XLogRecPtr lsn, XLogRecord *record)
+=======
+smgr_redo(XLogReaderState *record)
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 {
-	uint8		info = record->xl_info & ~XLR_INFO_MASK;
+	XLogRecPtr	lsn = record->EndRecPtr;
+	uint8		info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
 	/* Backup blocks are not used in smgr records */
-	Assert(!(record->xl_info & XLR_BKP_BLOCK_MASK));
+	Assert(!XLogRecHasAnyBlockRefs(record));
 
 	if (info == XLOG_SMGR_CREATE)
 	{
@@ -519,12 +527,13 @@ smgr_redo(XLogRecPtr beginLoc, XLogRecPtr lsn, XLogRecord *record)
 		/*
 		 * Forcibly create relation if it doesn't exist (which suggests that
 		 * it was dropped somewhere later in the WAL sequence).  As in
-		 * XLogReadBuffer, we prefer to recreate the rel and replay the log as
-		 * best we can until the drop is seen.
+		 * XLogReadBufferForRedo, we prefer to recreate the rel and replay the
+		 * log as best we can until the drop is seen.
 		 */
 		smgrcreate(reln, MAIN_FORKNUM, true);
 
 		/*
+<<<<<<< HEAD
 		 * Before we perform the truncation, update minimum recovery point
 		 * to cover this WAL record. Once the relation is truncated, there's
 		 * no going back. The buffer manager enforces the WAL-first rule
@@ -532,6 +541,14 @@ smgr_redo(XLogRecPtr beginLoc, XLogRecPtr lsn, XLogRecord *record)
 		 * point is always updated before the corresponding change in the
 		 * data file is flushed to disk. We have to do the same manually
 		 * here.
+=======
+		 * Before we perform the truncation, update minimum recovery point to
+		 * cover this WAL record. Once the relation is truncated, there's no
+		 * going back. The buffer manager enforces the WAL-first rule for
+		 * normal updates to relation files, so that the minimum recovery
+		 * point is always updated before the corresponding change in the data
+		 * file is flushed to disk. We have to do the same manually here.
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		 *
 		 * Doing this before the truncation means that if the truncation fails
 		 * for some reason, you cannot start up the system even after restart,
@@ -560,6 +577,7 @@ smgr_redo(XLogRecPtr beginLoc, XLogRecPtr lsn, XLogRecord *record)
 	else
 		elog(PANIC, "smgr_redo: unknown op code %u", info);
 }
+<<<<<<< HEAD
 
 void
 smgr_desc(StringInfo buf, XLogRecPtr beginLoc, XLogRecord *record)
@@ -587,3 +605,5 @@ smgr_desc(StringInfo buf, XLogRecPtr beginLoc, XLogRecord *record)
 	else
 		appendStringInfo(buf, "UNKNOWN");
 }
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8

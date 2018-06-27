@@ -14,7 +14,7 @@ use base qw(Project);
 sub _new
 {
 	my $classname = shift;
-	my $self = $classname->SUPER::_new(@_);
+	my $self      = $classname->SUPER::_new(@_);
 	bless($self, $classname);
 
 	$self->{filenameExtension} = '.vcproj';
@@ -32,10 +32,28 @@ sub WriteHeader
  <Platforms><Platform Name="$self->{platform}"/></Platforms>
  <Configurations>
 EOF
-	$self->WriteConfiguration($f, 'Debug',
-		{defs=>'_DEBUG;DEBUG=1;', wholeopt=>0, opt=>0, strpool=>'false', runtime=>3});
-	$self->WriteConfiguration($f, 'Release',
-		{defs=>'', wholeopt=>0, opt=>3, strpool=>'true', runtime=>2});
+
+	# We have to use this flag on 32 bit targets because the 32bit perls
+	# are built with it and sometimes crash if we don't.
+	my $use_32bit_time_t =
+	  $self->{platform} eq 'Win32' ? '_USE_32BIT_TIME_T;' : '';
+
+
+	$self->WriteConfiguration(
+		$f, 'Debug',
+		{   defs     => "_DEBUG;DEBUG=1;$use_32bit_time_t",
+			wholeopt => 0,
+			opt      => 0,
+			strpool  => 'false',
+			runtime  => 3 });
+	$self->WriteConfiguration(
+		$f,
+		'Release',
+		{   defs     => "$use_32bit_time_t",
+			wholeopt => 0,
+			opt      => 3,
+			strpool  => 'true',
+			runtime  => 2 });
 	print $f <<EOF;
  </Configurations>
 EOF
@@ -50,44 +68,55 @@ sub WriteFiles
 EOF
 	my @dirstack = ();
 	my %uniquefiles;
-	foreach my $fileNameWithPath (sort keys %{$self->{files}})
+	foreach my $fileNameWithPath (sort keys %{ $self->{files} })
 	{
 		confess "Bad format filename '$fileNameWithPath'\n"
-		  unless ($fileNameWithPath =~ /^(.*)\\([^\\]+)\.[r]?[cyl]$/);
-		my $dir = $1;
+		  unless ($fileNameWithPath =~ m!^(.*)/([^/]+)\.(c|cpp|y|l|rc)$!);
+		my $dir  = $1;
 		my $file = $2;
 
-		# Walk backwards down the directory stack and close any dirs we're done with
+		# Walk backwards down the directory stack and close any dirs
+		# we're done with.
 		while ($#dirstack >= 0)
 		{
-			if (join('\\',@dirstack) eq substr($dir, 0, length(join('\\',@dirstack))))
+			if (join('/', @dirstack) eq
+				substr($dir, 0, length(join('/', @dirstack))))
 			{
-				last if (length($dir) == length(join('\\',@dirstack)));
-				last if (substr($dir, length(join('\\',@dirstack)),1) eq '\\');
+				last if (length($dir) == length(join('/', @dirstack)));
+				last
+				  if (substr($dir, length(join('/', @dirstack)), 1) eq '/');
 			}
 			print $f ' ' x $#dirstack . "  </Filter>\n";
 			pop @dirstack;
 		}
 
 		# Now walk forwards and create whatever directories are needed
-		while (join('\\',@dirstack) ne $dir)
+		while (join('/', @dirstack) ne $dir)
 		{
-			my $left = substr($dir, length(join('\\',@dirstack)));
-			$left =~ s/^\\//;
-			my @pieces = split /\\/, $left;
+			my $left = substr($dir, length(join('/', @dirstack)));
+			$left =~ s/^\///;
+			my @pieces = split /\//, $left;
 			push @dirstack, $pieces[0];
-			print $f ' ' x $#dirstack . "  <Filter Name=\"$pieces[0]\" Filter=\"\">\n";
+			print $f ' ' x $#dirstack
+			  . "  <Filter Name=\"$pieces[0]\" Filter=\"\">\n";
 		}
 
-		print $f ' ' x $#dirstack . "   <File RelativePath=\"$fileNameWithPath\"";
+		# VC builds do not like file paths with forward slashes.
+		my $fileNameWithPathFormatted = $fileNameWithPath;
+		$fileNameWithPathFormatted =~ s/\//\\/g;
+
+		print $f ' ' x $#dirstack
+		  . "   <File RelativePath=\"$fileNameWithPathFormatted\"";
 		if ($fileNameWithPath =~ /\.y$/)
 		{
 			my $of = $fileNameWithPath;
 			$of =~ s/\.y$/.c/;
-			$of =~ s{^src\\pl\\plpgsql\\src\\gram.c$}{src\\pl\\plpgsql\\src\\pl_gram.c};
+			$of =~
+			  s{^src/pl/plpgsql/src/gram.c$}{src/pl/plpgsql/src/pl_gram.c};
 			print $f '>'
-			  . $self->GenerateCustomTool('Running bison on ' . $fileNameWithPath,
-				"perl src\\tools\\msvc\\pgbison.pl $fileNameWithPath", $of)
+			  . $self->GenerateCustomTool(
+				'Running bison on ' . $fileNameWithPath,
+				"perl src/tools/msvc/pgbison.pl $fileNameWithPath", $of)
 			  . '</File>' . "\n";
 		}
 		elsif ($fileNameWithPath =~ /\.l$/)
@@ -95,8 +124,9 @@ EOF
 			my $of = $fileNameWithPath;
 			$of =~ s/\.l$/.c/;
 			print $f '>'
-			  . $self->GenerateCustomTool('Running flex on ' . $fileNameWithPath,
-				"perl src\\tools\\msvc\\pgflex.pl $fileNameWithPath", $of)
+			  . $self->GenerateCustomTool(
+				'Running flex on ' . $fileNameWithPath,
+				"perl src/tools/msvc/pgflex.pl $fileNameWithPath", $of)
 			  . '</File>' . "\n";
 		}
 		elsif (defined($uniquefiles{$file}))
@@ -104,7 +134,7 @@ EOF
 
 			# File already exists, so fake a new name
 			my $obj = $dir;
-			$obj =~ s/\\/_/g;
+			$obj =~ s!/!_!g;
 			print $f
 "><FileConfiguration Name=\"Debug|$self->{platform}\"><Tool Name=\"VCCLCompilerTool\" ObjectFile=\".\\debug\\$self->{name}\\$obj"
 			  . "_$file.obj\" /></FileConfiguration><FileConfiguration Name=\"Release|$self->{platform}\"><Tool Name=\"VCCLCompilerTool\" ObjectFile=\".\\release\\$self->{name}\\$obj"
@@ -139,7 +169,8 @@ EOF
 sub WriteConfiguration
 {
 	my ($self, $f, $cfgname, $p) = @_;
-	my $cfgtype = ($self->{type} eq "exe")?1:($self->{type} eq "dll"?2:4);
+	my $cfgtype =
+	  ($self->{type} eq "exe") ? 1 : ($self->{type} eq "dll" ? 2 : 4);
 	my $libs = $self->GetAdditionalLinkerDependencies($cfgname, ' ');
 
 	my $targetmachine = $self->{platform} eq 'Win32' ? 1 : 17;
@@ -164,11 +195,13 @@ EOF
 		StackReserveSize="4194304" DisableSpecificWarnings="$self->{disablewarnings}"
 		GenerateDebugInformation="TRUE" ProgramDatabaseFile=".\\$cfgname\\$self->{name}\\$self->{name}.pdb"
 		GenerateMapFile="FALSE" MapFileName=".\\$cfgname\\$self->{name}\\$self->{name}.map"
+		RandomizedBaseAddress="FALSE"
 		SubSystem="1" TargetMachine="$targetmachine"
 EOF
 	if ($self->{disablelinkerwarnings})
 	{
-		print $f "\t\tAdditionalOptions=\"/ignore:$self->{disablelinkerwarnings}\"\n";
+		print $f
+"\t\tAdditionalOptions=\"/ignore:$self->{disablelinkerwarnings}\"\n";
 	}
 	if ($self->{implib})
 	{
@@ -202,7 +235,7 @@ sub WriteReferences
 {
 	my ($self, $f) = @_;
 	print $f " <References>\n";
-	foreach my $ref (@{$self->{references}})
+	foreach my $ref (@{ $self->{references} })
 	{
 		print $f
 "  <ProjectReference ReferencedProjectIdentifier=\"$ref->{guid}\" Name=\"$ref->{name}\" />\n";
@@ -216,7 +249,7 @@ sub GenerateCustomTool
 	if (!defined($cfg))
 	{
 		return $self->GenerateCustomTool($desc, $tool, $output, 'Debug')
-		  .$self->GenerateCustomTool($desc, $tool, $output, 'Release');
+		  . $self->GenerateCustomTool($desc, $tool, $output, 'Release');
 	}
 	return
 "<FileConfiguration Name=\"$cfg|$self->{platform}\"><Tool Name=\"VCCustomBuildTool\" Description=\"$desc\" CommandLine=\"$tool\" AdditionalDependencies=\"\" Outputs=\"$output\" /></FileConfiguration>";
@@ -235,7 +268,7 @@ use base qw(VCBuildProject);
 sub new
 {
 	my $classname = shift;
-	my $self = $classname->SUPER::_new(@_);
+	my $self      = $classname->SUPER::_new(@_);
 	bless($self, $classname);
 
 	$self->{vcver} = '8.00';
@@ -256,7 +289,7 @@ use base qw(VCBuildProject);
 sub new
 {
 	my $classname = shift;
-	my $self = $classname->SUPER::_new(@_);
+	my $self      = $classname->SUPER::_new(@_);
 	bless($self, $classname);
 
 	$self->{vcver} = '9.00';

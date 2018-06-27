@@ -4,7 +4,7 @@
  *	  Definitions for using the POSTGRES copy command.
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/commands/copy.h
@@ -287,15 +287,20 @@ typedef struct CopyStateData
 #define ntohll(x) ((1==ntohl(1)) ? (x) : ((uint64_t)ntohl((x) & 0xFFFFFFFF) << 32) | ntohl((x) >> 32))
 #endif
 
-extern uint64 DoCopy(const CopyStmt *stmt, const char *queryString);
+extern Oid DoCopy(const CopyStmt *stmt, const char *queryString,
+	   uint64 *processed);
 
 extern void ProcessCopyOptions(CopyState cstate, bool is_from, List *options,
 				   int num_columns, bool is_copy);
 extern CopyState BeginCopyFrom(Relation rel, const char *filename,
+<<<<<<< HEAD
 			  bool is_program, copy_data_source_cb data_source_cb,
 			  void *data_source_cb_extra,
 			  List *attnamelist, List *options, List *ao_segnos);
 extern CopyState BeginCopyToForExternalTable(Relation extrel, List *options);
+=======
+			  bool is_program, List *attnamelist, List *options);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern void EndCopyFrom(CopyState cstate);
 extern bool NextCopyFrom(CopyState cstate, ExprContext *econtext,
 						 Datum *values, bool *nulls, Oid *tupleOid);

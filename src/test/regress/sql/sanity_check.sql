@@ -6,12 +6,19 @@ VACUUM;
 -- names depending on the current OID counter) as well as temp tables
 -- of other backends (to avoid timing-dependent behavior).
 --
+
+-- temporarily disable fancy output, so catalog changes create less diff noise
+\a\t
+
 SELECT relname, relhasindex
    FROM pg_class c LEFT JOIN pg_namespace n ON n.oid = relnamespace
    WHERE relkind = 'r' AND (nspname ~ '^pg_temp_') IS NOT TRUE
    AND relname NOT LIKE 'gp_%'
    AND relname <> 'pg_resqueue'
    ORDER BY relname;
+
+-- restore normal output mode
+\a\t
 
 --
 -- another sanity check: every system catalog that has OIDs should have

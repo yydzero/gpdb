@@ -4,7 +4,7 @@
  *	  private declarations for GiST -- declarations related to the
  *	  internal implementation of GiST, not the public API
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/access/gist_private.h
@@ -16,11 +16,27 @@
 
 #include "access/gist.h"
 #include "access/itup.h"
+#include "access/xlogreader.h"
 #include "fmgr.h"
+#include "lib/pairingheap.h"
 #include "storage/bufmgr.h"
 #include "storage/buffile.h"
-#include "utils/rbtree.h"
 #include "utils/hsearch.h"
+
+/*
+ * Maximum number of "halves" a page can be split into in one operation.
+ * Typically a split produces 2 halves, but can be more if keys have very
+ * different lengths, or when inserting multiple keys in one operation (as
+ * when inserting downlinks to an internal node).  There is no theoretical
+ * limit on this, but in practice if you get more than a handful page halves
+ * in one split, there's something wrong with the opclass implementation.
+ * GIST_MAX_SPLIT_PAGES is an arbitrary limit on that, used to size some
+ * local arrays used during split.  Note that there is also a limit on the
+ * number of buffers that can be held locked at a time, MAX_SIMUL_LWLOCKS,
+ * so if you raise this higher than that limit, you'll just get a different
+ * error.
+ */
+#define GIST_MAX_SPLIT_PAGES		75
 
 /* Buffer lock modes */
 #define GIST_SHARE	BUFFER_LOCK_SHARE
@@ -31,7 +47,7 @@ typedef struct
 {
 	BlockNumber prev;
 	uint32		freespace;
-	char		tupledata[1];
+	char		tupledata[FLEXIBLE_ARRAY_MEMBER];
 } GISTNodeBufferPage;
 
 #define BUFFER_PAGE_DATA_OFFSET MAXALIGN(offsetof(GISTNodeBufferPage, tupledata))
@@ -62,6 +78,8 @@ typedef struct GISTSTATE
 	MemoryContext tempCxt;		/* short-term context for calling functions */
 
 	TupleDesc	tupdesc;		/* index's tuple descriptor */
+	TupleDesc	fetchTupdesc;	/* tuple descriptor for tuples returned in an
+								 * index-only scan */
 
 	FmgrInfo	consistentFn[INDEX_MAX_KEYS];
 	FmgrInfo	unionFn[INDEX_MAX_KEYS];
@@ -71,6 +89,7 @@ typedef struct GISTSTATE
 	FmgrInfo	picksplitFn[INDEX_MAX_KEYS];
 	FmgrInfo	equalFn[INDEX_MAX_KEYS];
 	FmgrInfo	distanceFn[INDEX_MAX_KEYS];
+	FmgrInfo	fetchFn[INDEX_MAX_KEYS];
 
 	/* Collations to pass to the support functions */
 	Oid			supportCollation[INDEX_MAX_KEYS];
@@ -102,12 +121,15 @@ typedef struct GISTSearchHeapItem
 {
 	ItemPointerData heapPtr;
 	bool		recheck;		/* T if quals must be rechecked */
+	bool		recheckDistances;		/* T if distances must be rechecked */
+	IndexTuple	ftup;			/* data fetched back from the index, used in
+								 * index-only scans */
 } GISTSearchHeapItem;
 
 /* Unvisited item, either index page or heap tuple */
 typedef struct GISTSearchItem
 {
-	struct GISTSearchItem *next;	/* list link */
+	pairingheap_node phNode;
 	BlockNumber blkno;			/* index page number, or InvalidBlockNumber */
 	union
 	{
@@ -115,24 +137,13 @@ typedef struct GISTSearchItem
 		/* we must store parentlsn to detect whether a split occurred */
 		GISTSearchHeapItem heap;	/* heap info, if heap tuple */
 	}			data;
+	double		distances[FLEXIBLE_ARRAY_MEMBER];		/* numberOfOrderBys
+														 * entries */
 } GISTSearchItem;
 
 #define GISTSearchItemIsHeap(item)	((item).blkno == InvalidBlockNumber)
 
-/*
- * Within a GISTSearchTreeItem's chain, heap items always appear before
- * index-page items, since we want to visit heap items first.  lastHeap points
- * to the last heap item in the chain, or is NULL if there are none.
- */
-typedef struct GISTSearchTreeItem
-{
-	RBNode		rbnode;			/* this is an RBTree item */
-	GISTSearchItem *head;		/* first chain member */
-	GISTSearchItem *lastHeap;	/* last heap-tuple member, if any */
-	double		distances[1];	/* array with numberOfOrderBys entries */
-} GISTSearchTreeItem;
-
-#define GSTIHDRSZ offsetof(GISTSearchTreeItem, distances)
+#define SizeOfGISTSearchItem(n_distances) (offsetof(GISTSearchItem, distances) + sizeof(double) * (n_distances))
 
 /*
  * GISTScanOpaqueData: private state for a scan of a GiST index
@@ -140,21 +151,22 @@ typedef struct GISTSearchTreeItem
 typedef struct GISTScanOpaqueData
 {
 	GISTSTATE  *giststate;		/* index information, see above */
-	RBTree	   *queue;			/* queue of unvisited items */
+	Oid		   *orderByTypes;	/* datatypes of ORDER BY expressions */
+
+	pairingheap *queue;			/* queue of unvisited items */
 	MemoryContext queueCxt;		/* context holding the queue */
 	bool		qual_ok;		/* false if qual can never be satisfied */
 	bool		firstCall;		/* true until first gistgettuple call */
 
-	GISTSearchTreeItem *curTreeItem;	/* current queue item, if any */
-
 	/* pre-allocated workspace arrays */
-	GISTSearchTreeItem *tmpTreeItem;	/* workspace to pass to rb_insert */
 	double	   *distances;		/* output area for gistindex_keytest */
 
 	/* In a non-ordered search, returnable heap items are stored here: */
 	GISTSearchHeapItem pageData[BLCKSZ / sizeof(IndexTupleData)];
 	OffsetNumber nPageData;		/* number of valid items in array */
 	OffsetNumber curPageData;	/* next item to return */
+	MemoryContext pageDataCxt;	/* context holding the fetched tuples, for
+								 * index-only scans */
 } GISTScanOpaqueData;
 
 typedef GISTScanOpaqueData *GISTScanOpaque;
@@ -167,10 +179,16 @@ typedef GISTScanOpaqueData *GISTScanOpaque;
 #define XLOG_GIST_PAGE_SPLIT		0x30
  /* #define XLOG_GIST_INSERT_COMPLETE	 0x40 */	/* not used anymore */
 #define XLOG_GIST_CREATE_INDEX		0x50
-#define XLOG_GIST_PAGE_DELETE		0x60
+ /* #define XLOG_GIST_PAGE_DELETE		 0x60 */	/* not used anymore */
 
+/*
+ * Backup Blk 0: updated page.
+ * Backup Blk 1: If this operation completes a page split, by inserting a
+ *				 downlink for the split page, the left half of the split
+ */
 typedef struct gistxlogPageUpdate
 {
+<<<<<<< HEAD
 	RelFileNode 	node;
 	BlockNumber 	blkno;
 
@@ -180,23 +198,28 @@ typedef struct gistxlogPageUpdate
 	 */
 	BlockNumber leftchild;
 
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	/* number of deleted offsets */
 	uint16		ntodelete;
+	uint16		ntoinsert;
 
 	/*
-	 * follow: 1. todelete OffsetNumbers 2. tuples to insert
+	 * In payload of blk 0 : 1. todelete OffsetNumbers 2. tuples to insert
 	 */
 } gistxlogPageUpdate;
 
+/*
+ * Backup Blk 0: If this operation completes a page split, by inserting a
+ *				 downlink for the split page, the left half of the split
+ * Backup Blk 1 - npage: split pages (1 is the original page)
+ */
 typedef struct gistxlogPageSplit
 {
-	RelFileNode node;
-	BlockNumber origblkno;		/* splitted page */
 	BlockNumber origrlink;		/* rightlink of the page before split */
 	GistNSN		orignsn;		/* NSN of the page before split */
 	bool		origleaf;		/* was splitted page a leaf page? */
 
-	BlockNumber leftchild;		/* like in gistxlogPageUpdate */
 	uint16		npage;			/* # of pages in the split */
 	bool		markfollowright;	/* set F_FOLLOW_RIGHT flags */
 
@@ -211,12 +234,15 @@ typedef struct gistxlogPage
 	int			num;			/* number of index tuples following */
 } gistxlogPage;
 
+<<<<<<< HEAD
 typedef struct gistxlogPageDelete
 {
 	RelFileNode 	node;
 	BlockNumber 	blkno;
 } gistxlogPageDelete;
 
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /* SplitedPageLayout - gistSplit function result */
 typedef struct SplitedPageLayout
 {
@@ -254,20 +280,21 @@ typedef struct GISTInsertStack
 	struct GISTInsertStack *parent;
 } GISTInsertStack;
 
+/* Working state and results for multi-column split logic in gistsplit.c */
 typedef struct GistSplitVector
 {
-	GIST_SPLITVEC splitVector;	/* to/from PickSplit method */
+	GIST_SPLITVEC splitVector;	/* passed to/from user PickSplit method */
 
 	Datum		spl_lattr[INDEX_MAX_KEYS];		/* Union of subkeys in
-												 * spl_left */
+												 * splitVector.spl_left */
 	bool		spl_lisnull[INDEX_MAX_KEYS];
 
 	Datum		spl_rattr[INDEX_MAX_KEYS];		/* Union of subkeys in
-												 * spl_right */
+												 * splitVector.spl_right */
 	bool		spl_risnull[INDEX_MAX_KEYS];
 
-	bool	   *spl_equiv;		/* equivalent tuples which can be freely
-								 * distributed between left and right pages */
+	bool	   *spl_dontcare;	/* flags tuples which could go to either side
+								 * of the split for zero penalty */
 } GistSplitVector;
 
 typedef struct
@@ -413,6 +440,7 @@ typedef struct GiSTOptions
 /* gist.c */
 extern Datum gistbuildempty(PG_FUNCTION_ARGS);
 extern Datum gistinsert(PG_FUNCTION_ARGS);
+extern Datum gistcanreturn(PG_FUNCTION_ARGS);
 extern MemoryContext createTempGistContext(void);
 extern GISTSTATE *initGISTstate(Relation index);
 extern void freeGISTstate(GISTSTATE *giststate);
@@ -430,7 +458,8 @@ typedef struct
 
 extern bool gistplacetopage(Relation rel, Size freespace, GISTSTATE *giststate,
 				Buffer buffer,
-				IndexTuple *itup, int ntup, OffsetNumber oldoffnum,
+				IndexTuple *itup, int ntup,
+				OffsetNumber oldoffnum, BlockNumber *newblkno,
 				Buffer leftchildbuf,
 				List **splitinfo,
 				bool markleftchild);
@@ -439,8 +468,14 @@ extern SplitedPageLayout *gistSplit(Relation r, Page page, IndexTuple *itup,
 		  int len, GISTSTATE *giststate);
 
 /* gistxlog.c */
+<<<<<<< HEAD
 extern void gist_redo(XLogRecPtr beginLoc, XLogRecPtr lsn, XLogRecord *record);
 extern void gist_desc(StringInfo buf, XLogRecPtr beginLoc, XLogRecord *record);
+=======
+extern void gist_redo(XLogReaderState *record);
+extern void gist_desc(StringInfo buf, XLogReaderState *record);
+extern const char *gist_identify(uint8 info);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern void gist_xlog_startup(void);
 extern void gist_xlog_cleanup(void);
 extern void gist_mask(char *pagedata, BlockNumber blkno);
@@ -488,15 +523,11 @@ extern IndexTuple gistgetadjusted(Relation r,
 				IndexTuple addtup,
 				GISTSTATE *giststate);
 extern IndexTuple gistFormTuple(GISTSTATE *giststate,
-			  Relation r, Datum *attdata, bool *isnull, bool newValues);
+			  Relation r, Datum *attdata, bool *isnull, bool isleaf);
 
 extern OffsetNumber gistchoose(Relation r, Page p,
 		   IndexTuple it,
 		   GISTSTATE *giststate);
-extern void gistcentryinit(GISTSTATE *giststate, int nkey,
-			   GISTENTRY *e, Datum k,
-			   Relation r, Page pg,
-			   OffsetNumber o, bool l, bool isNull);
 
 extern void GISTInitBuffer(Buffer b, uint32 f);
 extern void gistdentryinit(GISTSTATE *giststate, int nkey, GISTENTRY *e,
@@ -506,18 +537,19 @@ extern void gistdentryinit(GISTSTATE *giststate, int nkey, GISTENTRY *e,
 extern float gistpenalty(GISTSTATE *giststate, int attno,
 			GISTENTRY *key1, bool isNull1,
 			GISTENTRY *key2, bool isNull2);
-extern void gistMakeUnionItVec(GISTSTATE *giststate, IndexTuple *itvec, int len, int startkey,
+extern void gistMakeUnionItVec(GISTSTATE *giststate, IndexTuple *itvec, int len,
 				   Datum *attr, bool *isnull);
 extern bool gistKeyIsEQ(GISTSTATE *giststate, int attno, Datum a, Datum b);
 extern void gistDeCompressAtt(GISTSTATE *giststate, Relation r, IndexTuple tuple, Page p,
 				  OffsetNumber o, GISTENTRY *attdata, bool *isnull);
-
+extern IndexTuple gistFetchTuple(GISTSTATE *giststate, Relation r,
+			   IndexTuple tuple);
 extern void gistMakeUnionKey(GISTSTATE *giststate, int attno,
 				 GISTENTRY *entry1, bool isnull1,
 				 GISTENTRY *entry2, bool isnull2,
 				 Datum *dst, bool *dstisnull);
 
-extern XLogRecPtr GetXLogRecPtrForTemp(void);
+extern XLogRecPtr gistGetFakeLSN(Relation rel);
 
 /* gistvacuum.c */
 extern Datum gistbulkdelete(PG_FUNCTION_ARGS);
@@ -526,7 +558,7 @@ extern Datum gistvacuumcleanup(PG_FUNCTION_ARGS);
 /* gistsplit.c */
 extern void gistSplitByKey(Relation r, Page page, IndexTuple *itup,
 			   int len, GISTSTATE *giststate,
-			   GistSplitVector *v, GistEntryVector *entryvec,
+			   GistSplitVector *v,
 			   int attno);
 
 /* gistbuild.c */

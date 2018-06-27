@@ -1,6 +1,8 @@
 #ifndef PL_PERL_HELPERS_H
 #define PL_PERL_HELPERS_H
 
+#include "mb/pg_wchar.h"
+
 /*
  * convert from utf8 to database encoding
  *
@@ -9,6 +11,7 @@
 static inline char *
 utf_u2e(char *utf8_str, size_t len)
 {
+<<<<<<< HEAD
 	int			enc = GetDatabaseEncoding();
 <<<<<<< HEAD
 	char	   *ret;
@@ -39,7 +42,13 @@ utf_u2e(char *utf8_str, size_t len)
 	if (enc == PG_UTF8 || enc == PG_SQL_ASCII)
 		pg_verify_mbstr_len(PG_UTF8, utf8_str, len, false);
 >>>>>>> 80edfd76591fdb9beec061de3c05ef4e9d96ce56
+=======
+	char	   *ret;
 
+	ret = pg_any_to_server(utf8_str, len, PG_UTF8);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+
+	/* ensure we have a copy even if no conversion happened */
 	if (ret == utf8_str)
 		ret = pstrdup(ret);
 
@@ -54,12 +63,20 @@ utf_u2e(char *utf8_str, size_t len)
 static inline char *
 utf_e2u(const char *str)
 {
+<<<<<<< HEAD
 	char	   *ret =
 		(char *) pg_do_encoding_conversion((unsigned char *) str, strlen(str),
 										   GetDatabaseEncoding(), PG_UTF8);
+=======
+	char	   *ret;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
+	ret = pg_server_to_any(str, strlen(str), PG_UTF8);
+
+	/* ensure we have a copy even if no conversion happened */
 	if (ret == str)
 		ret = pstrdup(ret);
+
 	return ret;
 }
 
@@ -82,7 +99,9 @@ sv2cstr(SV *sv)
 
 	/*
 	 * get a utf8 encoded char * out of perl. *note* it may not be valid utf8!
-	 *
+	 */
+
+	/*
 	 * SvPVutf8() croaks nastily on certain things, like typeglobs and
 	 * readonly objects such as $^V. That's a perl bug - it's not supposed to
 	 * happen. To avoid crashing the backend, we make a copy of the sv before
@@ -131,18 +150,27 @@ sv2cstr(SV *sv)
 		(SvTYPE(sv) > SVt_PVLV && SvTYPE(sv) != SVt_PVFM))
 		sv = newSVsv(sv);
 	else
-
+	{
 		/*
 		 * increase the reference count so we can just SvREFCNT_dec() it when
 		 * we are done
 		 */
 		SvREFCNT_inc_simple_void(sv);
-
-	val = SvPVutf8(sv, len);
+	}
 
 	/*
-	 * we use perl's length in the event we had an embedded null byte to
-	 * ensure we error out properly
+	 * Request the string from Perl, in UTF-8 encoding; but if we're in a
+	 * SQL_ASCII database, just request the byte soup without trying to make
+	 * it UTF8, because that might fail.
+	 */
+	if (GetDatabaseEncoding() == PG_SQL_ASCII)
+		val = SvPV(sv, len);
+	else
+		val = SvPVutf8(sv, len);
+
+	/*
+	 * Now convert to database encoding.  We use perl's length in the event we
+	 * had an embedded null byte to ensure we error out properly.
 	 */
 >>>>>>> 80edfd76591fdb9beec061de3c05ef4e9d96ce56
 	res = utf_u2e(val, len);

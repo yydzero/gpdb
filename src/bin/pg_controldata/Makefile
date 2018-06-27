@@ -2,7 +2,7 @@
 #
 # Makefile for src/bin/pg_controldata
 #
-# Copyright (c) 1998-2012, PostgreSQL Global Development Group
+# Copyright (c) 1998-2015, PostgreSQL Global Development Group
 #
 # src/bin/pg_controldata/Makefile
 #
@@ -38,3 +38,10 @@ uninstall:
 
 clean distclean maintainer-clean:
 	rm -f pg_controldata$(X) $(OBJS)
+	rm -rf tmp_check
+
+check:
+	$(prove_check)
+
+installcheck:
+	$(prove_installcheck)

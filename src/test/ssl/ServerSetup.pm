@@ -7,7 +7,11 @@
 # - ssl/root+client_ca.crt as the CA root for validating client certs.
 # - reject non-SSL connections
 # - a database called trustdb that lets anyone in
+<<<<<<< HEAD
 # - another database called certdb that uses certificate authentication, ie.
+=======
+# - another database called certdb that uses certificate authentiction, ie.
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #   the client must present a valid certificate signed by the client CA
 # - two users, called ssltestuser and anotheruser.
 #
@@ -18,7 +22,10 @@ package ServerSetup;
 
 use strict;
 use warnings;
+<<<<<<< HEAD
 use PostgresNode;
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 use TestLib;
 use File::Basename;
 use File::Copy;
@@ -44,6 +51,7 @@ sub copy_files
 	}
 }
 
+<<<<<<< HEAD
 sub configure_test_server_for_ssl
 {
 	my $node       = $_[0];
@@ -122,11 +130,56 @@ sub configure_hba_for_ssl
 	my $node       = $_[0];
 	my $serverhost = $_[1];
 	my $pgdata   = $ENV{MASTER_DATA_DIRECTORY};
+=======
+# Perform chmod on a set of files, taking into account wildcards
+sub chmod_files
+{
+	my $mode = shift;
+	my $file_expr = shift;
+
+	my @all_files = glob $file_expr;
+	foreach my $file_entry (@all_files)
+	{
+		chmod $mode, $file_entry
+		  or die "Could not run chmod with mode $mode on $file_entry";
+	}
+}
+
+sub configure_test_server_for_ssl
+{
+	my $tempdir = $_[0];
+
+	# Create test users and databases
+	psql 'postgres', "CREATE USER ssltestuser";
+	psql 'postgres', "CREATE USER anotheruser";
+	psql 'postgres', "CREATE DATABASE trustdb";
+	psql 'postgres', "CREATE DATABASE certdb";
+
+	# enable logging etc.
+	open CONF, ">>$tempdir/pgdata/postgresql.conf";
+	print CONF "fsync=off\n";
+	print CONF "log_connections=on\n";
+	print CONF "log_hostname=on\n";
+	print CONF "log_statement=all\n";
+
+	# enable SSL and set up server key
+	print CONF "include 'sslconfig.conf'";
+
+	close CONF;
+
+# Copy all server certificates and keys, and client root cert, to the data dir
+	copy_files("ssl/server-*.crt", "$tempdir/pgdata");
+	copy_files("ssl/server-*.key", "$tempdir/pgdata");
+	chmod_files(0600, "$tempdir/pgdata/server-*.key");
+	copy_files("ssl/root+client_ca.crt", "$tempdir/pgdata");
+	copy_files("ssl/root+client.crl",    "$tempdir/pgdata");
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
   # Only accept SSL connections from localhost. Our tests don't depend on this
   # but seems best to keep it as narrow as possible for security reasons.
   #
   # When connecting to certdb, also check the client certificate.
+<<<<<<< HEAD
 
 	open my $hba, '>>', "$pgdata/pg_hba.conf";
 
@@ -139,4 +192,45 @@ sub configure_hba_for_ssl
 	print $hba
 "hostssl certdb          ssltestuser     ::1/128                 cert\n";
 	close $hba;
+=======
+	open HBA, ">$tempdir/pgdata/pg_hba.conf";
+	print HBA
+"# TYPE  DATABASE        USER            ADDRESS                 METHOD\n";
+	print HBA
+"hostssl trustdb         ssltestuser     127.0.0.1/32            trust\n";
+	print HBA
+"hostssl trustdb         ssltestuser     ::1/128                 trust\n";
+	print HBA
+"hostssl certdb          ssltestuser     127.0.0.1/32            cert\n";
+	print HBA
+"hostssl certdb          ssltestuser     ::1/128                 cert\n";
+	close HBA;
+}
+
+# Change the configuration to use given server cert file, and restart
+# the server so that the configuration takes effect.
+sub switch_server_cert
+{
+	my $tempdir  = $_[0];
+	my $certfile = $_[1];
+
+	diag "Restarting server with certfile \"$certfile\"...";
+
+	open SSLCONF, ">$tempdir/pgdata/sslconfig.conf";
+	print SSLCONF "ssl=on\n";
+	print SSLCONF "ssl_ca_file='root+client_ca.crt'\n";
+	print SSLCONF "ssl_cert_file='$certfile.crt'\n";
+	print SSLCONF "ssl_key_file='$certfile.key'\n";
+	print SSLCONF "ssl_crl_file='root+client.crl'\n";
+	close SSLCONF;
+
+   # Stop and restart server to reload the new config. We cannot use
+   # restart_test_server() because that overrides listen_addresses to only all
+   # Unix domain socket connections.
+
+	system_or_bail 'pg_ctl', 'stop',  '-s', '-D', "$tempdir/pgdata", '-w';
+	system_or_bail 'pg_ctl', 'start', '-s', '-D', "$tempdir/pgdata", '-w',
+	  '-l',
+	  "$tempdir/logfile";
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 }

@@ -10,6 +10,8 @@ subdir = src/pl/plpgsql/src
 top_builddir = ../../../..
 include $(top_builddir)/src/Makefile.global
 
+PGFILEDESC = "PL/pgSQL - procedural language"
+
 # Shared library parameters
 NAME= plpgsql
 
@@ -17,7 +19,8 @@ override CPPFLAGS := -I. -I$(srcdir) $(CPPFLAGS)
 SHLIB_LINK = $(filter -lintl, $(LIBS))
 rpath =
 
-OBJS = pl_gram.o pl_handler.o pl_comp.o pl_exec.o pl_funcs.o pl_scanner.o
+OBJS = pl_gram.o pl_handler.o pl_comp.o pl_exec.o \
+	pl_funcs.o pl_scanner.o $(WIN32RES)
 
 DATA = plpgsql.control plpgsql--1.0.sql plpgsql--unpackaged--1.0.sql
 
@@ -55,15 +58,8 @@ uninstall-headers:
 pl_gram.o pl_handler.o pl_comp.o pl_exec.o pl_funcs.o pl_scanner.o: plpgsql.h pl_gram.h plerrcodes.h
 
 # See notes in src/backend/parser/Makefile about the following two rules
-
 pl_gram.h: pl_gram.c ;
-
-pl_gram.c: gram.y
-ifdef BISON
-	$(BISON) -d $(BISONFLAGS) -o $@ $<
-else
-	@$(missing) bison $< $@
-endif
+pl_gram.c: BISONFLAGS += -d
 
 # generate plerrcodes.h from src/backend/utils/errcodes.txt
 plerrcodes.h: $(top_srcdir)/src/backend/utils/errcodes.txt generate-plerrcodes.pl

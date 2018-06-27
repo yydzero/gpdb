@@ -4,7 +4,7 @@
  *	  implementation of quad tree over points for SP-GiST
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
@@ -15,8 +15,8 @@
 
 #include "postgres.h"
 
-#include "access/gist.h"		/* for RTree strategy numbers */
 #include "access/spgist.h"
+#include "access/stratnum.h"
 #include "catalog/pg_type.h"
 #include "utils/builtins.h"
 #include "utils/geo_decls.h"
@@ -50,7 +50,7 @@ spg_quad_config(PG_FUNCTION_ARGS)
  * Points on one of the axes are taken to lie in the lowest-numbered
  * adjacent quadrant.
  */
-static int2
+static int16
 getQuadrant(Point *centroid, Point *tst)
 {
 	if ((SPTEST(point_above, tst, centroid) ||

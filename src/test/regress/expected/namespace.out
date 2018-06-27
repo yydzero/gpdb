@@ -8,9 +8,13 @@ CREATE SCHEMA test_schema_1
        CREATE TABLE abc (
               a serial,
               b int UNIQUE
+<<<<<<< HEAD
        ) DISTRIBUTED BY (b);
 NOTICE:  CREATE TABLE will create implicit sequence "abc_a_seq" for serial column "abc.a"
 NOTICE:  CREATE TABLE / UNIQUE will create implicit index "abc_b_key" for table "abc"
+=======
+       );
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 -- verify that the objects were created
 SELECT COUNT(*) FROM pg_class WHERE relnamespace =
     (SELECT oid FROM pg_namespace WHERE nspname = 'test_schema_1');
@@ -38,6 +42,7 @@ SELECT * FROM test_schema_1.abc_view;
  4 |  
 (3 rows)
 
+<<<<<<< HEAD
 -- Test GRANT/REVOKE 
 CREATE SCHEMA test_schema_2;
 CREATE TABLE test_schema_2.abc as select * from test_schema_1.abc DISTRIBUTED BY (a);
@@ -135,4 +140,38 @@ WHERE rolname ~ 'tmp_test_schema_role'
  rolname 
 ---------
 (0 rows)
+=======
+ALTER SCHEMA test_schema_1 RENAME TO test_schema_renamed;
+SELECT COUNT(*) FROM pg_class WHERE relnamespace =
+    (SELECT oid FROM pg_namespace WHERE nspname = 'test_schema_1');
+ count 
+-------
+     0
+(1 row)
+
+-- test IF NOT EXISTS cases
+CREATE SCHEMA test_schema_renamed; -- fail, already exists
+ERROR:  schema "test_schema_renamed" already exists
+CREATE SCHEMA IF NOT EXISTS test_schema_renamed; -- ok with notice
+NOTICE:  schema "test_schema_renamed" already exists, skipping
+CREATE SCHEMA IF NOT EXISTS test_schema_renamed -- fail, disallowed
+       CREATE TABLE abc (
+              a serial,
+              b int UNIQUE
+       );
+ERROR:  CREATE SCHEMA IF NOT EXISTS cannot include schema elements
+LINE 2:        CREATE TABLE abc (
+               ^
+DROP SCHEMA test_schema_renamed CASCADE;
+NOTICE:  drop cascades to 2 other objects
+DETAIL:  drop cascades to table test_schema_renamed.abc
+drop cascades to view test_schema_renamed.abc_view
+-- verify that the objects were dropped
+SELECT COUNT(*) FROM pg_class WHERE relnamespace =
+    (SELECT oid FROM pg_namespace WHERE nspname = 'test_schema_renamed');
+ count 
+-------
+     0
+(1 row)
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 

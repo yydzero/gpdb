@@ -3,9 +3,13 @@
  * lmgr.c
  *	  POSTGRES lock manager code
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2006-2008, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -32,6 +36,39 @@
 #include "catalog/gp_policy.h"     /* CDB: POLICYTYPE_PARTiITIONED */
 #include "cdb/cdbvars.h"
 
+
+/*
+ * Per-backend counter for generating speculative insertion tokens.
+ *
+ * This may wrap around, but that's OK as it's only used for the short
+ * duration between inserting a tuple and checking that there are no (unique)
+ * constraint violations.  It's theoretically possible that a backend sees a
+ * tuple that was speculatively inserted by another backend, but before it has
+ * started waiting on the token, the other backend completes its insertion,
+ * and then then performs 2^32 unrelated insertions.  And after all that, the
+ * first backend finally calls SpeculativeInsertionLockAcquire(), with the
+ * intention of waiting for the first insertion to complete, but ends up
+ * waiting for the latest unrelated insertion instead.  Even then, nothing
+ * particularly bad happens: in the worst case they deadlock, causing one of
+ * the transactions to abort.
+ */
+static uint32 speculativeInsertionToken = 0;
+
+
+/*
+ * Struct to hold context info for transaction lock waits.
+ *
+ * 'oper' is the operation that needs to wait for the other transaction; 'rel'
+ * and 'ctid' specify the address of the tuple being waited for.
+ */
+typedef struct XactLockTableWaitInfo
+{
+	XLTW_Oper	oper;
+	Relation	rel;
+	ItemPointer ctid;
+} XactLockTableWaitInfo;
+
+static void XactLockTableWaitErrorCb(void *arg);
 
 /*
  * RelationInitLockInfo
@@ -73,7 +110,7 @@ SetLocktagRelationOid(LOCKTAG *tag, Oid relid)
 /*
  *		LockRelationOid
  *
- * Lock a relation given only its OID.	This should generally be used
+ * Lock a relation given only its OID.  This should generally be used
  * before attempting to open the relation's relcache entry.
  */
 void
@@ -270,9 +307,27 @@ UnlockRelation(Relation relation, LOCKMODE lockmode)
 }
 
 /*
+ *		LockHasWaitersRelation
+ *
+ * This is a functiion to check if someone else is waiting on a
+ * lock, we are currently holding.
+ */
+bool
+LockHasWaitersRelation(Relation relation, LOCKMODE lockmode)
+{
+	LOCKTAG		tag;
+
+	SET_LOCKTAG_RELATION(tag,
+						 relation->rd_lockInfo.lockRelId.dbId,
+						 relation->rd_lockInfo.lockRelId.relId);
+
+	return LockHasWaiters(&tag, lockmode, false);
+}
+
+/*
  *		LockRelationIdForSession
  *
- * This routine grabs a session-level lock on the target relation.	The
+ * This routine grabs a session-level lock on the target relation.  The
  * session lock persists across transaction boundaries.  It will be removed
  * when UnlockRelationIdForSession() is called, or if an ereport(ERROR) occurs,
  * or if the backend exits.
@@ -509,7 +564,7 @@ XactLockTableInsert(TransactionId xid)
  *
  * Delete the lock showing that the given transaction ID is running.
  * (This is never used for main transaction IDs; those locks are only
- * released implicitly at transaction end.	But we do use it for subtrans IDs.)
+ * released implicitly at transaction end.  But we do use it for subtrans IDs.)
  */
 void
 XactLockTableDelete(TransactionId xid)
@@ -524,19 +579,43 @@ XactLockTableDelete(TransactionId xid)
 /*
  *		XactLockTableWait
  *
- * Wait for the specified transaction to commit or abort.
+ * Wait for the specified transaction to commit or abort.  If an operation
+ * is specified, an error context callback is set up.  If 'oper' is passed as
+ * None, no error context callback is set up.
  *
  * Note that this does the right thing for subtransactions: if we wait on a
  * subtransaction, we will exit as soon as it aborts or its top parent commits.
  * It takes some extra work to ensure this, because to save on shared memory
  * the XID lock of a subtransaction is released when it ends, whether
- * successfully or unsuccessfully.	So we have to check if it's "still running"
+ * successfully or unsuccessfully.  So we have to check if it's "still running"
  * and if so wait for its parent.
  */
 void
-XactLockTableWait(TransactionId xid)
+XactLockTableWait(TransactionId xid, Relation rel, ItemPointer ctid,
+				  XLTW_Oper oper)
 {
 	LOCKTAG		tag;
+	XactLockTableWaitInfo info;
+	ErrorContextCallback callback;
+
+	/*
+	 * If an operation is specified, set up our verbose error context
+	 * callback.
+	 */
+	if (oper != XLTW_None)
+	{
+		Assert(RelationIsValid(rel));
+		Assert(ItemPointerIsValid(ctid));
+
+		info.rel = rel;
+		info.ctid = ctid;
+		info.oper = oper;
+
+		callback.callback = XactLockTableWaitErrorCb;
+		callback.arg = &info;
+		callback.previous = error_context_stack;
+		error_context_stack = &callback;
+	}
 
 	for (;;)
 	{
@@ -553,6 +632,9 @@ XactLockTableWait(TransactionId xid)
 			break;
 		xid = SubTransGetParent(xid);
 	}
+
+	if (oper != XLTW_None)
+		error_context_stack = callback.previous;
 }
 
 /*
@@ -585,6 +667,196 @@ ConditionalXactLockTableWait(TransactionId xid)
 
 	return true;
 }
+
+/*
+ *		SpeculativeInsertionLockAcquire
+ *
+ * Insert a lock showing that the given transaction ID is inserting a tuple,
+ * but hasn't yet decided whether it's going to keep it.  The lock can then be
+ * used to wait for the decision to go ahead with the insertion, or aborting
+ * it.
+ *
+ * The token is used to distinguish multiple insertions by the same
+ * transaction.  It is returned to caller.
+ */
+uint32
+SpeculativeInsertionLockAcquire(TransactionId xid)
+{
+	LOCKTAG		tag;
+
+	speculativeInsertionToken++;
+
+	/*
+	 * Check for wrap-around. Zero means no token is held, so don't use that.
+	 */
+	if (speculativeInsertionToken == 0)
+		speculativeInsertionToken = 1;
+
+	SET_LOCKTAG_SPECULATIVE_INSERTION(tag, xid, speculativeInsertionToken);
+
+	(void) LockAcquire(&tag, ExclusiveLock, false, false);
+
+	return speculativeInsertionToken;
+}
+
+/*
+ *		SpeculativeInsertionLockRelease
+ *
+ * Delete the lock showing that the given transaction is speculatively
+ * inserting a tuple.
+ */
+void
+SpeculativeInsertionLockRelease(TransactionId xid)
+{
+	LOCKTAG		tag;
+
+	SET_LOCKTAG_SPECULATIVE_INSERTION(tag, xid, speculativeInsertionToken);
+
+	LockRelease(&tag, ExclusiveLock, false);
+}
+
+/*
+ *		SpeculativeInsertionWait
+ *
+ * Wait for the specified transaction to finish or abort the insertion of a
+ * tuple.
+ */
+void
+SpeculativeInsertionWait(TransactionId xid, uint32 token)
+{
+	LOCKTAG		tag;
+
+	SET_LOCKTAG_SPECULATIVE_INSERTION(tag, xid, token);
+
+	Assert(TransactionIdIsValid(xid));
+	Assert(token != 0);
+
+	(void) LockAcquire(&tag, ShareLock, false, false);
+	LockRelease(&tag, ShareLock, false);
+}
+
+/*
+ * XactLockTableWaitErrorContextCb
+ *		Error context callback for transaction lock waits.
+ */
+static void
+XactLockTableWaitErrorCb(void *arg)
+{
+	XactLockTableWaitInfo *info = (XactLockTableWaitInfo *) arg;
+
+	/*
+	 * We would like to print schema name too, but that would require a
+	 * syscache lookup.
+	 */
+	if (info->oper != XLTW_None &&
+		ItemPointerIsValid(info->ctid) && RelationIsValid(info->rel))
+	{
+		const char *cxt;
+
+		switch (info->oper)
+		{
+			case XLTW_Update:
+				cxt = gettext_noop("while updating tuple (%u,%u) in relation \"%s\"");
+				break;
+			case XLTW_Delete:
+				cxt = gettext_noop("while deleting tuple (%u,%u) in relation \"%s\"");
+				break;
+			case XLTW_Lock:
+				cxt = gettext_noop("while locking tuple (%u,%u) in relation \"%s\"");
+				break;
+			case XLTW_LockUpdated:
+				cxt = gettext_noop("while locking updated version (%u,%u) of tuple in relation \"%s\"");
+				break;
+			case XLTW_InsertIndex:
+				cxt = gettext_noop("while inserting index tuple (%u,%u) in relation \"%s\"");
+				break;
+			case XLTW_InsertIndexUnique:
+				cxt = gettext_noop("while checking uniqueness of tuple (%u,%u) in relation \"%s\"");
+				break;
+			case XLTW_FetchUpdated:
+				cxt = gettext_noop("while rechecking updated tuple (%u,%u) in relation \"%s\"");
+				break;
+			case XLTW_RecheckExclusionConstr:
+				cxt = gettext_noop("while checking exclusion constraint on tuple (%u,%u) in relation \"%s\"");
+				break;
+
+			default:
+				return;
+		}
+
+		errcontext(cxt,
+				   ItemPointerGetBlockNumber(info->ctid),
+				   ItemPointerGetOffsetNumber(info->ctid),
+				   RelationGetRelationName(info->rel));
+	}
+}
+
+/*
+ * WaitForLockersMultiple
+ *		Wait until no transaction holds locks that conflict with the given
+ *		locktags at the given lockmode.
+ *
+ * To do this, obtain the current list of lockers, and wait on their VXIDs
+ * until they are finished.
+ *
+ * Note we don't try to acquire the locks on the given locktags, only the VXIDs
+ * of its lock holders; if somebody grabs a conflicting lock on the objects
+ * after we obtained our initial list of lockers, we will not wait for them.
+ */
+void
+WaitForLockersMultiple(List *locktags, LOCKMODE lockmode)
+{
+	List	   *holders = NIL;
+	ListCell   *lc;
+
+	/* Done if no locks to wait for */
+	if (list_length(locktags) == 0)
+		return;
+
+	/* Collect the transactions we need to wait on */
+	foreach(lc, locktags)
+	{
+		LOCKTAG    *locktag = lfirst(lc);
+
+		holders = lappend(holders, GetLockConflicts(locktag, lockmode));
+	}
+
+	/*
+	 * Note: GetLockConflicts() never reports our own xid, hence we need not
+	 * check for that.  Also, prepared xacts are not reported, which is fine
+	 * since they certainly aren't going to do anything anymore.
+	 */
+
+	/* Finally wait for each such transaction to complete */
+	foreach(lc, holders)
+	{
+		VirtualTransactionId *lockholders = lfirst(lc);
+
+		while (VirtualTransactionIdIsValid(*lockholders))
+		{
+			VirtualXactLock(*lockholders, true);
+			lockholders++;
+		}
+	}
+
+	list_free_deep(holders);
+}
+
+/*
+ * WaitForLockers
+ *
+ * Same as WaitForLockersMultiple, for a single lock tag.
+ */
+void
+WaitForLockers(LOCKTAG heaplocktag, LOCKMODE lockmode)
+{
+	List	   *l;
+
+	l = list_make1(&heaplocktag);
+	WaitForLockersMultiple(l, lockmode);
+	list_free(l);
+}
+
 
 /*
  *		LockDatabaseObject
@@ -767,6 +1039,12 @@ DescribeLockTag(StringInfo buf, const LOCKTAG *tag)
 							 _("virtual transaction %d/%u"),
 							 tag->locktag_field1,
 							 tag->locktag_field2);
+			break;
+		case LOCKTAG_SPECULATIVE_TOKEN:
+			appendStringInfo(buf,
+							 _("speculative token %u of transaction %u"),
+							 tag->locktag_field2,
+							 tag->locktag_field1);
 			break;
 		case LOCKTAG_OBJECT:
 			appendStringInfo(buf,

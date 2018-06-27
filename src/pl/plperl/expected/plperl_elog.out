@@ -63,6 +63,9 @@ do language plperl $$ elog(NOTICE, ${^TAINT}); $$;
 NOTICE:  0
 CONTEXT:  PL/Perl anonymous code block
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 -- test recovery after "die"
 create or replace function just_die() returns void language plperl AS $$
 die "just die";
@@ -105,6 +108,7 @@ PL/Perl function "indirect_die_caller"
                    2
 (1 row)
 
+<<<<<<< HEAD
 -- Test non-ASCII error messages
 --
 -- Note: this test case is known to fail if the database encoding is
@@ -120,3 +124,5 @@ ERROR:  this message contains a no-break space at line 2.
 CONTEXT:  PL/Perl function "error_with_nbsp"
 =======
 >>>>>>> 80edfd76591fdb9beec061de3c05ef4e9d96ce56
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8

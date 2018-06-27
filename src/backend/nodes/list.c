@@ -4,7 +4,7 @@
  *	  implementation for PostgreSQL generic linked list package
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -14,6 +14,9 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+
+/* see pg_list.h */
+#define PG_LIST_INCLUDE_DEFINITIONS
 
 #include "nodes/pg_list.h"
 
@@ -808,7 +811,7 @@ list_union_oid(const List *list1, const List *list2)
  * "intersection" if list1 is known unique beforehand.
  *
  * This variant works on lists of pointers, and determines list
- * membership via equal().	Note that the list1 member will be pointed
+ * membership via equal().  Note that the list1 member will be pointed
  * to in the result.
  */
 List *
@@ -828,6 +831,32 @@ list_intersection(const List *list1, const List *list2)
 	{
 		if (list_member(list2, lfirst(cell)))
 			result = lappend(result, lfirst(cell));
+	}
+
+	check_list_invariants(result);
+	return result;
+}
+
+/*
+ * As list_intersection but operates on lists of integers.
+ */
+List *
+list_intersection_int(const List *list1, const List *list2)
+{
+	List	   *result;
+	const ListCell *cell;
+
+	if (list1 == NIL || list2 == NIL)
+		return NIL;
+
+	Assert(IsIntegerList(list1));
+	Assert(IsIntegerList(list2));
+
+	result = NIL;
+	foreach(cell, list1)
+	{
+		if (list_member_int(list2, lfirst_int(cell)))
+			result = lappend_int(result, lfirst_int(cell));
 	}
 
 	check_list_invariants(result);
@@ -1000,7 +1029,7 @@ list_append_unique_oid(List *list, Oid datum)
  * via equal().
  *
  * This is almost the same functionality as list_union(), but list1 is
- * modified in-place rather than being copied.	Note also that list2's cells
+ * modified in-place rather than being copied.  Note also that list2's cells
  * are not inserted in list1, so the analogy to list_concat() isn't perfect.
  */
 List *

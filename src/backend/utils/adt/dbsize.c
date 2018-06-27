@@ -2,7 +2,7 @@
  * dbsize.c
  *		Database object size functions, and related inquiries
  *
- * Copyright (c) 2002-2012, PostgreSQL Global Development Group
+ * Copyright (c) 2002-2015, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
  *	  src/backend/utils/adt/dbsize.c
@@ -18,8 +18,12 @@
 #include "lib/stringinfo.h"
 
 #include "access/heapam.h"
+<<<<<<< HEAD
 #include "access/appendonlywriter.h"
 #include "access/aocssegfiles.h"
+=======
+#include "access/htup_details.h"
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include "catalog/catalog.h"
 #include "catalog/namespace.h"
 #include "catalog/pg_appendonly_fn.h"
@@ -36,7 +40,11 @@
 #include "utils/lsyscache.h"
 #include "utils/numeric.h"
 #include "utils/rel.h"
+<<<<<<< HEAD
 #include "utils/relcache.h"
+=======
+#include "utils/relfilenodemap.h"
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include "utils/relmapper.h"
 #include "utils/syscache.h"
 
@@ -387,10 +395,15 @@ pg_tablespace_size_name(PG_FUNCTION_ARGS)
 /*
  * calculate size of (one fork of) a relation
  *
+<<<<<<< HEAD
  * Iterator over all files belong to the relation and do stat.
  * The obviously better way is to use glob.  For whatever reason,
  * glob is extremely slow if there are lots of relations in the
  * database.  So we handle all cases, instead. 
+=======
+ * Note: we can safely apply this to temp tables of other sessions, so there
+ * is no check here or at the call sites for that.
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  */
 static int64
 calculate_relation_size(Relation rel, ForkNumber forknum)
@@ -474,7 +487,7 @@ pg_relation_size(PG_FUNCTION_ARGS)
 	 * that makes queries like "SELECT pg_relation_size(oid) FROM pg_class"
 	 * less robust, because while we scan pg_class with an MVCC snapshot,
 	 * someone else might drop the table. It's better to return NULL for
-	 * alread-dropped tables than throw an error and abort the whole query.
+	 * already-dropped tables than throw an error and abort the whole query.
 	 */
 	if (rel == NULL)
 		PG_RETURN_NULL();
@@ -519,7 +532,7 @@ pg_relation_size(PG_FUNCTION_ARGS)
 }
 
 /*
- * Calculate total on-disk size of a TOAST relation, including its index.
+ * Calculate total on-disk size of a TOAST relation, including its indexes.
  * Must not be applied to non-TOAST relations.
  */
 static int64
@@ -527,8 +540,9 @@ calculate_toast_table_size(Oid toastrelid)
 {
 	int64		size = 0;
 	Relation	toastRel;
-	Relation	toastIdxRel;
 	ForkNumber	forkNum;
+	ListCell   *lc;
+	List	   *indexlist;
 
 	toastRel = relation_open(toastrelid, AccessShareLock);
 
@@ -537,11 +551,28 @@ calculate_toast_table_size(Oid toastrelid)
 		size += calculate_relation_size(toastRel, forkNum);
 
 	/* toast index size, including FSM and VM size */
+<<<<<<< HEAD
 	toastIdxRel = relation_open(toastRel->rd_rel->reltoastidxid, AccessShareLock);
 	for (forkNum = 0; forkNum <= MAX_FORKNUM; forkNum++)
 		size += calculate_relation_size(toastIdxRel, forkNum);
+=======
+	indexlist = RelationGetIndexList(toastRel);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
-	relation_close(toastIdxRel, AccessShareLock);
+	/* Size is calculated using all the indexes available */
+	foreach(lc, indexlist)
+	{
+		Relation	toastIdxRel;
+
+		toastIdxRel = relation_open(lfirst_oid(lc),
+									AccessShareLock);
+		for (forkNum = 0; forkNum <= MAX_FORKNUM; forkNum++)
+			size += calculate_relation_size(&(toastIdxRel->rd_node),
+											toastIdxRel->rd_backend, forkNum);
+
+		relation_close(toastIdxRel, AccessShareLock);
+	}
+	list_free(indexlist);
 	relation_close(toastRel, AccessShareLock);
 
 	return size;
@@ -866,18 +897,14 @@ pg_size_pretty_numeric(PG_FUNCTION_ARGS)
 	Numeric		size = PG_GETARG_NUMERIC(0);
 	Numeric		limit,
 				limit2;
-	char	   *buf,
-			   *result;
+	char	   *result;
 
 	limit = int64_to_numeric(10 * 1024);
 	limit2 = int64_to_numeric(10 * 1024 * 2 - 1);
 
 	if (numeric_is_less(size, limit))
 	{
-		buf = numeric_to_cstring(size);
-		result = palloc(strlen(buf) + 7);
-		strcpy(result, buf);
-		strcat(result, " bytes");
+		result = psprintf("%s bytes", numeric_to_cstring(size));
 	}
 	else
 	{
@@ -889,10 +916,7 @@ pg_size_pretty_numeric(PG_FUNCTION_ARGS)
 		{
 			/* size = (size + 1) / 2 */
 			size = numeric_plus_one_over_two(size);
-			buf = numeric_to_cstring(size);
-			result = palloc(strlen(buf) + 4);
-			strcpy(result, buf);
-			strcat(result, " kB");
+			result = psprintf("%s kB", numeric_to_cstring(size));
 		}
 		else
 		{
@@ -902,10 +926,7 @@ pg_size_pretty_numeric(PG_FUNCTION_ARGS)
 			{
 				/* size = (size + 1) / 2 */
 				size = numeric_plus_one_over_two(size);
-				buf = numeric_to_cstring(size);
-				result = palloc(strlen(buf) + 4);
-				strcpy(result, buf);
-				strcat(result, " MB");
+				result = psprintf("%s MB", numeric_to_cstring(size));
 			}
 			else
 			{
@@ -916,10 +937,7 @@ pg_size_pretty_numeric(PG_FUNCTION_ARGS)
 				{
 					/* size = (size + 1) / 2 */
 					size = numeric_plus_one_over_two(size);
-					buf = numeric_to_cstring(size);
-					result = palloc(strlen(buf) + 4);
-					strcpy(result, buf);
-					strcat(result, " GB");
+					result = psprintf("%s GB", numeric_to_cstring(size));
 				}
 				else
 				{
@@ -927,10 +945,7 @@ pg_size_pretty_numeric(PG_FUNCTION_ARGS)
 					size = numeric_shift_right(size, 10);
 					/* size = (size + 1) / 2 */
 					size = numeric_plus_one_over_two(size);
-					buf = numeric_to_cstring(size);
-					result = palloc(strlen(buf) + 4);
-					strcpy(result, buf);
-					strcat(result, " TB");
+					result = psprintf("%s TB", numeric_to_cstring(size));
 				}
 			}
 		}
@@ -945,9 +960,9 @@ pg_size_pretty_numeric(PG_FUNCTION_ARGS)
  * This is expected to be used in queries like
  *		SELECT pg_relation_filenode(oid) FROM pg_class;
  * That leads to a couple of choices.  We work from the pg_class row alone
- * rather than actually opening each relation, for efficiency.	We don't
+ * rather than actually opening each relation, for efficiency.  We don't
  * fail if we can't find the relation --- some rows might be visible in
- * the query's MVCC snapshot but already dead according to SnapshotNow.
+ * the query's MVCC snapshot even though the relations have been dropped.
  * (Note: we could avoid using the catcache, but there's little point
  * because the relation mapper also works "in the now".)  We also don't
  * fail if the relation doesn't have storage.  In all these cases it
@@ -969,6 +984,7 @@ pg_relation_filenode(PG_FUNCTION_ARGS)
 	switch (relform->relkind)
 	{
 		case RELKIND_RELATION:
+		case RELKIND_MATVIEW:
 		case RELKIND_INDEX:
 		case RELKIND_SEQUENCE:
 		case RELKIND_TOASTVALUE:
@@ -995,6 +1011,34 @@ pg_relation_filenode(PG_FUNCTION_ARGS)
 }
 
 /*
+ * Get the relation via (reltablespace, relfilenode)
+ *
+ * This is expected to be used when somebody wants to match an individual file
+ * on the filesystem back to its table. That's not trivially possible via
+ * pg_class, because that doesn't contain the relfilenodes of shared and nailed
+ * tables.
+ *
+ * We don't fail but return NULL if we cannot find a mapping.
+ *
+ * InvalidOid can be passed instead of the current database's default
+ * tablespace.
+ */
+Datum
+pg_filenode_relation(PG_FUNCTION_ARGS)
+{
+	Oid			reltablespace = PG_GETARG_OID(0);
+	Oid			relfilenode = PG_GETARG_OID(1);
+	Oid			heaprel = InvalidOid;
+
+	heaprel = RelidByRelfilenode(reltablespace, relfilenode);
+
+	if (!OidIsValid(heaprel))
+		PG_RETURN_NULL();
+	else
+		PG_RETURN_OID(heaprel);
+}
+
+/*
  * Get the pathname (relative to $PGDATA) of a relation
  *
  * See comments for pg_relation_filenode.
@@ -1017,6 +1061,7 @@ pg_relation_filepath(PG_FUNCTION_ARGS)
 	switch (relform->relkind)
 	{
 		case RELKIND_RELATION:
+		case RELKIND_MATVIEW:
 		case RELKIND_INDEX:
 		case RELKIND_SEQUENCE:
 		case RELKIND_TOASTVALUE:
@@ -1061,7 +1106,7 @@ pg_relation_filepath(PG_FUNCTION_ARGS)
 			backend = InvalidBackendId;
 			break;
 		case RELPERSISTENCE_TEMP:
-			if (isTempOrToastNamespace(relform->relnamespace))
+			if (isTempOrTempToastNamespace(relform->relnamespace))
 				backend = MyBackendId;
 			else
 			{

@@ -11,8 +11,10 @@
 
 
 GISTENTRY *
-gbt_num_compress(GISTENTRY *retval, GISTENTRY *entry, const gbtree_ninfo *tinfo)
+gbt_num_compress(GISTENTRY *entry, const gbtree_ninfo *tinfo)
 {
+	GISTENTRY  *retval;
+
 	if (entry->leafkey)
 	{
 		union
@@ -28,7 +30,7 @@ gbt_num_compress(GISTENTRY *retval, GISTENTRY *entry, const gbtree_ninfo *tinfo)
 			Cash		ch;
 		}			v;
 
-		GBT_NUMKEY *r = (GBT_NUMKEY *) palloc0(2 * tinfo->size);
+		GBT_NUMKEY *r = (GBT_NUMKEY *) palloc0(tinfo->indexsize);
 		void	   *leaf = NULL;
 
 		switch (tinfo->t)
@@ -77,6 +79,8 @@ gbt_num_compress(GISTENTRY *retval, GISTENTRY *entry, const gbtree_ninfo *tinfo)
 				leaf = DatumGetPointer(entry->key);
 		}
 
+		Assert(tinfo->indexsize >= 2 * tinfo->size);
+
 		memcpy((void *) &r[0], leaf, tinfo->size);
 		memcpy((void *) &r[tinfo->size], leaf, tinfo->size);
 		retval = palloc(sizeof(GISTENTRY));
@@ -89,6 +93,64 @@ gbt_num_compress(GISTENTRY *retval, GISTENTRY *entry, const gbtree_ninfo *tinfo)
 	return retval;
 }
 
+/*
+ * Convert a compressed leaf item back to the original type, for index-only
+ * scans.
+ */
+GISTENTRY *
+gbt_num_fetch(GISTENTRY *entry, const gbtree_ninfo *tinfo)
+{
+	GISTENTRY  *retval;
+	Datum		datum;
+
+	Assert(tinfo->indexsize >= 2 * tinfo->size);
+
+	/*
+	 * Get the original Datum from the stored datum. On leaf entries, the
+	 * lower and upper bound are the same. We just grab the lower bound and
+	 * return it.
+	 */
+	switch (tinfo->t)
+	{
+		case gbt_t_int2:
+			datum = Int16GetDatum(*(int16 *) entry->key);
+			break;
+		case gbt_t_int4:
+			datum = Int32GetDatum(*(int32 *) entry->key);
+			break;
+		case gbt_t_int8:
+			datum = Int64GetDatum(*(int64 *) entry->key);
+			break;
+		case gbt_t_oid:
+			datum = ObjectIdGetDatum(*(Oid *) entry->key);
+			break;
+		case gbt_t_float4:
+			datum = Float4GetDatum(*(float4 *) entry->key);
+			break;
+		case gbt_t_float8:
+			datum = Float8GetDatum(*(float8 *) entry->key);
+			break;
+		case gbt_t_date:
+			datum = DateADTGetDatum(*(DateADT *) entry->key);
+			break;
+		case gbt_t_time:
+			datum = TimeADTGetDatum(*(TimeADT *) entry->key);
+			break;
+		case gbt_t_ts:
+			datum = TimestampGetDatum(*(Timestamp *) entry->key);
+			break;
+		case gbt_t_cash:
+			datum = CashGetDatum(*(Cash *) entry->key);
+			break;
+		default:
+			datum = PointerGetDatum(entry->key);
+	}
+
+	retval = palloc(sizeof(GISTENTRY));
+	gistentryinit(*retval, datum, entry->rel, entry->page, entry->offset,
+				  FALSE);
+	return retval;
+}
 
 
 
@@ -137,7 +199,6 @@ gbt_num_union(GBT_NUMKEY *out, const GistEntryVector *entryvec, const gbtree_nin
 bool
 gbt_num_same(const GBT_NUMKEY *a, const GBT_NUMKEY *b, const gbtree_ninfo *tinfo)
 {
-
 	GBT_NUMKEY_R b1,
 				b2;
 
@@ -146,20 +207,14 @@ gbt_num_same(const GBT_NUMKEY *a, const GBT_NUMKEY *b, const gbtree_ninfo *tinfo
 	b2.lower = &(((GBT_NUMKEY *) b)[0]);
 	b2.upper = &(((GBT_NUMKEY *) b)[tinfo->size]);
 
-	if (
-		(*tinfo->f_eq) (b1.lower, b2.lower) &&
-		(*tinfo->f_eq) (b1.upper, b2.upper)
-		)
-		return TRUE;
-	return FALSE;
-
+	return ((*tinfo->f_eq) (b1.lower, b2.lower) &&
+			(*tinfo->f_eq) (b1.upper, b2.upper));
 }
 
 
 void
 gbt_num_bin_union(Datum *u, GBT_NUMKEY *e, const gbtree_ninfo *tinfo)
 {
-
 	GBT_NUMKEY_R rd;
 
 	rd.lower = &e[0];
@@ -167,7 +222,7 @@ gbt_num_bin_union(Datum *u, GBT_NUMKEY *e, const gbtree_ninfo *tinfo)
 
 	if (!DatumGetPointer(*u))
 	{
-		*u = PointerGetDatum(palloc(2 * tinfo->size));
+		*u = PointerGetDatum(palloc0(tinfo->indexsize));
 		memcpy((void *) &(((GBT_NUMKEY *) DatumGetPointer(*u))[0]), (void *) rd.lower, tinfo->size);
 		memcpy((void *) &(((GBT_NUMKEY *) DatumGetPointer(*u))[tinfo->size]), (void *) rd.upper, tinfo->size);
 	}

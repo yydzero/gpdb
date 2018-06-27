@@ -4,6 +4,10 @@ PostgreSQL documentation
 -->
 
 <refentry id="SQL-DROP-OWNED">
+ <indexterm zone="sql-drop-owned">
+  <primary>DROP OWNED</primary>
+ </indexterm>
+
  <refmeta>
   <refentrytitle>DROP OWNED</refentrytitle>
   <manvolnum>7</manvolnum>
@@ -15,13 +19,9 @@ PostgreSQL documentation
   <refpurpose>remove database objects owned by a database role</refpurpose>
  </refnamediv>
 
- <indexterm zone="sql-drop-owned">
-  <primary>DROP OWNED</primary>
- </indexterm>
-
  <refsynopsisdiv>
 <synopsis>
-DROP OWNED BY <replaceable class="PARAMETER">name</replaceable> [, ...] [ CASCADE | RESTRICT ]
+DROP OWNED BY { <replaceable class="PARAMETER">name</replaceable> | CURRENT_USER | SESSION_USER } [, ...] [ CASCADE | RESTRICT ]
 </synopsis>
  </refsynopsisdiv>
 

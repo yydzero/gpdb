@@ -6,44 +6,12 @@
  *	  message integrity and endpoint authentication.
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
  *	  src/backend/libpq/be-secure.c
- *
- *	  Since the server static private key ($DataDir/server.key)
- *	  will normally be stored unencrypted so that the database
- *	  backend can restart automatically, it is important that
- *	  we select an algorithm that continues to provide confidentiality
- *	  even if the attacker has the server's private key.  Ephemeral
- *	  DH (EDH) keys provide this, and in fact provide Perfect Forward
- *	  Secrecy (PFS) except for situations where the session can
- *	  be hijacked during a periodic handshake/renegotiation.
- *	  Even that backdoor can be closed if client certificates
- *	  are used (since the imposter will be unable to successfully
- *	  complete renegotiation).
- *
- *	  N.B., the static private key should still be protected to
- *	  the largest extent possible, to minimize the risk of
- *	  impersonations.
- *
- *	  Another benefit of EDH is that it allows the backend and
- *	  clients to use DSA keys.	DSA keys can only provide digital
- *	  signatures, not encryption, and are often acceptable in
- *	  jurisdictions where RSA keys are unacceptable.
- *
- *	  The downside to EDH is that it makes it impossible to
- *	  use ssldump(1) if there's a problem establishing an SSL
- *	  session.	In this case you'll need to temporarily disable
- *	  EDH by commenting out the callback.
- *
- *	  ...
- *
- *	  Because the risk of cryptanalysis increases as large
- *	  amounts of data are sent with the same session key, the
- *	  session keys are periodically renegotiated.
  *
  *-------------------------------------------------------------------------
  */
@@ -63,6 +31,7 @@
 #include <arpa/inet.h>
 #endif
 
+<<<<<<< HEAD
 #include "miscadmin.h"
 
 #ifdef USE_SSL
@@ -73,24 +42,15 @@
 #endif
 #endif   /* USE_SSL */
 
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include "libpq/libpq.h"
+#include "miscadmin.h"
 #include "tcop/tcopprot.h"
 #include "utils/memutils.h"
+#include "storage/proc.h"
 
 #define ERROR_BUF_SIZE 32
-
-#ifdef USE_SSL
-
-static DH  *load_dh_file(int keylength);
-static DH  *load_dh_buffer(const char *, size_t);
-static DH  *tmp_dh_cb(SSL *s, int is_export, int keylength);
-static int	verify_cb(int, X509_STORE_CTX *);
-static void info_cb(const SSL *ssl, int type, int args);
-static void initialize_SSL(void);
-static int	open_server_SSL(Port *);
-static void close_SSL(Port *);
-static const char *SSLerrmessage(void);
-#endif
 
 char	   *ssl_cert_file;
 char	   *ssl_key_file;
@@ -105,79 +65,17 @@ char	   *ssl_crl_file;
 int			ssl_renegotiation_limit;
 
 #ifdef USE_SSL
-static SSL_CTX *SSL_context = NULL;
-static bool ssl_loaded_verify_locations = false;
+bool		ssl_loaded_verify_locations = false;
 #endif
 
 /* GUC variable controlling SSL cipher list */
 char	   *SSLCipherSuites = NULL;
 
-/* ------------------------------------------------------------ */
-/*						 Hardcoded values						*/
-/* ------------------------------------------------------------ */
+/* GUC variable for default ECHD curve. */
+char	   *SSLECDHCurve;
 
-/*
- *	Hardcoded DH parameters, used in ephemeral DH keying.
- *	As discussed above, EDH protects the confidentiality of
- *	sessions even if the static private key is compromised,
- *	so we are *highly* motivated to ensure that we can use
- *	EDH even if the DBA... or an attacker... deletes the
- *	$DataDir/dh*.pem files.
- *
- *	We could refuse SSL connections unless a good DH parameter
- *	file exists, but some clients may quietly renegotiate an
- *	unsecured connection without fully informing the user.
- *	Very uncool.
- *
- *	Alternatively, the backend could attempt to load these files
- *	on startup if SSL is enabled - and refuse to start if any
- *	do not exist - but this would tend to piss off DBAs.
- *
- *	If you want to create your own hardcoded DH parameters
- *	for fun and profit, review "Assigned Number for SKIP
- *	Protocols" (http://www.skip-vpn.org/spec/numbers.html)
- *	for suggestions.
- */
-#ifdef USE_SSL
-
-static const char file_dh512[] =
-"-----BEGIN DH PARAMETERS-----\n\
-MEYCQQD1Kv884bEpQBgRjXyEpwpy1obEAxnIByl6ypUM2Zafq9AKUJsCRtMIPWak\n\
-XUGfnHy9iUsiGSa6q6Jew1XpKgVfAgEC\n\
------END DH PARAMETERS-----\n";
-
-static const char file_dh1024[] =
-"-----BEGIN DH PARAMETERS-----\n\
-MIGHAoGBAPSI/VhOSdvNILSd5JEHNmszbDgNRR0PfIizHHxbLY7288kjwEPwpVsY\n\
-jY67VYy4XTjTNP18F1dDox0YbN4zISy1Kv884bEpQBgRjXyEpwpy1obEAxnIByl6\n\
-ypUM2Zafq9AKUJsCRtMIPWakXUGfnHy9iUsiGSa6q6Jew1XpL3jHAgEC\n\
------END DH PARAMETERS-----\n";
-
-static const char file_dh2048[] =
-"-----BEGIN DH PARAMETERS-----\n\
-MIIBCAKCAQEA9kJXtwh/CBdyorrWqULzBej5UxE5T7bxbrlLOCDaAadWoxTpj0BV\n\
-89AHxstDqZSt90xkhkn4DIO9ZekX1KHTUPj1WV/cdlJPPT2N286Z4VeSWc39uK50\n\
-T8X8dryDxUcwYc58yWb/Ffm7/ZFexwGq01uejaClcjrUGvC/RgBYK+X0iP1YTknb\n\
-zSC0neSRBzZrM2w4DUUdD3yIsxx8Wy2O9vPJI8BD8KVbGI2Ou1WMuF040zT9fBdX\n\
-Q6MdGGzeMyEstSr/POGxKUAYEY18hKcKctaGxAMZyAcpesqVDNmWn6vQClCbAkbT\n\
-CD1mpF1Bn5x8vYlLIhkmuquiXsNV6TILOwIBAg==\n\
------END DH PARAMETERS-----\n";
-
-static const char file_dh4096[] =
-"-----BEGIN DH PARAMETERS-----\n\
-MIICCAKCAgEA+hRyUsFN4VpJ1O8JLcCo/VWr19k3BCgJ4uk+d+KhehjdRqNDNyOQ\n\
-l/MOyQNQfWXPeGKmOmIig6Ev/nm6Nf9Z2B1h3R4hExf+zTiHnvVPeRBhjdQi81rt\n\
-Xeoh6TNrSBIKIHfUJWBh3va0TxxjQIs6IZOLeVNRLMqzeylWqMf49HsIXqbcokUS\n\
-Vt1BkvLdW48j8PPv5DsKRN3tloTxqDJGo9tKvj1Fuk74A+Xda1kNhB7KFlqMyN98\n\
-VETEJ6c7KpfOo30mnK30wqw3S8OtaIR/maYX72tGOno2ehFDkq3pnPtEbD2CScxc\n\
-alJC+EL7RPk5c/tgeTvCngvc1KZn92Y//EI7G9tPZtylj2b56sHtMftIoYJ9+ODM\n\
-sccD5Piz/rejE3Ome8EOOceUSCYAhXn8b3qvxVI1ddd1pED6FHRhFvLrZxFvBEM9\n\
-ERRMp5QqOaHJkM+Dxv8Cj6MqrCbfC4u+ZErxodzuusgDgvZiLF22uxMZbobFWyte\n\
-OvOzKGtwcTqO/1wV5gKkzu1ZVswVUQd5Gg8lJicwqRWyyNRczDDoG9jVDxmogKTH\n\
-AaqLulO7R8Ifa1SwF2DteSGVtgWEN8gDpN3RBmmPTDngyF2DHb5qmpnznwtFKdTL\n\
-KWbuHn491xNO25CQWMtem80uKw+pTnisBRF/454n1Jnhub144YRBoN8CAQI=\n\
------END DH PARAMETERS-----\n";
-#endif
+/* GUC variable: if false, prefer client ciphers */
+bool		SSLPreferServerCiphers;
 
 /* ------------------------------------------------------------ */
 /*			 Procedures common to all secure sessions			*/
@@ -190,7 +88,7 @@ int
 secure_initialize(void)
 {
 #ifdef USE_SSL
-	initialize_SSL();
+	be_tls_init();
 #endif
 
 	return 0;
@@ -204,9 +102,9 @@ secure_loaded_verify_locations(void)
 {
 #ifdef USE_SSL
 	return ssl_loaded_verify_locations;
-#endif
-
+#else
 	return false;
+#endif
 }
 
 /*
@@ -218,7 +116,7 @@ secure_open_server(Port *port)
 	int			r = 0;
 
 #ifdef USE_SSL
-	r = open_server_SSL(port);
+	r = be_tls_open_server(port);
 #endif
 
 	return r;
@@ -231,8 +129,8 @@ void
 secure_close(Port *port)
 {
 #ifdef USE_SSL
-	if (port->ssl)
-		close_SSL(port);
+	if (port->ssl_in_use)
+		be_tls_close(port);
 #endif
 }
 
@@ -243,74 +141,78 @@ ssize_t
 secure_read(Port *port, void *ptr, size_t len)
 {
 	ssize_t		n;
+	int			waitfor;
 
+retry:
 #ifdef USE_SSL
-	if (port->ssl)
+	waitfor = 0;
+	if (port->ssl_in_use)
 	{
-		int			err;
-
-rloop:
-		errno = 0;
-		n = SSL_read(port->ssl, ptr, len);
-		err = SSL_get_error(port->ssl, n);
-		switch (err)
-		{
-			case SSL_ERROR_NONE:
-				port->count += n;
-				break;
-			case SSL_ERROR_WANT_READ:
-			case SSL_ERROR_WANT_WRITE:
-				if (port->noblock)
-				{
-					errno = EWOULDBLOCK;
-					n = -1;
-					break;
-				}
-#ifdef WIN32
-				pgwin32_waitforsinglesocket(SSL_get_fd(port->ssl),
-											(err == SSL_ERROR_WANT_READ) ?
-									FD_READ | FD_CLOSE : FD_WRITE | FD_CLOSE,
-											INFINITE);
-#endif
-				goto rloop;
-			case SSL_ERROR_SYSCALL:
-				/* leave it to caller to ereport the value of errno */
-				if (n != -1)
-				{
-					errno = ECONNRESET;
-					n = -1;
-				}
-				break;
-			case SSL_ERROR_SSL:
-				ereport(COMMERROR,
-						(errcode(ERRCODE_PROTOCOL_VIOLATION),
-						 errmsg("SSL error: %s", SSLerrmessage())));
-				/* fall through */
-			case SSL_ERROR_ZERO_RETURN:
-				errno = ECONNRESET;
-				n = -1;
-				break;
-			default:
-				ereport(COMMERROR,
-						(errcode(ERRCODE_PROTOCOL_VIOLATION),
-						 errmsg("unrecognized SSL error code: %d",
-								err)));
-				n = -1;
-				break;
-		}
+		n = be_tls_read(port, ptr, len, &waitfor);
 	}
 	else
 #endif
 	{
-		prepare_for_client_read();
-
-		n = recv(port->sock, ptr, len, 0);
-
-		client_read_ended();
+		n = secure_raw_read(port, ptr, len);
+		waitfor = WL_SOCKET_READABLE;
 	}
+
+	/* In blocking mode, wait until the socket is ready */
+	if (n < 0 && !port->noblock && (errno == EWOULDBLOCK || errno == EAGAIN))
+	{
+		int			w;
+
+		Assert(waitfor);
+
+		w = WaitLatchOrSocket(MyLatch,
+							  WL_LATCH_SET | waitfor,
+							  port->sock, 0);
+
+		/* Handle interrupt. */
+		if (w & WL_LATCH_SET)
+		{
+			ResetLatch(MyLatch);
+			ProcessClientReadInterrupt(true);
+
+			/*
+			 * We'll retry the read. Most likely it will return immediately
+			 * because there's still no data available, and we'll wait for the
+			 * socket to become ready again.
+			 */
+		}
+		goto retry;
+	}
+
+	/*
+	 * Process interrupts that happened while (or before) receiving. Note that
+	 * we signal that we're not blocking, which will prevent some types of
+	 * interrupts from being processed.
+	 */
+	ProcessClientReadInterrupt(false);
 
 	return n;
 }
+
+ssize_t
+secure_raw_read(Port *port, void *ptr, size_t len)
+{
+	ssize_t		n;
+
+	/*
+	 * Try to read from the socket without blocking. If it succeeds we're
+	 * done, otherwise we'll wait for the socket using the latch mechanism.
+	 */
+#ifdef WIN32
+	pgwin32_noblock = true;
+#endif
+	n = recv(port->sock, ptr, len, 0);
+#ifdef WIN32
+	pgwin32_noblock = false;
+#endif
+
+	return n;
+}
+
 
 /*
  * Report a COMMERROR.
@@ -339,10 +241,14 @@ ssize_t
 secure_write(Port *port, void *ptr, size_t len)
 {
 	ssize_t		n;
+	int			waitfor;
 
+retry:
+	waitfor = 0;
 #ifdef USE_SSL
-	if (port->ssl)
+	if (port->ssl_in_use)
 	{
+<<<<<<< HEAD
 		int			err;
 
 		if (ssl_renegotiation_limit && port->count > ssl_renegotiation_limit * 1024L)
@@ -715,54 +621,20 @@ static void
 info_cb(const SSL *ssl, int type, int args)
 {
 	switch (type)
-	{
-		case SSL_CB_HANDSHAKE_START:
-			ereport(DEBUG4,
-					(errmsg_internal("SSL: handshake start")));
-			break;
-		case SSL_CB_HANDSHAKE_DONE:
-			ereport(DEBUG4,
-					(errmsg_internal("SSL: handshake done")));
-			break;
-		case SSL_CB_ACCEPT_LOOP:
-			ereport(DEBUG4,
-					(errmsg_internal("SSL: accept loop")));
-			break;
-		case SSL_CB_ACCEPT_EXIT:
-			ereport(DEBUG4,
-					(errmsg_internal("SSL: accept exit (%d)", args)));
-			break;
-		case SSL_CB_CONNECT_LOOP:
-			ereport(DEBUG4,
-					(errmsg_internal("SSL: connect loop")));
-			break;
-		case SSL_CB_CONNECT_EXIT:
-			ereport(DEBUG4,
-					(errmsg_internal("SSL: connect exit (%d)", args)));
-			break;
-		case SSL_CB_READ_ALERT:
-			ereport(DEBUG4,
-					(errmsg_internal("SSL: read alert (0x%04x)", args)));
-			break;
-		case SSL_CB_WRITE_ALERT:
-			ereport(DEBUG4,
-					(errmsg_internal("SSL: write alert (0x%04x)", args)));
-			break;
+=======
+		n = be_tls_write(port, ptr, len, &waitfor);
 	}
-}
-
-/*
- *	Initialize global SSL context.
- */
-static void
-initialize_SSL(void)
-{
-	struct stat buf;
-
-	STACK_OF(X509_NAME) *root_cert_list = NULL;
-
-	if (!SSL_context)
+	else
+#endif
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	{
+		n = secure_raw_write(port, ptr, len);
+		waitfor = WL_SOCKET_WRITEABLE;
+	}
+
+	if (n < 0 && !port->noblock && (errno == EWOULDBLOCK || errno == EAGAIN))
+	{
+<<<<<<< HEAD
 #if SSLEAY_VERSION_NUMBER >= 0x0907000L
 		OPENSSL_config(NULL);
 #endif
@@ -786,84 +658,20 @@ initialize_SSL(void)
 		 * causes unnecessary failures in nonblocking send cases.
 		 */
 		SSL_CTX_set_mode(SSL_context, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
+=======
+		int			w;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
-		/*
-		 * Load and verify server's certificate and private key
-		 */
-		if (SSL_CTX_use_certificate_chain_file(SSL_context,
-											   ssl_cert_file) != 1)
-			ereport(FATAL,
-					(errcode(ERRCODE_CONFIG_FILE_ERROR),
-				  errmsg("could not load server certificate file \"%s\": %s",
-						 ssl_cert_file, SSLerrmessage())));
+		Assert(waitfor);
 
-		if (stat(ssl_key_file, &buf) != 0)
-			ereport(FATAL,
-					(errcode_for_file_access(),
-					 errmsg("could not access private key file \"%s\": %m",
-							ssl_key_file)));
+		w = WaitLatchOrSocket(MyLatch,
+							  WL_LATCH_SET | waitfor,
+							  port->sock, 0);
 
-		/*
-		 * Require no public access to key file.
-		 *
-		 * XXX temporarily suppress check when on Windows, because there may
-		 * not be proper support for Unix-y file permissions.  Need to think
-		 * of a reasonable check to apply on Windows.  (See also the data
-		 * directory permission check in postmaster.c)
-		 */
-#if !defined(WIN32) && !defined(__CYGWIN__)
-		if (!S_ISREG(buf.st_mode) || buf.st_mode & (S_IRWXG | S_IRWXO))
-			ereport(FATAL,
-					(errcode(ERRCODE_CONFIG_FILE_ERROR),
-				  errmsg("private key file \"%s\" has group or world access",
-						 ssl_key_file),
-				   errdetail("Permissions should be u=rw (0600) or less.")));
-#endif
-
-		if (SSL_CTX_use_PrivateKey_file(SSL_context,
-										ssl_key_file,
-										SSL_FILETYPE_PEM) != 1)
-			ereport(FATAL,
-					(errmsg("could not load private key file \"%s\": %s",
-							ssl_key_file, SSLerrmessage())));
-
-		if (SSL_CTX_check_private_key(SSL_context) != 1)
-			ereport(FATAL,
-					(errmsg("check of private key failed: %s",
-							SSLerrmessage())));
-	}
-
-	/* set up ephemeral DH keys, and disallow SSL v2 while at it */
-	SSL_CTX_set_tmp_dh_callback(SSL_context, tmp_dh_cb);
-	SSL_CTX_set_options(SSL_context, SSL_OP_SINGLE_DH_USE | SSL_OP_NO_SSLv2);
-
-	/* set up the allowed cipher list */
-	if (SSL_CTX_set_cipher_list(SSL_context, SSLCipherSuites) != 1)
-		elog(FATAL, "could not set the cipher list (no valid ciphers available)");
-
-	/*
-	 * Load CA store, so we can verify client certificates if needed.
-	 */
-	if (ssl_ca_file[0])
-	{
-		if (SSL_CTX_load_verify_locations(SSL_context, ssl_ca_file, NULL) != 1 ||
-			(root_cert_list = SSL_load_client_CA_file(ssl_ca_file)) == NULL)
-			ereport(FATAL,
-					(errmsg("could not load root certificate file \"%s\": %s",
-							ssl_ca_file, SSLerrmessage())));
-	}
-
-	/*----------
-	 * Load the Certificate Revocation List (CRL).
-	 * http://searchsecurity.techtarget.com/sDefinition/0,,sid14_gci803160,00.html
-	 *----------
-	 */
-	if (ssl_crl_file[0])
-	{
-		X509_STORE *cvstore = SSL_CTX_get_cert_store(SSL_context);
-
-		if (cvstore)
+		/* Handle interrupt. */
+		if (w & WL_LATCH_SET)
 		{
+<<<<<<< HEAD
 			/* Set the flags to check against the complete CRL chain */
 			if (X509_STORE_load_locations(cvstore, ssl_crl_file, NULL) == 1)
 			{
@@ -1013,60 +821,46 @@ aloop:
 				close_SSL(port);
 				return -1;
 			}
+=======
+			ResetLatch(MyLatch);
+			ProcessClientWriteInterrupt(true);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 			/*
-			 * Reject embedded NULLs in certificate common name to prevent
-			 * attacks like CVE-2009-4034.
+			 * We'll retry the write. Most likely it will return immediately
+			 * because there's still no data available, and we'll wait for the
+			 * socket to become ready again.
 			 */
-			if (len != strlen(peer_cn))
-			{
-				ereport(COMMERROR,
-						(errcode(ERRCODE_PROTOCOL_VIOLATION),
-						 errmsg("SSL certificate's common name contains embedded null")));
-				pfree(peer_cn);
-				close_SSL(port);
-				return -1;
-			}
-
-			port->peer_cn = peer_cn;
 		}
+		goto retry;
 	}
 
-	ereport(DEBUG2,
-			(errmsg("SSL connection from \"%s\"",
-					port->peer_cn ? port->peer_cn : "(anonymous)")));
+	/*
+	 * Process interrupts that happened while (or before) sending. Note that
+	 * we signal that we're not blocking, which will prevent some types of
+	 * interrupts from being processed.
+	 */
+	ProcessClientWriteInterrupt(false);
 
-	/* set up debugging/info callback */
-	SSL_CTX_set_info_callback(SSL_context, info_cb);
-
-	return 0;
+	return n;
 }
 
-/*
- *	Close SSL connection.
- */
-static void
-close_SSL(Port *port)
+ssize_t
+secure_raw_write(Port *port, const void *ptr, size_t len)
 {
-	if (port->ssl)
-	{
-		SSL_shutdown(port->ssl);
-		SSL_free(port->ssl);
-		port->ssl = NULL;
-	}
+	ssize_t		n;
 
-	if (port->peer)
-	{
-		X509_free(port->peer);
-		port->peer = NULL;
-	}
+#ifdef WIN32
+	pgwin32_noblock = true;
+#endif
+	n = send(port->sock, ptr, len, 0);
+#ifdef WIN32
+	pgwin32_noblock = false;
+#endif
 
-	if (port->peer_cn)
-	{
-		pfree(port->peer_cn);
-		port->peer_cn = NULL;
-	}
+	return n;
 }
+<<<<<<< HEAD
 
 /*
  * Obtain reason string for last SSL error
@@ -1093,3 +887,5 @@ SSLerrmessage(void)
 }
 
 #endif   /* USE_SSL */
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8

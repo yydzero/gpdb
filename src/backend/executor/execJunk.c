@@ -3,7 +3,7 @@
  * execJunk.c
  *	  Junk attribute support stuff....
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -52,8 +52,14 @@
  *
  * Initialize the Junk filter.
  *
+<<<<<<< HEAD
  * The source targetlist is passed in.	The clean output tuple descriptor is
  * also passed in.
+=======
+ * The source targetlist is passed in.  The output tuple descriptor is
+ * built from the non-junk tlist entries, plus the passed specification
+ * of whether to include room for an OID or not.
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * An optional resultSlot can be passed as well.
  */
 JunkFilter *

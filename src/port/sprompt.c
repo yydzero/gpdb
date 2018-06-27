@@ -3,7 +3,7 @@
  * sprompt.c
  *	  simple_prompt() routine
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -86,6 +86,10 @@ simple_prompt(const char *prompt, int maxlen, bool echo)
 #endif
 	if (!termin || !termout
 #ifdef WIN32
+<<<<<<< HEAD
+=======
+
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	/*
 	 * Direct console I/O does not work from the MSYS 1.0.10 console.  Writes
 	 * reach nowhere user-visible; reads block indefinitely.  XXX This affects

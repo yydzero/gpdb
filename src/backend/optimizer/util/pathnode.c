@@ -3,9 +3,13 @@
  * pathnode.c
  *	  Routines to manipulate pathlists and create path nodes
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2005-2008, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -29,8 +33,9 @@
 #include "optimizer/cost.h"
 #include "optimizer/pathnode.h"
 #include "optimizer/paths.h"
+#include "optimizer/planmain.h"
 #include "optimizer/restrictinfo.h"
-#include "optimizer/tlist.h"
+#include "optimizer/var.h"
 #include "parser/parsetree.h"
 #include "utils/memutils.h"
 #include "utils/selfuncs.h"
@@ -47,10 +52,14 @@ typedef enum
 	COSTS_DIFFERENT				/* neither path dominates the other on cost */
 } PathCostComparison;
 
-static void add_parameterized_path(RelOptInfo *parent_rel, Path *new_path);
+/*
+ * STD_FUZZ_FACTOR is the normal fuzz factor for compare_path_costs_fuzzily.
+ * XXX is it worth making this user-controllable?  It provides a tradeoff
+ * between planner runtime and the accuracy of path cost comparisons.
+ */
+#define STD_FUZZ_FACTOR 1.01
+
 static List *translate_sub_tlist(List *tlist, int relid);
-static bool query_is_distinct_for(Query *query, List *colnos, List *opids);
-static Oid	distinct_col_search(int colno, List *colnos, List *opids);
 
 static void set_append_path_locus(PlannerInfo *root, Path *pathnode, RelOptInfo *rel,
 					  List *pathkeys);
@@ -312,21 +321,31 @@ compare_fractional_path_costs(Path *path1, Path *path2,
  *
  * The fuzz_factor argument must be 1.0 plus delta, where delta is the
  * fraction of the smaller cost that is considered to be a significant
- * difference.	For example, fuzz_factor = 1.01 makes the fuzziness limit
+ * difference.  For example, fuzz_factor = 1.01 makes the fuzziness limit
  * be 1% of the smaller cost.
  *
  * The two paths are said to have "equal" costs if both startup and total
- * costs are fuzzily the same.	Path1 is said to be better than path2 if
+ * costs are fuzzily the same.  Path1 is said to be better than path2 if
  * it has fuzzily better startup cost and fuzzily no worse total cost,
  * or if it has fuzzily better total cost and fuzzily no worse startup cost.
  * Path2 is better than path1 if the reverse holds.  Finally, if one path
  * is fuzzily better than the other on startup cost and fuzzily worse on
  * total cost, we just say that their costs are "different", since neither
  * dominates the other across the whole performance spectrum.
+ *
+ * This function also enforces a policy rule that paths for which the relevant
+ * one of parent->consider_startup and parent->consider_param_startup is false
+ * cannot survive comparisons solely on the grounds of good startup cost, so
+ * we never return COSTS_DIFFERENT when that is true for the total-cost loser.
+ * (But if total costs are fuzzily equal, we compare startup costs anyway,
+ * in hopes of eliminating one path or the other.)
  */
 static PathCostComparison
 compare_path_costs_fuzzily(Path *path1, Path *path2, double fuzz_factor)
 {
+#define CONSIDER_PATH_STARTUP_COST(p)  \
+	((p)->param_info == NULL ? (p)->parent->consider_startup : (p)->parent->consider_param_startup)
+
 	/*
 	 * Check total cost first since it's more likely to be different; many
 	 * paths have zero startup cost.
@@ -334,7 +353,8 @@ compare_path_costs_fuzzily(Path *path1, Path *path2, double fuzz_factor)
 	if (path1->total_cost > path2->total_cost * fuzz_factor)
 	{
 		/* path1 fuzzily worse on total cost */
-		if (path2->startup_cost > path1->startup_cost * fuzz_factor)
+		if (CONSIDER_PATH_STARTUP_COST(path1) &&
+			path2->startup_cost > path1->startup_cost * fuzz_factor)
 		{
 			/* ... but path2 fuzzily worse on startup, so DIFFERENT */
 			return COSTS_DIFFERENT;
@@ -345,7 +365,8 @@ compare_path_costs_fuzzily(Path *path1, Path *path2, double fuzz_factor)
 	if (path2->total_cost > path1->total_cost * fuzz_factor)
 	{
 		/* path2 fuzzily worse on total cost */
-		if (path1->startup_cost > path2->startup_cost * fuzz_factor)
+		if (CONSIDER_PATH_STARTUP_COST(path2) &&
+			path1->startup_cost > path2->startup_cost * fuzz_factor)
 		{
 			/* ... but path1 fuzzily worse on startup, so DIFFERENT */
 			return COSTS_DIFFERENT;
@@ -353,7 +374,7 @@ compare_path_costs_fuzzily(Path *path1, Path *path2, double fuzz_factor)
 		/* else path1 dominates */
 		return COSTS_BETTER1;
 	}
-	/* fuzzily the same on total cost */
+	/* fuzzily the same on total cost ... */
 	if (path1->startup_cost > path2->startup_cost * fuzz_factor)
 	{
 		/* ... but path1 fuzzily worse on startup, so path2 wins */
@@ -366,6 +387,8 @@ compare_path_costs_fuzzily(Path *path1, Path *path2, double fuzz_factor)
 	}
 	/* fuzzily the same on both costs */
 	return COSTS_EQUAL;
+
+#undef CONSIDER_PATH_STARTUP_COST
 }
 
 /*
@@ -373,11 +396,19 @@ compare_path_costs_fuzzily(Path *path1, Path *path2, double fuzz_factor)
  *	  Find the minimum-cost paths from among a relation's paths,
  *	  and save them in the rel's cheapest-path fields.
  *
- * Only unparameterized paths are considered candidates for cheapest_startup
- * and cheapest_total.	The cheapest_parameterized_paths list collects paths
- * that are cheapest-total for their parameterization (i.e., there is no
- * cheaper path with the same or weaker parameterization).	This list always
- * includes the unparameterized cheapest-total path, too.
+ * cheapest_total_path is normally the cheapest-total-cost unparameterized
+ * path; but if there are no unparameterized paths, we assign it to be the
+ * best (cheapest least-parameterized) parameterized path.  However, only
+ * unparameterized paths are considered candidates for cheapest_startup_path,
+ * so that will be NULL if there are no unparameterized paths.
+ *
+ * The cheapest_parameterized_paths list collects all parameterized paths
+ * that have survived the add_path() tournament for this relation.  (Since
+ * add_path ignores pathkeys for a parameterized path, these will be paths
+ * that have best cost or best row count for their parameterization.)
+ * cheapest_parameterized_paths always includes the cheapest-total
+ * unparameterized path, too, if there is one; the users of that list find
+ * it more convenient if that's included.
  *
  * This is normally called only after we've finished constructing the path
  * list for the rel node.
@@ -387,11 +418,13 @@ set_cheapest(PlannerInfo *root, RelOptInfo *parent_rel)
 {
 	Path	   *cheapest_startup_path;
 	Path	   *cheapest_total_path;
-	bool		have_parameterized_paths;
+	Path	   *best_param_path;
+	List	   *parameterized_paths;
 	ListCell   *p;
 
 	Assert(IsA(parent_rel, RelOptInfo));
 
+<<<<<<< HEAD
 	/* CDB: Empty pathlist is possible if user set some enable_xxx = off. */
 	if (parent_rel->pathlist == NIL)
 	{
@@ -401,67 +434,115 @@ set_cheapest(PlannerInfo *root, RelOptInfo *parent_rel)
 
 	cheapest_startup_path = cheapest_total_path = NULL;
 	have_parameterized_paths = false;
+=======
+	if (parent_rel->pathlist == NIL)
+		elog(ERROR, "could not devise a query plan for the given query");
+
+	cheapest_startup_path = cheapest_total_path = best_param_path = NULL;
+	parameterized_paths = NIL;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	foreach(p, parent_rel->pathlist)
 	{
 		Path	   *path = (Path *) lfirst(p);
 		int			cmp;
 
-		/* We only consider unparameterized paths in this step */
 		if (path->param_info)
 		{
-			have_parameterized_paths = true;
-			continue;
-		}
+			/* Parameterized path, so add it to parameterized_paths */
+			parameterized_paths = lappend(parameterized_paths, path);
 
-		if (cheapest_total_path == NULL)
+			/*
+			 * If we have an unparameterized cheapest-total, we no longer care
+			 * about finding the best parameterized path, so move on.
+			 */
+			if (cheapest_total_path)
+				continue;
+
+			/*
+			 * Otherwise, track the best parameterized path, which is the one
+			 * with least total cost among those of the minimum
+			 * parameterization.
+			 */
+			if (best_param_path == NULL)
+				best_param_path = path;
+			else
+			{
+				switch (bms_subset_compare(PATH_REQ_OUTER(path),
+										   PATH_REQ_OUTER(best_param_path)))
+				{
+					case BMS_EQUAL:
+						/* keep the cheaper one */
+						if (compare_path_costs(path, best_param_path,
+											   TOTAL_COST) < 0)
+							best_param_path = path;
+						break;
+					case BMS_SUBSET1:
+						/* new path is less-parameterized */
+						best_param_path = path;
+						break;
+					case BMS_SUBSET2:
+						/* old path is less-parameterized, keep it */
+						break;
+					case BMS_DIFFERENT:
+
+						/*
+						 * This means that neither path has the least possible
+						 * parameterization for the rel.  We'll sit on the old
+						 * path until something better comes along.
+						 */
+						break;
+				}
+			}
+		}
+		else
 		{
-			cheapest_startup_path = cheapest_total_path = path;
-			continue;
+			/* Unparameterized path, so consider it for cheapest slots */
+			if (cheapest_total_path == NULL)
+			{
+				cheapest_startup_path = cheapest_total_path = path;
+				continue;
+			}
+
+			/*
+			 * If we find two paths of identical costs, try to keep the
+			 * better-sorted one.  The paths might have unrelated sort
+			 * orderings, in which case we can only guess which might be
+			 * better to keep, but if one is superior then we definitely
+			 * should keep that one.
+			 */
+			cmp = compare_path_costs(cheapest_startup_path, path, STARTUP_COST);
+			if (cmp > 0 ||
+				(cmp == 0 &&
+				 compare_pathkeys(cheapest_startup_path->pathkeys,
+								  path->pathkeys) == PATHKEYS_BETTER2))
+				cheapest_startup_path = path;
+
+			cmp = compare_path_costs(cheapest_total_path, path, TOTAL_COST);
+			if (cmp > 0 ||
+				(cmp == 0 &&
+				 compare_pathkeys(cheapest_total_path->pathkeys,
+								  path->pathkeys) == PATHKEYS_BETTER2))
+				cheapest_total_path = path;
 		}
-
-		/*
-		 * If we find two paths of identical costs, try to keep the
-		 * better-sorted one.  The paths might have unrelated sort orderings,
-		 * in which case we can only guess which might be better to keep, but
-		 * if one is superior then we definitely should keep that one.
-		 */
-		cmp = compare_path_costs(cheapest_startup_path, path, STARTUP_COST);
-		if (cmp > 0 ||
-			(cmp == 0 &&
-			 compare_pathkeys(cheapest_startup_path->pathkeys,
-							  path->pathkeys) == PATHKEYS_BETTER2))
-			cheapest_startup_path = path;
-
-		cmp = compare_path_costs(cheapest_total_path, path, TOTAL_COST);
-		if (cmp > 0 ||
-			(cmp == 0 &&
-			 compare_pathkeys(cheapest_total_path->pathkeys,
-							  path->pathkeys) == PATHKEYS_BETTER2))
-			cheapest_total_path = path;
 	}
 
+	/* Add cheapest unparameterized path, if any, to parameterized_paths */
+	if (cheapest_total_path)
+		parameterized_paths = lcons(cheapest_total_path, parameterized_paths);
+
+	/*
+	 * If there is no unparameterized path, use the best parameterized path as
+	 * cheapest_total_path (but not as cheapest_startup_path).
+	 */
 	if (cheapest_total_path == NULL)
-		elog(ERROR, "could not devise a query plan for the given query");
+		cheapest_total_path = best_param_path;
+	Assert(cheapest_total_path != NULL);
 
 	parent_rel->cheapest_startup_path = cheapest_startup_path;
 	parent_rel->cheapest_total_path = cheapest_total_path;
 	parent_rel->cheapest_unique_path = NULL;	/* computed only if needed */
-
-	/* Seed the parameterized-paths list with the cheapest total */
-	parent_rel->cheapest_parameterized_paths = list_make1(cheapest_total_path);
-
-	/* And, if there are any parameterized paths, add them in one at a time */
-	if (have_parameterized_paths)
-	{
-		foreach(p, parent_rel->pathlist)
-		{
-			Path	   *path = (Path *) lfirst(p);
-
-			if (path->param_info)
-				add_parameterized_path(parent_rel, path);
-		}
-	}
+	parent_rel->cheapest_parameterized_paths = parameterized_paths;
 }
 
 /*
@@ -483,11 +564,16 @@ set_cheapest(PlannerInfo *root, RelOptInfo *parent_rel)
  *	  one parameterization can seldom dominate a path of another.  But such
  *	  cases do arise, so we make the full set of checks anyway.
  *
- *	  There is one policy decision embedded in this function, along with its
- *	  sibling add_path_precheck: we treat all parameterized paths as having
- *	  NIL pathkeys, so that they compete only on cost.	This is to reduce
- *	  the number of parameterized paths that are kept.	See discussion in
- *	  src/backend/optimizer/README.
+ *	  There are two policy decisions embedded in this function, along with
+ *	  its sibling add_path_precheck.  First, we treat all parameterized paths
+ *	  as having NIL pathkeys, so that they cannot win comparisons on the
+ *	  basis of sort order.  This is to reduce the number of parameterized
+ *	  paths that are kept; see discussion in src/backend/optimizer/README.
+ *
+ *	  Second, we only consider cheap startup cost to be interesting if
+ *	  parent_rel->consider_startup is true for an unparameterized path, or
+ *	  parent_rel->consider_param_startup is true for a parameterized one.
+ *	  Again, this allows discarding useless paths sooner.
  *
  *	  The pathlist is kept sorted by total_cost, with cheaper paths
  *	  at the front.  Within this routine, that's simply a speed hack:
@@ -560,10 +646,10 @@ add_path(PlannerInfo *root, RelOptInfo *parent_rel, Path *new_path)
 		p1_next = lnext(p1);
 
 		/*
-		 * Do a fuzzy cost comparison with 1% fuzziness limit.	(XXX does this
-		 * percentage need to be user-configurable?)
+		 * Do a fuzzy cost comparison with standard fuzziness limit.
 		 */
-		costcmp = compare_path_costs_fuzzily(new_path, old_path, 1.01);
+		costcmp = compare_path_costs_fuzzily(new_path, old_path,
+											 STD_FUZZ_FACTOR);
 
 		/*
 		 * If the two paths compare differently for startup and total cost,
@@ -628,7 +714,8 @@ add_path(PlannerInfo *root, RelOptInfo *parent_rel, Path *new_path)
 									remove_old = true;	/* new dominates old */
 								else if (new_path->rows > old_path->rows)
 									accept_new = false; /* old dominates new */
-								else if (compare_path_costs_fuzzily(new_path, old_path,
+								else if (compare_path_costs_fuzzily(new_path,
+																	old_path,
 											  1.0000000001) == COSTS_BETTER1)
 									remove_old = true;	/* new dominates old */
 								else
@@ -790,7 +877,7 @@ cdb_add_join_path(PlannerInfo *root, RelOptInfo *parent_rel, JoinType orig_joint
  *	  and have lower bounds for its costs.
  *
  * Note that we do not know the path's rowcount, since getting an estimate for
- * that is too expensive to do before prechecking.	We assume here that paths
+ * that is too expensive to do before prechecking.  We assume here that paths
  * of a superset parameterization will generate fewer rows; if that holds,
  * then paths with different parameterizations cannot dominate each other
  * and so we can simply ignore existing paths of another parameterization.
@@ -806,10 +893,14 @@ add_path_precheck(RelOptInfo *parent_rel,
 				  List *pathkeys, Relids required_outer)
 {
 	List	   *new_path_pathkeys;
+	bool		consider_startup;
 	ListCell   *p1;
 
-	/* Pretend parameterized paths have no pathkeys, per add_path comment */
+	/* Pretend parameterized paths have no pathkeys, per add_path policy */
 	new_path_pathkeys = required_outer ? NIL : pathkeys;
+
+	/* Decide whether new path's startup cost is interesting */
+	consider_startup = required_outer ? parent_rel->consider_param_startup : parent_rel->consider_startup;
 
 	foreach(p1, parent_rel->pathlist)
 	{
@@ -822,14 +913,15 @@ add_path_precheck(RelOptInfo *parent_rel,
 		 * pathkeys as well as both cost metrics.  If we find one, we can
 		 * reject the new path.
 		 *
-		 * For speed, we make exact rather than fuzzy cost comparisons. If an
-		 * old path dominates the new path exactly on both costs, it will
-		 * surely do so fuzzily.
+		 * Cost comparisons here should match compare_path_costs_fuzzily.
 		 */
-		if (total_cost >= old_path->total_cost)
+		if (total_cost > old_path->total_cost * STD_FUZZ_FACTOR)
 		{
-			if (startup_cost >= old_path->startup_cost)
+			/* new path can win on startup cost only if consider_startup */
+			if (startup_cost > old_path->startup_cost * STD_FUZZ_FACTOR ||
+				!consider_startup)
 			{
+				/* new path loses on cost, so check pathkeys... */
 				List	   *old_path_pathkeys;
 
 				old_path_pathkeys = old_path->param_info ? NIL : old_path->pathkeys;
@@ -838,6 +930,7 @@ add_path_precheck(RelOptInfo *parent_rel,
 				if (keyscmp == PATHKEYS_EQUAL ||
 					keyscmp == PATHKEYS_BETTER2)
 				{
+					/* new path does not win on pathkeys... */
 					if (bms_equal(required_outer, PATH_REQ_OUTER(old_path)))
 					{
 						/* Found an old path that dominates the new one */
@@ -858,123 +951,6 @@ add_path_precheck(RelOptInfo *parent_rel,
 	}
 
 	return true;
-}
-
-/*
- * add_parameterized_path
- *	  Consider a parameterized implementation path for the specified rel,
- *	  and add it to the rel's cheapest_parameterized_paths list if it
- *	  belongs there, removing any old entries that it dominates.
- *
- *	  This is essentially a cut-down form of add_path(): we do not care
- *	  about startup cost or sort ordering, only total cost, rowcount, and
- *	  parameterization.  Also, we must not recycle rejected paths, since
- *	  they will still be present in the rel's pathlist.
- *
- * 'parent_rel' is the relation entry to which the path corresponds.
- * 'new_path' is a parameterized path for parent_rel.
- *
- * Returns nothing, but modifies parent_rel->cheapest_parameterized_paths.
- */
-static void
-add_parameterized_path(RelOptInfo *parent_rel, Path *new_path)
-{
-	bool		accept_new = true;		/* unless we find a superior old path */
-	ListCell   *insert_after = NULL;	/* where to insert new item */
-	ListCell   *p1;
-	ListCell   *p1_prev;
-	ListCell   *p1_next;
-
-	/*
-	 * Loop to check proposed new path against old paths.  Note it is possible
-	 * for more than one old path to be tossed out because new_path dominates
-	 * it.
-	 *
-	 * We can't use foreach here because the loop body may delete the current
-	 * list cell.
-	 */
-	p1_prev = NULL;
-	for (p1 = list_head(parent_rel->cheapest_parameterized_paths);
-		 p1 != NULL; p1 = p1_next)
-	{
-		Path	   *old_path = (Path *) lfirst(p1);
-		bool		remove_old = false; /* unless new proves superior */
-		int			costcmp;
-		BMS_Comparison outercmp;
-
-		p1_next = lnext(p1);
-
-		costcmp = compare_path_costs(new_path, old_path, TOTAL_COST);
-		outercmp = bms_subset_compare(PATH_REQ_OUTER(new_path),
-									  PATH_REQ_OUTER(old_path));
-		if (outercmp != BMS_DIFFERENT)
-		{
-			if (costcmp < 0)
-			{
-				if (outercmp != BMS_SUBSET2 &&
-					new_path->rows <= old_path->rows)
-					remove_old = true;	/* new dominates old */
-			}
-			else if (costcmp > 0)
-			{
-				if (outercmp != BMS_SUBSET1 &&
-					new_path->rows >= old_path->rows)
-					accept_new = false; /* old dominates new */
-			}
-			else if (outercmp == BMS_SUBSET1 &&
-					 new_path->rows <= old_path->rows)
-				remove_old = true;		/* new dominates old */
-			else if (outercmp == BMS_SUBSET2 &&
-					 new_path->rows >= old_path->rows)
-				accept_new = false;		/* old dominates new */
-			else if (new_path->rows < old_path->rows)
-				remove_old = true;		/* new dominates old */
-			else
-			{
-				/* Same cost, rows, and param rels; arbitrarily keep old */
-				accept_new = false;		/* old equals or dominates new */
-			}
-		}
-
-		/*
-		 * Remove current element from cheapest_parameterized_paths if
-		 * dominated by new.
-		 */
-		if (remove_old)
-		{
-			parent_rel->cheapest_parameterized_paths =
-				list_delete_cell(parent_rel->cheapest_parameterized_paths,
-								 p1, p1_prev);
-			/* p1_prev does not advance */
-		}
-		else
-		{
-			/* new belongs after this old path if it has cost >= old's */
-			if (costcmp >= 0)
-				insert_after = p1;
-			/* p1_prev advances */
-			p1_prev = p1;
-		}
-
-		/*
-		 * If we found an old path that dominates new_path, we can quit
-		 * scanning the list; we will not add new_path, and we assume new_path
-		 * cannot dominate any other elements of the list.
-		 */
-		if (!accept_new)
-			break;
-	}
-
-	if (accept_new)
-	{
-		/* Accept the new path: insert it at proper place in list */
-		if (insert_after)
-			lappend_cell(parent_rel->cheapest_parameterized_paths,
-						 insert_after, new_path);
-		else
-			parent_rel->cheapest_parameterized_paths =
-				lcons(new_path, parent_rel->cheapest_parameterized_paths);
-	}
 }
 
 
@@ -1009,6 +985,7 @@ create_seqscan_path(PlannerInfo *root, RelOptInfo *rel, Relids required_outer)
 }
 
 /*
+<<<<<<< HEAD
  * Create a path for scanning an append-only table
  */
 AppendOnlyPath *
@@ -1026,11 +1003,29 @@ create_appendonly_path(PlannerInfo *root, RelOptInfo *rel)
 	pathnode->path.sameslice_relids = rel->relids;
 
 	cost_appendonlyscan(pathnode, root, rel);
+=======
+ * create_samplescan_path
+ *	  Like seqscan but uses sampling function while scanning.
+ */
+Path *
+create_samplescan_path(PlannerInfo *root, RelOptInfo *rel, Relids required_outer)
+{
+	Path	   *pathnode = makeNode(Path);
+
+	pathnode->pathtype = T_SampleScan;
+	pathnode->parent = rel;
+	pathnode->param_info = get_baserel_parampathinfo(root, rel,
+													 required_outer);
+	pathnode->pathkeys = NIL;	/* samplescan has unordered result */
+
+	cost_samplescan(pathnode, root, rel);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	return pathnode;
 }
 
 /*
+<<<<<<< HEAD
  * Create a path for scanning an append-only table
  */
 AOCSPath *
@@ -1080,6 +1075,8 @@ create_external_path(PlannerInfo *root, RelOptInfo *rel)
 
 
 /*
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * create_index_path
  *	  Creates a path node for an index scan.
  *
@@ -1319,17 +1316,20 @@ create_bitmap_or_path(PlannerInfo *root,
  *	  Creates a path corresponding to a scan by TID, returning the pathnode.
  */
 TidPath *
-create_tidscan_path(PlannerInfo *root, RelOptInfo *rel, List *tidquals)
+create_tidscan_path(PlannerInfo *root, RelOptInfo *rel, List *tidquals,
+					Relids required_outer)
 {
 	TidPath    *pathnode = makeNode(TidPath);
 
 	pathnode->path.pathtype = T_TidScan;
 	pathnode->path.parent = rel;
-	pathnode->path.param_info = NULL;	/* never parameterized at present */
+	pathnode->path.param_info = get_baserel_parampathinfo(root, rel,
+														  required_outer);
 	pathnode->path.pathkeys = NIL;		/* always unordered */
 
 	pathnode->tidquals = tidquals;
 
+<<<<<<< HEAD
 	/* Distribution is same as the base table. */
 	pathnode->path.locus = cdbpathlocus_from_baserel(root, rel);
 	pathnode->path.motionHazard = false;
@@ -1337,6 +1337,10 @@ create_tidscan_path(PlannerInfo *root, RelOptInfo *rel, List *tidquals)
 	pathnode->path.sameslice_relids = rel->relids;
 
 	cost_tidscan(&pathnode->path, root, rel, tidquals);
+=======
+	cost_tidscan(&pathnode->path, root, rel, tidquals,
+				 pathnode->path.param_info);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	return pathnode;
 }
@@ -1371,7 +1375,7 @@ create_append_path(PlannerInfo *root, RelOptInfo *rel, List *subpaths, Relids re
 	 * Compute rows and costs as sums of subplan rows and costs.  We charge
 	 * nothing extra for the Append itself, which perhaps is too optimistic,
 	 * but since it doesn't do any selection or projection, it is a pretty
-	 * cheap node.	If you change this, see also make_append().
+	 * cheap node.  If you change this, see also make_append().
 	 */
 	pathnode->path.rows = 0;
 	pathnode->path.startup_cost = 0;
@@ -1655,7 +1659,7 @@ create_result_path(List *quals)
 
 	pathnode->path.pathtype = T_Result;
 	pathnode->path.parent = NULL;
-	pathnode->path.param_info = NULL;
+	pathnode->path.param_info = NULL;	/* there are no other rels... */
 	pathnode->path.pathkeys = NIL;
 	pathnode->quals = quals;
 
@@ -1732,13 +1736,12 @@ create_unique_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
 	Path		sort_path;		/* dummy for result of cost_sort */
 	Path		agg_path;		/* dummy for result of cost_agg */
 	MemoryContext oldcontext;
-	List	   *in_operators;
-	List	   *uniq_exprs;
-	bool		all_btree;
-	bool		all_hash;
 	int			numCols;
+<<<<<<< HEAD
 	ListCell   *lc;
 	CdbPathLocus locus;
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/* Caller made a mistake if subpath isn't cheapest_total ... */
 	Assert(subpath == rel->cheapest_total_path);
@@ -1751,8 +1754,8 @@ create_unique_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
 	if (rel->cheapest_unique_path)
 		return (UniquePath *) rel->cheapest_unique_path;
 
-	/* If we previously failed, return NULL quickly */
-	if (sjinfo->join_quals == NIL)
+	/* If it's not possible to unique-ify, return NULL */
+	if (!(sjinfo->semi_can_btree || sjinfo->semi_can_hash))
 		return NULL;
 
 	/*
@@ -1761,6 +1764,7 @@ create_unique_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
 	 */
 	oldcontext = MemoryContextSwitchTo(root->planner_cxt);
 
+<<<<<<< HEAD
 	/*----------
 	 * Look to see whether the semijoin's join quals consist of AND'ed
 	 * equality operators, with (only) RHS variables on only one side of
@@ -1918,6 +1922,8 @@ create_unique_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
 	 * If we get here, we can unique-ify using at least one of sorting and
 	 * hashing.  Start building the result Path object.
 	 */
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	pathnode = makeNode(UniquePath);
 
 	pathnode->path.pathtype = T_Unique;
@@ -1932,18 +1938,19 @@ create_unique_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
 	pathnode->path.pathkeys = NIL;
 
 	pathnode->subpath = subpath;
-	pathnode->in_operators = in_operators;
-	pathnode->uniq_exprs = uniq_exprs;
+	pathnode->in_operators = sjinfo->semi_operators;
+	pathnode->uniq_exprs = sjinfo->semi_rhs_exprs;
 
 	/*
 	 * If the input is a relation and it has a unique index that proves the
-	 * uniq_exprs are unique, then we don't need to do anything.  Note that
-	 * relation_has_unique_index_for automatically considers restriction
+	 * semi_rhs_exprs are unique, then we don't need to do anything.  Note
+	 * that relation_has_unique_index_for automatically considers restriction
 	 * clauses for the rel, as well.
 	 */
-	if (rel->rtekind == RTE_RELATION && all_btree &&
+	if (rel->rtekind == RTE_RELATION && sjinfo->semi_can_btree &&
 		relation_has_unique_index_for(root, rel, NIL,
-									  uniq_exprs, in_operators))
+									  sjinfo->semi_rhs_exprs,
+									  sjinfo->semi_operators))
 	{
 		pathnode->umethod = UNIQUE_PATH_NOOP;
 		pathnode->path.rows = rel->rows;
@@ -1963,43 +1970,56 @@ create_unique_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
 	 * don't need to do anything.  The test for uniqueness has to consider
 	 * exactly which columns we are extracting; for example "SELECT DISTINCT
 	 * x,y" doesn't guarantee that x alone is distinct. So we cannot check for
-	 * this optimization unless uniq_exprs consists only of simple Vars
+	 * this optimization unless semi_rhs_exprs consists only of simple Vars
 	 * referencing subquery outputs.  (Possibly we could do something with
 	 * expressions in the subquery outputs, too, but for now keep it simple.)
 	 */
 	if (rel->rtekind == RTE_SUBQUERY)
 	{
 		RangeTblEntry *rte = planner_rt_fetch(rel->relid, root);
-		List	   *sub_tlist_colnos;
 
-		sub_tlist_colnos = translate_sub_tlist(uniq_exprs, rel->relid);
-
-		if (sub_tlist_colnos &&
-			query_is_distinct_for(rte->subquery,
-								  sub_tlist_colnos, in_operators))
+		if (query_supports_distinctness(rte->subquery))
 		{
-			pathnode->umethod = UNIQUE_PATH_NOOP;
-			pathnode->path.rows = rel->rows;
-			pathnode->path.startup_cost = subpath->startup_cost;
-			pathnode->path.total_cost = subpath->total_cost;
-			pathnode->path.pathkeys = subpath->pathkeys;
+			List	   *sub_tlist_colnos;
 
-			rel->cheapest_unique_path = (Path *) pathnode;
+			sub_tlist_colnos = translate_sub_tlist(sjinfo->semi_rhs_exprs,
+												   rel->relid);
 
-			MemoryContextSwitchTo(oldcontext);
+			if (sub_tlist_colnos &&
+				query_is_distinct_for(rte->subquery,
+									  sub_tlist_colnos,
+									  sjinfo->semi_operators))
+			{
+				pathnode->umethod = UNIQUE_PATH_NOOP;
+				pathnode->path.rows = rel->rows;
+				pathnode->path.startup_cost = subpath->startup_cost;
+				pathnode->path.total_cost = subpath->total_cost;
+				pathnode->path.pathkeys = subpath->pathkeys;
 
-			return pathnode;
+				rel->cheapest_unique_path = (Path *) pathnode;
+
+				MemoryContextSwitchTo(oldcontext);
+
+				return pathnode;
+			}
 		}
 	}
 
 	/* Estimate number of output rows */
-	pathnode->path.rows = estimate_num_groups(root, uniq_exprs, rel->rows);
-	numCols = list_length(uniq_exprs);
+	pathnode->path.rows = estimate_num_groups(root,
+											  sjinfo->semi_rhs_exprs,
+											  rel->rows,
+											  NULL);
+	numCols = list_length(sjinfo->semi_rhs_exprs);
 
+<<<<<<< HEAD
 	// FIXME?
     //subpath_rows = cdbpath_rows(root, subpath);
 
 	if (all_btree)
+=======
+	if (sjinfo->semi_can_btree)
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	{
 		/*
 		 * Estimate cost for sort+unique implementation
@@ -2021,7 +2041,7 @@ create_unique_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
 		sort_path.total_cost += cpu_operator_cost * rel->rows * numCols;
 	}
 
-	if (all_hash)
+	if (sjinfo->semi_can_hash)
 	{
 		/*
 		 * Estimate the overhead per hashtable entry at 64 bytes (same as in
@@ -2030,7 +2050,13 @@ create_unique_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
 		int			hashentrysize = rel->width + 64;
 
 		if (hashentrysize * pathnode->path.rows > work_mem * 1024L)
-			all_hash = false;	/* don't try to hash */
+		{
+			/*
+			 * We should not try to hash.  Hack the SpecialJoinInfo to
+			 * remember this, in case we come through here again.
+			 */
+			sjinfo->semi_can_hash = false;
+		}
 		else
 			cost_agg(&agg_path, root,
 					 AGG_HASHED, NULL,
@@ -2045,19 +2071,23 @@ create_unique_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
 				);
 	}
 
-	if (all_btree && all_hash)
+	if (sjinfo->semi_can_btree && sjinfo->semi_can_hash)
 	{
 		if (agg_path.total_cost < sort_path.total_cost)
 			pathnode->umethod = UNIQUE_PATH_HASH;
 		else
 			pathnode->umethod = UNIQUE_PATH_SORT;
 	}
-	else if (all_btree)
+	else if (sjinfo->semi_can_btree)
 		pathnode->umethod = UNIQUE_PATH_SORT;
-	else if (all_hash)
+	else if (sjinfo->semi_can_hash)
 		pathnode->umethod = UNIQUE_PATH_HASH;
 	else
-		goto no_unique_path;
+	{
+		/* we can get here only if we abandoned hashing above */
+		MemoryContextSwitchTo(oldcontext);
+		return NULL;
+	}
 
 	if (pathnode->umethod == UNIQUE_PATH_HASH)
 	{
@@ -2098,15 +2128,6 @@ create_unique_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
 	}
 
 	return pathnode;
-
-no_unique_path:			/* failure exit */
-
-	/* Mark the SpecialJoinInfo as not unique-able */
-	sjinfo->join_quals = NIL;
-
-	MemoryContextSwitchTo(oldcontext);
-
-	return NULL;
 }
 
 /*
@@ -2397,6 +2418,7 @@ translate_sub_tlist(List *tlist, int relid)
 }
 
 /*
+<<<<<<< HEAD
  * query_is_distinct_for - does query never return duplicates of the
  *		specified columns?
  *
@@ -2558,6 +2580,8 @@ distinct_col_search(int colno, List *colnos, List *opids)
 }
 
 /*
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * create_subqueryscan_path
  *	  Creates a path corresponding to a sequential scan of a subquery,
  *	  returning the pathnode.
@@ -2590,15 +2614,22 @@ create_subqueryscan_path(PlannerInfo *root, RelOptInfo *rel,
  *	  returning the pathnode.
  */
 Path *
+<<<<<<< HEAD
 create_functionscan_path(PlannerInfo *root, RelOptInfo *rel, RangeTblEntry *rte)
+=======
+create_functionscan_path(PlannerInfo *root, RelOptInfo *rel,
+						 List *pathkeys, Relids required_outer)
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 {
 	Path	   *pathnode = makeNode(Path);
 
 	pathnode->pathtype = T_FunctionScan;
 	pathnode->parent = rel;
-	pathnode->param_info = NULL;	/* never parameterized at present */
-	pathnode->pathkeys = NIL;	/* for now, assume unordered result */
+	pathnode->param_info = get_baserel_parampathinfo(root, rel,
+													 required_outer);
+	pathnode->pathkeys = pathkeys;
 
+<<<<<<< HEAD
 	/*
 	 * If the function desires to run on segments, mark randomly-distributed.
 	 * If expression contains mutable functions, evaluate it on entry db.
@@ -2659,6 +2690,9 @@ create_functionscan_path(PlannerInfo *root, RelOptInfo *rel, RangeTblEntry *rte)
 	pathnode->sameslice_relids = NULL;
 
 	cost_functionscan(pathnode, root, rel);
+=======
+	cost_functionscan(pathnode, root, rel, pathnode->param_info);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	return pathnode;
 }
@@ -2708,15 +2742,22 @@ create_tablefunction_path(PlannerInfo *root, RelOptInfo *rel, RangeTblEntry *rte
  *	  returning the pathnode.
  */
 Path *
+<<<<<<< HEAD
 create_valuesscan_path(PlannerInfo *root, RelOptInfo *rel, RangeTblEntry *rte)
+=======
+create_valuesscan_path(PlannerInfo *root, RelOptInfo *rel,
+					   Relids required_outer)
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 {
 	Path	   *pathnode = makeNode(Path);
 
 	pathnode->pathtype = T_ValuesScan;
 	pathnode->parent = rel;
-	pathnode->param_info = NULL;	/* never parameterized at present */
+	pathnode->param_info = get_baserel_parampathinfo(root, rel,
+													 required_outer);
 	pathnode->pathkeys = NIL;	/* result is always unordered */
 
+<<<<<<< HEAD
 	/*
 	 * CDB: If VALUES list contains mutable functions, evaluate it on entry db.
 	 * Otherwise let it be evaluated in the same slice as its parent operator.
@@ -2732,6 +2773,9 @@ create_valuesscan_path(PlannerInfo *root, RelOptInfo *rel, RangeTblEntry *rte)
 	pathnode->sameslice_relids = NULL;
 
 	cost_valuesscan(pathnode, root, rel);
+=======
+	cost_valuesscan(pathnode, root, rel, pathnode->param_info);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	return pathnode;
 }
@@ -2742,12 +2786,17 @@ create_valuesscan_path(PlannerInfo *root, RelOptInfo *rel, RangeTblEntry *rte)
  *	  returning the pathnode.
  */
 Path *
+<<<<<<< HEAD
 create_ctescan_path(PlannerInfo *root, RelOptInfo *rel, List *pathkeys)
+=======
+create_ctescan_path(PlannerInfo *root, RelOptInfo *rel, Relids required_outer)
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 {
 	Path	   *pathnode = makeNode(Path);
 
 	pathnode->pathtype = T_CteScan;
 	pathnode->parent = rel;
+<<<<<<< HEAD
 	pathnode->param_info = NULL;	/* never parameterized at present */
 	pathnode->pathkeys = pathkeys;
 
@@ -2760,8 +2809,13 @@ create_ctescan_path(PlannerInfo *root, RelOptInfo *rel, List *pathkeys)
 	pathnode->motionHazard = true;
 	pathnode->rescannable = false;
 	pathnode->sameslice_relids = NULL;
+=======
+	pathnode->param_info = get_baserel_parampathinfo(root, rel,
+													 required_outer);
+	pathnode->pathkeys = NIL;	/* XXX for now, result is always unordered */
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
-	cost_ctescan(pathnode, root, rel);
+	cost_ctescan(pathnode, root, rel, pathnode->param_info);
 
 	return pathnode;
 }
@@ -2772,7 +2826,12 @@ create_ctescan_path(PlannerInfo *root, RelOptInfo *rel, List *pathkeys)
  *	  returning the pathnode.
  */
 Path *
+<<<<<<< HEAD
 create_worktablescan_path(PlannerInfo *root, RelOptInfo *rel, CdbLocusType ctelocus)
+=======
+create_worktablescan_path(PlannerInfo *root, RelOptInfo *rel,
+						  Relids required_outer)
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 {
 	Path	   *pathnode = makeNode(Path);
 	CdbPathLocus result;
@@ -2790,7 +2849,8 @@ create_worktablescan_path(PlannerInfo *root, RelOptInfo *rel, CdbLocusType ctelo
 
 	pathnode->pathtype = T_WorkTableScan;
 	pathnode->parent = rel;
-	pathnode->param_info = NULL;	/* never parameterized at present */
+	pathnode->param_info = get_baserel_parampathinfo(root, rel,
+													 required_outer);
 	pathnode->pathkeys = NIL;	/* result is always unordered */
 
 	pathnode->locus = result;
@@ -2799,7 +2859,7 @@ create_worktablescan_path(PlannerInfo *root, RelOptInfo *rel, CdbLocusType ctelo
 	pathnode->sameslice_relids = rel->relids;
 
 	/* Cost is the same as for a regular CTE scan */
-	cost_ctescan(pathnode, root, rel);
+	cost_ctescan(pathnode, root, rel, pathnode->param_info);
 
 	return pathnode;
 }
@@ -3309,10 +3369,10 @@ create_hashjoin_path(PlannerInfo *root,
 
 	/*
 	 * A hashjoin never has pathkeys, since its output ordering is
-	 * unpredictable due to possible batching.	XXX If the inner relation is
+	 * unpredictable due to possible batching.  XXX If the inner relation is
 	 * small enough, we could instruct the executor that it must not batch,
 	 * and then we could assume that the output inherits the outer relation's
-	 * ordering, which might save a sort step.	However there is considerable
+	 * ordering, which might save a sort step.  However there is considerable
 	 * downside if our estimate of the inner relation size is badly off. For
 	 * the moment we don't risk it.  (Note also that if we wanted to take this
 	 * seriously, joinpath.c would have to consider many more paths for the
@@ -3356,7 +3416,7 @@ create_hashjoin_path(PlannerInfo *root,
  * same parameterization level, ensuring that they all enforce the same set
  * of join quals (and thus that that parameterization can be attributed to
  * an append path built from such paths).  Currently, only a few path types
- * are supported here, though more could be added at need.	We return NULL
+ * are supported here, though more could be added at need.  We return NULL
  * if we can't reparameterize the given path.
  *
  * Note: we intentionally do not pass created paths to add_path(); it would
@@ -3388,7 +3448,7 @@ reparameterize_path(PlannerInfo *root, Path *path,
 				/*
 				 * We can't use create_index_path directly, and would not want
 				 * to because it would re-compute the indexqual conditions
-				 * which is wasted effort.	Instead we hack things a bit:
+				 * which is wasted effort.  Instead we hack things a bit:
 				 * flat-copy the path node, revise its param_info, and redo
 				 * the cost estimate.
 				 */
@@ -3411,6 +3471,8 @@ reparameterize_path(PlannerInfo *root, Path *path,
 		case T_SubqueryScan:
 			return create_subqueryscan_path(root, rel, path->pathkeys,
 											required_outer);
+		case T_SampleScan:
+			return (Path *) create_samplescan_path(root, rel, required_outer);
 		default:
 			break;
 	}

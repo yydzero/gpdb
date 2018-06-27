@@ -4,6 +4,10 @@ PostgreSQL documentation
 -->
 
 <refentry id="SQL-COMMENT">
+ <indexterm zone="sql-comment">
+  <primary>COMMENT</primary>
+ </indexterm>
+
  <refmeta>
   <refentrytitle>COMMENT</refentrytitle>
   <manvolnum>7</manvolnum>
@@ -15,28 +19,31 @@ PostgreSQL documentation
   <refpurpose>define or change the comment of an object</refpurpose>
  </refnamediv>
 
- <indexterm zone="sql-comment">
-  <primary>COMMENT</primary>
- </indexterm>
-
  <refsynopsisdiv>
 <synopsis>
 COMMENT ON
 {
   AGGREGATE <replaceable class="PARAMETER">aggregate_name</replaceable> ( <replaceable>aggregate_signature</replaceable> ) |
+<<<<<<< HEAD
   CAST (<replaceable>sourcetype</replaceable> AS <replaceable>target_type</replaceable>) |
+=======
+  CAST (<replaceable>source_type</replaceable> AS <replaceable>target_type</replaceable>) |
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
   COLLATION <replaceable class="PARAMETER">object_name</replaceable> |
   COLUMN <replaceable class="PARAMETER">relation_name</replaceable>.<replaceable class="PARAMETER">column_name</replaceable> |
   CONSTRAINT <replaceable class="PARAMETER">constraint_name</replaceable> ON <replaceable class="PARAMETER">table_name</replaceable> |
+  CONSTRAINT <replaceable class="PARAMETER">constraint_name</replaceable> ON DOMAIN <replaceable class="PARAMETER">domain_name</replaceable> |
   CONVERSION <replaceable class="PARAMETER">object_name</replaceable> |
   DATABASE <replaceable class="PARAMETER">object_name</replaceable> |
   DOMAIN <replaceable class="PARAMETER">object_name</replaceable> |
   EXTENSION <replaceable class="PARAMETER">object_name</replaceable> |
+  EVENT TRIGGER <replaceable class="PARAMETER">object_name</replaceable> |
   FOREIGN DATA WRAPPER <replaceable class="PARAMETER">object_name</replaceable> |
   FOREIGN TABLE <replaceable class="PARAMETER">object_name</replaceable> |
   FUNCTION <replaceable class="PARAMETER">function_name</replaceable> ( [ [ <replaceable class="parameter">argmode</replaceable> ] [ <replaceable class="parameter">argname</replaceable> ] <replaceable class="parameter">argtype</replaceable> [, ...] ] ) |
   INDEX <replaceable class="PARAMETER">object_name</replaceable> |
   LARGE OBJECT <replaceable class="PARAMETER">large_object_oid</replaceable> |
+  MATERIALIZED VIEW <replaceable class="PARAMETER">object_name</replaceable> |
   OPERATOR <replaceable class="PARAMETER">operator_name</replaceable> (<replaceable class="PARAMETER">left_type</replaceable>, <replaceable class="PARAMETER">right_type</replaceable>) |
   OPERATOR CLASS <replaceable class="PARAMETER">object_name</replaceable> USING <replaceable class="parameter">index_method</replaceable> |
   OPERATOR FAMILY <replaceable class="PARAMETER">object_name</replaceable> USING <replaceable class="parameter">index_method</replaceable> |
@@ -53,6 +60,7 @@ COMMENT ON
   TEXT SEARCH DICTIONARY <replaceable class="PARAMETER">object_name</replaceable> |
   TEXT SEARCH PARSER <replaceable class="PARAMETER">object_name</replaceable> |
   TEXT SEARCH TEMPLATE <replaceable class="PARAMETER">object_name</replaceable> |
+  TRANSFORM FOR <replaceable>type_name</replaceable> LANGUAGE <replaceable>lang_name</replaceable> |
   TRIGGER <replaceable class="PARAMETER">trigger_name</replaceable> ON <replaceable class="PARAMETER">table_name</replaceable> |
   TYPE <replaceable class="PARAMETER">object_name</replaceable> |
   VIEW <replaceable class="PARAMETER">object_name</replaceable>
@@ -61,8 +69,13 @@ COMMENT ON
 <phrase>where <replaceable>aggregate_signature</replaceable> is:</phrase>
 
 * |
+<<<<<<< HEAD
 [ <replaceable>argmode</replaceable> ] <replaceable>argtype</replaceable> [ , ... ] |
 [ [ <replaceable>argmode</replaceable> ] <replaceable>argtype</replaceable> [ , ... ] ] ORDER BY [ <replaceable>argmode</replaceable> ] <replaceable>argtype</replaceable> [ , ... ]
+=======
+[ <replaceable>argmode</replaceable> ] [ <replaceable>argname</replaceable> ] <replaceable>argtype</replaceable> [ , ... ] |
+[ [ <replaceable>argmode</replaceable> ] [ <replaceable>argname</replaceable> ] <replaceable>argtype</replaceable> [ , ... ] ] ORDER BY [ <replaceable>argmode</replaceable> ] [ <replaceable>argname</replaceable> ] <replaceable>argtype</replaceable> [ , ... ]
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 </synopsis>
  </refsynopsisdiv>
 
@@ -110,8 +123,12 @@ COMMENT ON
     <term><replaceable class="parameter">aggregate_name</replaceable></term>
 =======
     <term><replaceable class="parameter">relation_name</replaceable>.<replaceable>column_name</replaceable></term>
+<<<<<<< HEAD
     <term><replaceable class="parameter">agg_name</replaceable></term>
 >>>>>>> 80edfd76591fdb9beec061de3c05ef4e9d96ce56
+=======
+    <term><replaceable class="parameter">aggregate_name</replaceable></term>
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
     <term><replaceable class="parameter">constraint_name</replaceable></term>
     <term><replaceable class="parameter">function_name</replaceable></term>
     <term><replaceable class="parameter">operator_name</replaceable></term>
@@ -131,6 +148,21 @@ COMMENT ON
    </varlistentry>
 
    <varlistentry>
+<<<<<<< HEAD
+=======
+    <term><replaceable class="parameter">table_name</replaceable></term>
+    <term><replaceable class="parameter">domain_name</replaceable></term>
+    <listitem>
+     <para>
+      When creating a comment on a constraint on a table or a domain, these
+      parameteres specify the name of the table or domain on which the
+      constraint is defined.
+     </para>
+    </listitem>
+   </varlistentry>
+
+   <varlistentry>
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
      <term><replaceable>source_type</replaceable></term>
      <listitem>
       <para>
@@ -152,7 +184,8 @@ COMMENT ON
     <term><replaceable class="parameter">argmode</replaceable></term>
     <listitem>
      <para>
-      The mode of a function argument: <literal>IN</>, <literal>OUT</>,
+      The mode of a function or aggregate
+      argument: <literal>IN</>, <literal>OUT</>,
       <literal>INOUT</>, or <literal>VARIADIC</>.
       If omitted, the default is <literal>IN</>.
       Note that <command>COMMENT</command> does not actually pay
@@ -168,7 +201,11 @@ COMMENT ON
     <term><replaceable class="parameter">argname</replaceable></term>
     <listitem>
      <para>
+<<<<<<< HEAD
       The name of a function argument.
+=======
+      The name of a function or aggregate argument.
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
       Note that <command>COMMENT</command> does not actually pay
       any attention to argument names, since only the argument data
       types are needed to determine the function's identity.
@@ -211,6 +248,26 @@ COMMENT ON
      <listitem>
       <para>
        This is a noise word.
+      </para>
+     </listitem>
+    </varlistentry>
+
+    <varlistentry>
+     <term><replaceable>type_name</replaceable></term>
+
+     <listitem>
+      <para>
+       The name of the data type of the transform.
+      </para>
+     </listitem>
+    </varlistentry>
+
+    <varlistentry>
+     <term><replaceable>lang_name</replaceable></term>
+
+     <listitem>
+      <para>
+       The name of the language of the transform.
       </para>
      </listitem>
     </varlistentry>
@@ -269,6 +326,7 @@ COMMENT ON COLLATION "fr_CA" IS 'Canadian French';
 COMMENT ON COLUMN my_table.my_column IS 'Employee ID number';
 COMMENT ON CONVERSION my_conv IS 'Conversion to UTF8';
 COMMENT ON CONSTRAINT bar_col_cons ON bar IS 'Constrains column col';
+COMMENT ON CONSTRAINT dom_col_constr ON DOMAIN dom IS 'Constrains col of domain';
 COMMENT ON DATABASE my_database IS 'Development Database';
 COMMENT ON DOMAIN my_domain IS 'Email Address Domain';
 COMMENT ON EXTENSION hstore IS 'implements the hstore data type';
@@ -278,6 +336,7 @@ COMMENT ON FUNCTION my_function (timestamp) IS 'Returns Roman Numeral';
 COMMENT ON INDEX my_index IS 'Enforces uniqueness on employee ID';
 COMMENT ON LANGUAGE plpython IS 'Python support for stored procedures';
 COMMENT ON LARGE OBJECT 346344 IS 'Planning document';
+COMMENT ON MATERIALIZED VIEW my_matview IS 'Summary of order history';
 COMMENT ON OPERATOR ^ (text, text) IS 'Performs intersection of two texts';
 COMMENT ON OPERATOR - (NONE, integer) IS 'Unary minus';
 COMMENT ON OPERATOR CLASS int4ops USING btree IS '4 byte integer operators for btrees';
@@ -290,9 +349,10 @@ COMMENT ON SERVER myserver IS 'my foreign server';
 COMMENT ON TABLE my_schema.my_table IS 'Employee Information';
 COMMENT ON TABLESPACE my_tablespace IS 'Tablespace for indexes';
 COMMENT ON TEXT SEARCH CONFIGURATION my_config IS 'Special word filtering';
-COMMENT ON TEXT SEARCH DICTIONARY swedish IS 'Snowball stemmer for swedish language';
+COMMENT ON TEXT SEARCH DICTIONARY swedish IS 'Snowball stemmer for Swedish language';
 COMMENT ON TEXT SEARCH PARSER my_parser IS 'Splits text into words';
 COMMENT ON TEXT SEARCH TEMPLATE snowball IS 'Snowball stemmer';
+COMMENT ON TRANSFORM FOR hstore LANGUAGE plpythonu IS 'Transform between hstore and Python dict';
 COMMENT ON TRIGGER my_trigger ON my_table IS 'Used for RI';
 COMMENT ON TYPE complex IS 'Complex number data type';
 COMMENT ON VIEW my_view IS 'View of departmental costs';

@@ -4,9 +4,13 @@
  *	  prototypes for various files in optimizer/path
  *
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2005-2008, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/optimizer/paths.h
@@ -22,6 +26,22 @@
 /*
  * allpaths.c
  */
+
+/* Hook for plugins to get control in set_rel_pathlist() */
+typedef void (*set_rel_pathlist_hook_type) (PlannerInfo *root,
+														RelOptInfo *rel,
+														Index rti,
+														RangeTblEntry *rte);
+extern PGDLLIMPORT set_rel_pathlist_hook_type set_rel_pathlist_hook;
+
+/* Hook for plugins to get control in add_paths_to_joinrel() */
+typedef void (*set_join_pathlist_hook_type) (PlannerInfo *root,
+														 RelOptInfo *joinrel,
+														 RelOptInfo *outerrel,
+														 RelOptInfo *innerrel,
+														 JoinType jointype,
+												   JoinPathExtraData *extra);
+extern PGDLLIMPORT set_join_pathlist_hook_type set_join_pathlist_hook;
 
 /* Hook for plugins to replace standard_join_search() */
 typedef RelOptInfo *(*join_search_hook_type) (PlannerInfo *root,
@@ -42,18 +62,19 @@ extern void debug_print_rel(PlannerInfo *root, RelOptInfo *rel);
  * indxpath.c
  *	  routines to generate index paths
  */
+<<<<<<< HEAD
 
 extern void create_index_paths(PlannerInfo *root, RelOptInfo *rel,
                                List **pindexpathlist, List **pbitmappathlist);
 extern List *generate_bitmap_or_paths(PlannerInfo *root, RelOptInfo *rel,
 						 List *clauses, List *other_clauses,
 						 bool restriction_only);
+=======
+extern void create_index_paths(PlannerInfo *root, RelOptInfo *rel);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern bool relation_has_unique_index_for(PlannerInfo *root, RelOptInfo *rel,
 							  List *restrictlist,
 							  List *exprlist, List *oprlist);
-extern bool eclass_member_matches_indexcol(EquivalenceClass *ec,
-							   EquivalenceMember *em,
-							   IndexOptInfo *index, int indexcol);
 extern bool match_index_to_operand(Node *operand, int indexcol,
 					   IndexOptInfo *index);
 extern void expand_indexqual_conditions(IndexOptInfo *index,
@@ -65,12 +86,6 @@ extern Expr *adjust_rowcompare_for_index(RowCompareExpr *clause,
 							int indexcol,
 							List **indexcolnos,
 							bool *var_on_left_p);
-
-/*
- * orindxpath.c
- *	  additional routines for indexable OR clauses
- */
-extern bool create_or_index_quals(PlannerInfo *root, RelOptInfo *rel);
 
 /*
  * tidpath.h
@@ -101,6 +116,12 @@ extern bool have_join_order_restriction(PlannerInfo *root,
  * equivclass.c
  *	  routines for managing EquivalenceClasses
  */
+typedef bool (*ec_matches_callback_type) (PlannerInfo *root,
+													  RelOptInfo *rel,
+													  EquivalenceClass *ec,
+													  EquivalenceMember *em,
+													  void *arg);
+
 extern bool process_equivalence(PlannerInfo *root, RestrictInfo *restrictinfo,
 					bool below_outer_join);
 extern Expr *canonicalize_ec_expression(Expr *expr,
@@ -108,6 +129,7 @@ extern Expr *canonicalize_ec_expression(Expr *expr,
 extern void reconsider_outer_join_clauses(PlannerInfo *root);
 extern EquivalenceClass *get_eclass_for_sort_expr(PlannerInfo *root,
 						 Expr *expr,
+						 Relids nullable_relids,
 						 List *opfamilies,
 						 Oid opcintype,
 						 Oid collation,
@@ -126,10 +148,13 @@ extern void add_child_rel_equivalences(PlannerInfo *root,
 						   RelOptInfo *child_rel);
 extern void mutate_eclass_expressions(PlannerInfo *root,
 						  Node *(*mutator) (),
-						  void *context);
-extern List *generate_implied_equalities_for_indexcol(PlannerInfo *root,
-										 IndexOptInfo *index,
-										 int indexcol);
+						  void *context,
+						  bool include_child_exprs);
+extern List *generate_implied_equalities_for_column(PlannerInfo *root,
+									   RelOptInfo *rel,
+									   ec_matches_callback_type callback,
+									   void *callback_arg,
+									   Relids prohibited_rels);
 extern bool have_relevant_eclass_joinclause(PlannerInfo *root,
 								RelOptInfo *rel1, RelOptInfo *rel2);
 extern bool has_relevant_eclass_joinclause(PlannerInfo *root,
@@ -150,6 +175,7 @@ typedef enum
 	PATHKEYS_DIFFERENT			/* neither pathkey includes the other */
 } PathKeysComparison;
 
+<<<<<<< HEAD
 typedef struct
 {
 	Node *replaceThis;
@@ -164,6 +190,8 @@ extern Node * replace_expression_mutator(Node *node, void *context);
 extern void generate_implied_quals(PlannerInfo *root);
 
 extern List *canonicalize_pathkeys(PlannerInfo *root, List *pathkeys);
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern PathKeysComparison compare_pathkeys(List *keys1, List *keys2);
 extern bool pathkeys_contained_in(List *keys1, List *keys2);
 extern Path *get_cheapest_path_for_pathkeys(List *paths, List *pathkeys,
@@ -175,10 +203,16 @@ extern Path *get_cheapest_fractional_path_for_pathkeys(List *paths,
 										  double fraction);
 extern List *build_index_pathkeys(PlannerInfo *root, IndexOptInfo *index,
 					 ScanDirection scandir);
+<<<<<<< HEAD
 
 Var *
 find_indexkey_var(PlannerInfo *root, RelOptInfo *rel, AttrNumber varattno);
 
+=======
+extern List *build_expression_pathkey(PlannerInfo *root, Expr *expr,
+						 Relids nullable_relids, Oid opno,
+						 Relids rel, bool create_it);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern List *convert_subquery_pathkeys(PlannerInfo *root, RelOptInfo *rel,
 						  List *subquery_pathkeys);
 extern List *build_join_pathkeys(PlannerInfo *root,
@@ -204,8 +238,7 @@ extern List *make_pathkeys_for_groupclause(PlannerInfo *root,
 										   List *tlist);
 extern List *make_pathkeys_for_sortclauses(PlannerInfo *root,
 							  List *sortclauses,
-							  List *tlist,
-							  bool canonicalize);
+							  List *tlist);
 extern void initialize_mergeclause_eclasses(PlannerInfo *root,
 								RestrictInfo *restrictinfo);
 extern void update_mergeclause_eclasses(PlannerInfo *root,

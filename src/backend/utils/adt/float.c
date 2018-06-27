@@ -3,7 +3,7 @@
  * float.c
  *	  Functions for the built-in floating-point types.
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -97,6 +97,14 @@ get_float8_infinity(void)
 #endif
 }
 
+/*
+* The funny placements of the two #pragmas is necessary because of a
+* long lived bug in the Microsoft compilers.
+* See http://support.microsoft.com/kb/120968/en-us for details
+*/
+#if (_MSC_VER >= 1800)
+#pragma warning(disable:4756)
+#endif
 float
 get_float4_infinity(void)
 {
@@ -104,6 +112,9 @@ get_float4_infinity(void)
 	/* C99 standard way */
 	return (float) INFINITY;
 #else
+#if (_MSC_VER >= 1800)
+#pragma warning(default:4756)
+#endif
 
 	/*
 	 * On some platforms, HUGE_VAL is an infinity, elsewhere it's just the
@@ -162,11 +173,7 @@ is_infinite(double val)
 
 
 /*
- *		float4in		- converts "num" to float
- *						  restricted syntax:
- *						  {<sp>} [+|-] {digit} [.{digit}] [<exp>]
- *						  where <sp> is a space, digit is 0-9,
- *						  <exp> is "e" or "E" followed by an integer.
+ *		float4in		- converts "num" to float4
  */
 Datum
 float4in(PG_FUNCTION_ARGS)
@@ -183,6 +190,10 @@ float4in(PG_FUNCTION_ARGS)
 	 */
 	orig_num = num;
 
+	/* skip leading whitespace */
+	while (*num != '\0' && isspace((unsigned char) *num))
+		num++;
+
 	/*
 	 * Check for an empty-string input to begin with, to avoid the vagaries of
 	 * strtod() on different platforms.
@@ -193,10 +204,6 @@ float4in(PG_FUNCTION_ARGS)
 				 errmsg("invalid input syntax for type real: \"%s\"",
 						orig_num)));
 
-	/* skip leading whitespace */
-	while (*num != '\0' && isspace((unsigned char) *num))
-		num++;
-
 	errno = 0;
 	val = strtod(num, &endptr);
 
@@ -206,9 +213,14 @@ float4in(PG_FUNCTION_ARGS)
 		int			save_errno = errno;
 
 		/*
-		 * C99 requires that strtod() accept NaN and [-]Infinity, but not all
-		 * platforms support that yet (and some accept them but set ERANGE
-		 * anyway...)  Therefore, we check for these inputs ourselves.
+		 * C99 requires that strtod() accept NaN, [+-]Infinity, and [+-]Inf,
+		 * but not all platforms support all of these (and some accept them
+		 * but set ERANGE anyway...)  Therefore, we check for these inputs
+		 * ourselves if strtod() fails.
+		 *
+		 * Note: C99 also requires hexadecimal input as well as some extended
+		 * forms of NaN, but we consider these forms unportable and don't try
+		 * to support them.  You can use 'em if your strtod() takes 'em.
 		 */
 		if (pg_strncasecmp(num, "NaN", 3) == 0)
 		{
@@ -220,17 +232,37 @@ float4in(PG_FUNCTION_ARGS)
 			val = get_float4_infinity();
 			endptr = num + 8;
 		}
+		else if (pg_strncasecmp(num, "+Infinity", 9) == 0)
+		{
+			val = get_float4_infinity();
+			endptr = num + 9;
+		}
 		else if (pg_strncasecmp(num, "-Infinity", 9) == 0)
 		{
 			val = -get_float4_infinity();
 			endptr = num + 9;
+		}
+		else if (pg_strncasecmp(num, "inf", 3) == 0)
+		{
+			val = get_float4_infinity();
+			endptr = num + 3;
+		}
+		else if (pg_strncasecmp(num, "+inf", 4) == 0)
+		{
+			val = get_float4_infinity();
+			endptr = num + 4;
+		}
+		else if (pg_strncasecmp(num, "-inf", 4) == 0)
+		{
+			val = -get_float4_infinity();
+			endptr = num + 4;
 		}
 		else if (save_errno == ERANGE)
 		{
 			/*
 			 * Some platforms return ERANGE for denormalized numbers (those
 			 * that are not zero, but are too close to zero to have full
-			 * precision).	We'd prefer not to throw error for that, so try to
+			 * precision).  We'd prefer not to throw error for that, so try to
 			 * detect whether it's a "real" out-of-range condition by checking
 			 * to see if the result is zero or huge.
 			 */
@@ -258,33 +290,6 @@ float4in(PG_FUNCTION_ARGS)
 			endptr--;
 	}
 #endif   /* HAVE_BUGGY_SOLARIS_STRTOD */
-
-#ifdef HAVE_BUGGY_IRIX_STRTOD
-
-	/*
-	 * In some IRIX versions, strtod() recognizes only "inf", so if the input
-	 * is "infinity" we have to skip over "inity".	Also, it may return
-	 * positive infinity for "-inf".
-	 */
-	if (isinf(val))
-	{
-		if (pg_strncasecmp(num, "Infinity", 8) == 0)
-		{
-			val = get_float4_infinity();
-			endptr = num + 8;
-		}
-		else if (pg_strncasecmp(num, "-Infinity", 9) == 0)
-		{
-			val = -get_float4_infinity();
-			endptr = num + 9;
-		}
-		else if (pg_strncasecmp(num, "-inf", 4) == 0)
-		{
-			val = -get_float4_infinity();
-			endptr = num + 4;
-		}
-	}
-#endif   /* HAVE_BUGGY_IRIX_STRTOD */
 
 	/* skip trailing whitespace */
 	while (*endptr != '\0' && isspace((unsigned char) *endptr))
@@ -368,10 +373,6 @@ float4send(PG_FUNCTION_ARGS)
 
 /*
  *		float8in		- converts "num" to float8
- *						  restricted syntax:
- *						  {<sp>} [+|-] {digit} [.{digit}] [<exp>]
- *						  where <sp> is a space, digit is 0-9,
- *						  <exp> is "e" or "E" followed by an integer.
  */
 Datum
 float8in(PG_FUNCTION_ARGS)
@@ -389,6 +390,10 @@ float8in(PG_FUNCTION_ARGS)
 	 */
 	orig_num = num;
 
+	/* skip leading whitespace */
+	while (*num != '\0' && isspace((unsigned char) *num))
+		num++;
+
 	/*
 	 * Check for an empty-string input to begin with, to avoid the vagaries of
 	 * strtod() on different platforms.
@@ -399,10 +404,6 @@ float8in(PG_FUNCTION_ARGS)
 			 errmsg("invalid input syntax for type double precision: \"%s\"",
 					orig_num)));
 
-	/* skip leading whitespace */
-	while (*num != '\0' && isspace((unsigned char) *num))
-		num++;
-
 	errno = 0;
 	val = strtold(num, &endptr);
 
@@ -412,9 +413,14 @@ float8in(PG_FUNCTION_ARGS)
 		int			save_errno = errno;
 
 		/*
-		 * C99 requires that strtod() accept NaN and [-]Infinity, but not all
-		 * platforms support that yet (and some accept them but set ERANGE
-		 * anyway...)  Therefore, we check for these inputs ourselves.
+		 * C99 requires that strtod() accept NaN, [+-]Infinity, and [+-]Inf,
+		 * but not all platforms support all of these (and some accept them
+		 * but set ERANGE anyway...)  Therefore, we check for these inputs
+		 * ourselves if strtod() fails.
+		 *
+		 * Note: C99 also requires hexadecimal input as well as some extended
+		 * forms of NaN, but we consider these forms unportable and don't try
+		 * to support them.  You can use 'em if your strtod() takes 'em.
 		 */
 		if (pg_strncasecmp(num, "NaN", 3) == 0)
 		{
@@ -426,17 +432,37 @@ float8in(PG_FUNCTION_ARGS)
 			val = get_float8_infinity();
 			endptr = num + 8;
 		}
+		else if (pg_strncasecmp(num, "+Infinity", 9) == 0)
+		{
+			val = get_float8_infinity();
+			endptr = num + 9;
+		}
 		else if (pg_strncasecmp(num, "-Infinity", 9) == 0)
 		{
 			val = -get_float8_infinity();
 			endptr = num + 9;
+		}
+		else if (pg_strncasecmp(num, "inf", 3) == 0)
+		{
+			val = get_float8_infinity();
+			endptr = num + 3;
+		}
+		else if (pg_strncasecmp(num, "+inf", 4) == 0)
+		{
+			val = get_float8_infinity();
+			endptr = num + 4;
+		}
+		else if (pg_strncasecmp(num, "-inf", 4) == 0)
+		{
+			val = -get_float8_infinity();
+			endptr = num + 4;
 		}
 		else if (save_errno == ERANGE)
 		{
 			/*
 			 * Some platforms return ERANGE for denormalized numbers (those
 			 * that are not zero, but are too close to zero to have full
-			 * precision).	We'd prefer not to throw error for that, so try to
+			 * precision).  We'd prefer not to throw error for that, so try to
 			 * detect whether it's a "real" out-of-range condition by checking
 			 * to see if the result is zero or huge.
 			 */
@@ -465,6 +491,7 @@ float8in(PG_FUNCTION_ARGS)
 	}
 #endif   /* HAVE_BUGGY_SOLARIS_STRTOD */
 
+<<<<<<< HEAD
 #ifdef HAVE_BUGGY_IRIX_STRTOD
 
 	/*
@@ -492,6 +519,8 @@ float8in(PG_FUNCTION_ARGS)
 	}
 #endif   /* HAVE_BUGGY_IRIX_STRTOD */
 
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	/* skip trailing whitespace */
 	while (*endptr != '\0' && isspace((unsigned char) *endptr))
 		endptr++;
@@ -2007,8 +2036,14 @@ float4_decum(PG_FUNCTION_ARGS)
 	miX = transvalues[1];
 	miX2 = transvalues[2];
 
+<<<<<<< HEAD
 	/* Do arithmetic in float8 for best accuracy */
 	newval = newval4;
+=======
+	/* SQL defines AVG of no values to be NULL */
+	if (N == 0.0)
+		PG_RETURN_NULL();
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	N -= 1.0;
 	miX -= newval;
@@ -2172,7 +2207,7 @@ float8_stddev_samp(PG_FUNCTION_ARGS)
  * in that order.  Note that Y is the first argument to the aggregates!
  *
  * It might seem attractive to optimize this by having multiple accumulator
- * functions that only calculate the sums actually needed.	But on most
+ * functions that only calculate the sums actually needed.  But on most
  * modern machines, a couple of extra floating-point multiplies will be
  * insignificant compared to the other per-tuple overhead, so I've chosen
  * to minimize code space instead.

@@ -7,7 +7,7 @@
  * or call FUNCAPI-callable functions or macros.
  *
  *
- * Copyright (c) 2002-2012, PostgreSQL Global Development Group
+ * Copyright (c) 2002-2015, PostgreSQL Global Development Group
  *
  * src/include/funcapi.h
  *
@@ -129,7 +129,7 @@ typedef struct FuncCallContext
  *		Given a function's call info record, determine the kind of datatype
  *		it is supposed to return.  If resultTypeId isn't NULL, *resultTypeId
  *		receives the actual datatype OID (this is mainly useful for scalar
- *		result types).	If resultTupleDesc isn't NULL, *resultTupleDesc
+ *		result types).  If resultTupleDesc isn't NULL, *resultTupleDesc
  *		receives a pointer to a TupleDesc when the result is of a composite
  *		type, or NULL when it's a scalar result or the rowtype could not be
  *		determined.  NB: the tupledesc should be copied if it is to be
@@ -178,6 +178,7 @@ extern int get_func_arg_info(HeapTuple procTup,
 extern int get_func_input_arg_names(Datum proargnames, Datum proargmodes,
 						 char ***arg_names);
 
+extern int	get_func_trftypes(HeapTuple procTup, Oid **p_trftypes);
 extern char *get_func_result_name(Oid functionId);
 
 extern TupleDesc build_function_result_tupdesc_d(Datum proallargtypes,
@@ -202,6 +203,8 @@ extern TupleDesc build_function_result_tupdesc_t(HeapTuple procTuple);
  * HeapTuple BuildTupleFromCStrings(AttInMetadata *attinmeta, char **values) -
  *		build a HeapTuple given user data in C string form. values is an array
  *		of C strings, one for each attribute of the return tuple.
+ * Datum HeapTupleHeaderGetDatum(HeapTupleHeader tuple) - convert a
+ *		HeapTupleHeader to a Datum.
  *
  * Macro declarations:
  * HeapTupleGetDatum(HeapTuple tuple) - convert a HeapTuple to a Datum.
@@ -218,9 +221,9 @@ extern TupleDesc build_function_result_tupdesc_t(HeapTuple procTuple);
  *----------
  */
 
-#define HeapTupleGetDatum(_tuple)		PointerGetDatum((_tuple)->t_data)
+#define HeapTupleGetDatum(tuple)		HeapTupleHeaderGetDatum((tuple)->t_data)
 /* obsolete version of above */
-#define TupleGetDatum(_slot, _tuple)	PointerGetDatum((_tuple)->t_data)
+#define TupleGetDatum(_slot, _tuple)	HeapTupleGetDatum(_tuple)
 
 extern TupleDesc RelationNameGetTupleDesc(const char *relname);
 extern TupleDesc TypeGetTupleDesc(Oid typeoid, List *colaliases);
@@ -229,6 +232,7 @@ extern TupleDesc TypeGetTupleDesc(Oid typeoid, List *colaliases);
 extern TupleDesc BlessTupleDesc(TupleDesc tupdesc);
 extern AttInMetadata *TupleDescGetAttInMetadata(TupleDesc tupdesc);
 extern HeapTuple BuildTupleFromCStrings(AttInMetadata *attinmeta, char **values);
+extern Datum HeapTupleHeaderGetDatum(HeapTupleHeader tuple);
 extern TupleTableSlot *TupleDescGetSlot(TupleDesc tupdesc);
 
 
@@ -293,6 +297,15 @@ extern void end_MultiFuncCall(PG_FUNCTION_ARGS, FuncCallContext *funcctx);
 		rsi = (ReturnSetInfo *) fcinfo->resultinfo; \
 		rsi->isDone = ExprMultipleResult; \
 		PG_RETURN_DATUM(_result); \
+	} while (0)
+
+#define SRF_RETURN_NEXT_NULL(_funcctx) \
+	do { \
+		ReturnSetInfo	   *rsi; \
+		(_funcctx)->call_cntr++; \
+		rsi = (ReturnSetInfo *) fcinfo->resultinfo; \
+		rsi->isDone = ExprMultipleResult; \
+		PG_RETURN_NULL(); \
 	} while (0)
 
 #define  SRF_RETURN_DONE(_funcctx) \

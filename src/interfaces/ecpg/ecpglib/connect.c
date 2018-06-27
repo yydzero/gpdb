@@ -223,6 +223,12 @@ ECPGnoticeReceiver(void *arg, const PGresult *result)
 	struct sqlca_t *sqlca = ECPGget_sqlca();
 	int			sqlcode;
 
+	if (sqlca == NULL)
+	{
+		ecpg_log("out of memory");
+		return;
+	}
+
 	(void) arg;					/* keep the compiler quiet */
 	if (sqlstate == NULL)
 		sqlstate = ECPG_SQLSTATE_ECPG_INTERNAL_ERROR;
@@ -278,6 +284,14 @@ ECPGconnect(int lineno, int c, const char *name, const char *user, const char *p
 	const char **conn_keywords;
 	const char **conn_values;
 
+	if (sqlca == NULL)
+	{
+		ecpg_raise(lineno, ECPG_OUT_OF_MEMORY,
+				   ECPG_SQLSTATE_ECPG_OUT_OF_MEMORY, NULL);
+		ecpg_free(dbname);
+		return false;
+	}
+
 	ecpg_init_sqlca(sqlca);
 
 	/*
@@ -321,11 +335,14 @@ ECPGconnect(int lineno, int c, const char *name, const char *user, const char *p
 	}
 
 	if ((this = (struct connection *) ecpg_alloc(sizeof(struct connection), lineno)) == NULL)
+	{
+		ecpg_free(dbname);
 		return false;
+	}
 
 	if (dbname != NULL)
 	{
-		/* get the detail information out of dbname */
+		/* get the detail information from dbname */
 		if (strncmp(dbname, "tcp:", 4) == 0 || strncmp(dbname, "unix:", 5) == 0)
 		{
 			int			offset = 0;
@@ -344,7 +361,7 @@ ECPGconnect(int lineno, int c, const char *name, const char *user, const char *p
 				/*------
 				 * new style:
 				 *	<tcp|unix>:postgresql://server[:port|:/unixsocket/path:]
-				 *	[/db name][?options]
+				 *	[/db-name][?options]
 				 *------
 				 */
 				offset += strlen("postgresql://");
@@ -427,8 +444,11 @@ ECPGconnect(int lineno, int c, const char *name, const char *user, const char *p
 				}
 				else
 				{
-					host = ecpg_strdup(dbname + offset, lineno);
-					connect_params++;
+					if (*(dbname + offset) != '\0')
+					{
+						host = ecpg_strdup(dbname + offset, lineno);
+						connect_params++;
+					}
 				}
 
 			}
@@ -650,6 +670,13 @@ ECPGdisconnect(int lineno, const char *connection_name)
 {
 	struct sqlca_t *sqlca = ECPGget_sqlca();
 	struct connection *con;
+
+	if (sqlca == NULL)
+	{
+		ecpg_raise(lineno, ECPG_OUT_OF_MEMORY,
+				   ECPG_SQLSTATE_ECPG_OUT_OF_MEMORY, NULL);
+		return (false);
+	}
 
 #ifdef ENABLE_THREAD_SAFETY
 	pthread_mutex_lock(&connections_mutex);

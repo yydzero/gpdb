@@ -92,3 +92,16 @@ SELECT ((-1::int2<<15)+1::int2)::text;
 SELECT (-32768)::int2 * (-1)::int2;
 SELECT (-32768)::int2 / (-1)::int2;
 SELECT (-32768)::int2 % (-1)::int2;
+<<<<<<< HEAD
+=======
+
+-- check rounding when casting from float
+SELECT x, x::int2 AS int2_value
+FROM (VALUES (-2.5::float8),
+             (-1.5::float8),
+             (-0.5::float8),
+             (0.0::float8),
+             (0.5::float8),
+             (1.5::float8),
+             (2.5::float8)) t(x);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8

@@ -3,7 +3,7 @@
  * conversioncmds.c
  *	  conversion creation command support code
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -15,6 +15,7 @@
 #include "postgres.h"
 
 #include "access/heapam.h"
+#include "access/htup_details.h"
 #include "catalog/dependency.h"
 #include "catalog/indexing.h"
 #include "catalog/oid_dispatch.h"
@@ -31,16 +32,19 @@
 #include "utils/rel.h"
 #include "utils/syscache.h"
 
+<<<<<<< HEAD
 #include "cdb/cdbvars.h"
 #include "cdb/cdbdisp_query.h"
 
 static void AlterConversionOwner_internal(Relation rel, Oid conversionOid,
 							  Oid newOwnerId);
 
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /*
  * CREATE CONVERSION
  */
-void
+ObjectAddress
 CreateConversionCommand(CreateConversionStmt *stmt)
 {
 	Oid			namespaceId;
@@ -52,7 +56,7 @@ CreateConversionCommand(CreateConversionStmt *stmt)
 	const char *from_encoding_name = stmt->for_encoding_name;
 	const char *to_encoding_name = stmt->to_encoding_name;
 	List	   *func_name = stmt->func_name;
-	static Oid	funcargs[] = {INT4OID, INT4OID, CSTRINGOID, INTERNALOID, INT4OID};
+	static const Oid funcargs[] = {INT4OID, INT4OID, CSTRINGOID, INTERNALOID, INT4OID};
 	char		result[1];
 
 	/* Convert list of names to a name and namespace */
@@ -117,6 +121,7 @@ CreateConversionCommand(CreateConversionStmt *stmt)
 	 * All seem ok, go ahead (possible failure would be a duplicate conversion
 	 * name)
 	 */
+<<<<<<< HEAD
 	ConversionCreate(conversion_name, namespaceId, GetUserId(),
 					 from_encoding, to_encoding, funcoid, stmt->def);
 					 
@@ -331,4 +336,8 @@ AlterConversionNamespace_oid(Oid convOid, Oid newNspOid)
 	heap_close(rel, RowExclusiveLock);
 
 	return oldNspOid;
+=======
+	return ConversionCreate(conversion_name, namespaceId, GetUserId(),
+							from_encoding, to_encoding, funcoid, stmt->def);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 }

@@ -3,7 +3,7 @@
  * explain.h
  *	  prototypes for explain.c
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994-5, Regents of the University of California
  *
  * src/include/commands/explain.h
@@ -14,6 +14,7 @@
 #define EXPLAIN_H
 
 #include "executor/executor.h"
+#include "lib/stringinfo.h"
 
 typedef enum ExplainFormat
 {
@@ -29,22 +30,32 @@ typedef struct ExplainState
 	/* options */
 	bool		verbose;		/* be verbose */
 	bool		analyze;		/* print actual times */
-	bool		costs;			/* print costs */
+	bool		costs;			/* print estimated costs */
 	bool		buffers;		/* print buffer usage */
+<<<<<<< HEAD
 	bool		dxl;			/* CDB: print DXL */
 	bool		timing;			/* print timing */
+=======
+	bool		timing;			/* print detailed node timing */
+	bool		summary;		/* print total planning and execution timing */
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	ExplainFormat format;		/* output format */
 	/* other states */
 	PlannedStmt *pstmt;			/* top of plan */
 	List	   *rtable;			/* range table */
+	List	   *rtable_names;	/* alias names for RTEs */
 	int			indent;			/* current indentation level */
 	List	   *grouping_stack; /* format-specific grouping state */
+<<<<<<< HEAD
 
     /* CDB */
     struct CdbExplain_ShowStatCtx  *showstatctx;    /* EXPLAIN ANALYZE info */
     Slice          *currentSlice;   /* slice whose nodes we are visiting */
 
 	PlanState  *parentPlanState;
+=======
+	List	   *deparse_cxt;	/* context list for deparsing expressions */
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 } ExplainState;
 
 /* Hook for plugins to get control in ExplainOneQuery() */
@@ -63,7 +74,7 @@ extern PGDLLIMPORT explain_get_index_name_hook_type explain_get_index_name_hook;
 extern void ExplainQuery(ExplainStmt *stmt, const char *queryString,
 			 ParamListInfo params, DestReceiver *dest);
 
-extern void ExplainInitState(ExplainState *es);
+extern ExplainState *NewExplainState(void);
 
 extern TupleDesc ExplainResultDesc(ExplainStmt *stmt);
 
@@ -72,10 +83,11 @@ extern void ExplainOneUtility(Node *utilityStmt, IntoClause *into,
 				  const char *queryString, ParamListInfo params);
 
 extern void ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into,
-			   ExplainState *es,
-			   const char *queryString, ParamListInfo params);
+			   ExplainState *es, const char *queryString,
+			   ParamListInfo params, const instr_time *planduration);
 
 extern void ExplainPrintPlan(ExplainState *es, QueryDesc *queryDesc);
+extern void ExplainPrintTriggers(ExplainState *es, QueryDesc *queryDesc);
 
 extern void ExplainQueryText(ExplainState *es, QueryDesc *queryDesc);
 
@@ -85,6 +97,8 @@ extern void ExplainSeparatePlans(ExplainState *es);
 
 extern void ExplainPropertyList(const char *qlabel, List *data,
 					ExplainState *es);
+extern void ExplainPropertyListNested(const char *qlabel, List *data,
+						  ExplainState *es);
 extern void ExplainPropertyText(const char *qlabel, const char *value,
 					ExplainState *es);
 extern void ExplainPropertyInteger(const char *qlabel, int value,

@@ -1,3 +1,8 @@
+<<<<<<< HEAD
 /*.old
 /new_certs_dir/
 /client_tmp.key
+=======
+*.old
+new_certs_dir
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8

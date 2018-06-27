@@ -3,9 +3,13 @@
  * readfuncs.c
  *	  Reader functions for Postgres tree nodes.
  *
+<<<<<<< HEAD
  * Portions Copyright (c) 2005-2010, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+=======
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -13,6 +17,7 @@
  *	  src/backend/nodes/readfuncs.c
  *
  * NOTES
+<<<<<<< HEAD
  *	  Path and Plan nodes do not need to have any readfuncs support, because we
  *	  never have occasion to read them in.	 We never read executor state trees, either.
  *
@@ -24,6 +29,12 @@
  *
  *    The purpose of these routines is to read serialized trees that were stored
  *    in the catalog, and reconstruct the trees.
+=======
+ *	  Path and Plan nodes do not have any readfuncs support, because we
+ *	  never have occasion to read them in.  (There was once code here that
+ *	  claimed to read them, but it was broken as well as unused.)  We
+ *	  never read executor state trees, either.
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  *
  *	  Parse location fields are written out by outfuncs.c, but only for
  *	  possible debugging use.  When reading a location field, we discard
@@ -52,7 +63,7 @@
 
 /*
  * Macros to simplify reading of different kinds of fields.  Use these
- * wherever possible to reduce the chance for silly typos.	Note that these
+ * wherever possible to reduce the chance for silly typos.  Note that these
  * hard-wire conventions about the names of the local variables in a Read
  * routine.
  */
@@ -66,8 +77,7 @@
 /* And a few guys need only the pg_strtok support fields */
 #define READ_TEMP_LOCALS()	\
 	char	   *token;		\
-	int			length;		\
-	(void) token				/* possibly unused */
+	int			length
 
 /* ... but most need both */
 #define READ_LOCALS(nodeTypeName)			\
@@ -148,10 +158,12 @@ inline static char extended_char(char* token, size_t length)
 #define READ_LOCATION_FIELD(fldname) \
 	token = pg_strtok(&length);		/* skip :fldname */ \
 	token = pg_strtok(&length);		/* get field value */ \
+	(void) token;				/* in case not used elsewhere */ \
 	local_node->fldname = -1	/* set field to "unknown" */
 
 /* Read a Node field */
 #define READ_NODE_FIELD(fldname) \
+<<<<<<< HEAD
     do { \
 	    token = pg_strtok(&length);		/* skip :fldname */ \
 	    local_node->fldname = nodeRead(NULL, 0); \
@@ -163,10 +175,16 @@ inline static char extended_char(char* token, size_t length)
 
 /* Set field to a given value, ignoring the value read from the input */
 #define READ_DUMMY_FIELD(fldname,fldvalue)  READ_SCALAR_FIELD(fldname, fldvalue)
+=======
+	token = pg_strtok(&length);		/* skip :fldname */ \
+	(void) token;				/* in case not used elsewhere */ \
+	local_node->fldname = nodeRead(NULL, 0)
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* Read a bitmapset field */
 #define READ_BITMAPSET_FIELD(fldname) \
 	token = pg_strtok(&length);		/* skip :fldname */ \
+	(void) token;				/* in case not used elsewhere */ \
 	local_node->fldname = _readBitmapset()
 
 /* Routine exit */
@@ -269,7 +287,7 @@ inline static char extended_char(char* token, size_t length)
 /*
  * NOTE: use atoi() to read values written with %d, or atoui() to read
  * values written with %u in outfuncs.c.  An exception is OID values,
- * for which use atooid().	(As of 7.1, outfuncs.c writes OIDs as %u,
+ * for which use atooid().  (As of 7.1, outfuncs.c writes OIDs as %u,
  * but this will probably change in the future.)
  */
 #define atoui(x)  ((unsigned int) strtoul((x), NULL, 10))
@@ -382,12 +400,16 @@ _readQuery(void)
 	READ_BOOL_FIELD(hasRecursive);
 	READ_BOOL_FIELD(hasModifyingCTE);
 	READ_BOOL_FIELD(hasForUpdate);
+	READ_BOOL_FIELD(hasRowSecurity);
 	READ_NODE_FIELD(cteList);
 	READ_NODE_FIELD(rtable);
 	READ_NODE_FIELD(jointree);
 	READ_NODE_FIELD(targetList);
+	READ_NODE_FIELD(withCheckOptions);
+	READ_NODE_FIELD(onConflict);
 	READ_NODE_FIELD(returningList);
 	READ_NODE_FIELD(groupClause);
+	READ_NODE_FIELD(groupingSets);
 	READ_NODE_FIELD(havingQual);
 	READ_NODE_FIELD(windowClause);
 	READ_NODE_FIELD(distinctClause);
@@ -472,6 +494,22 @@ _readSingleRowErrorDesc(void)
 }
 
 /*
+ * _readWithCheckOption
+ */
+static WithCheckOption *
+_readWithCheckOption(void)
+{
+	READ_LOCALS(WithCheckOption);
+
+	READ_ENUM_FIELD(kind, WCOKind);
+	READ_STRING_FIELD(relname);
+	READ_NODE_FIELD(qual);
+	READ_BOOL_FIELD(cascaded);
+
+	READ_DONE();
+}
+
+/*
  * _readSortGroupClause
  */
 static SortGroupClause *
@@ -489,7 +527,26 @@ _readSortGroupClause(void)
 }
 
 /*
+<<<<<<< HEAD
  * _readGroupingClause
+=======
+ * _readGroupingSet
+ */
+static GroupingSet *
+_readGroupingSet(void)
+{
+	READ_LOCALS(GroupingSet);
+
+	READ_ENUM_FIELD(kind, GroupingSetKind);
+	READ_NODE_FIELD(content);
+	READ_LOCATION_FIELD(location);
+
+	READ_DONE();
+}
+
+/*
+ * _readWindowClause
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  */
 static GroupingClause *
 _readGroupingClause(void)
@@ -556,8 +613,8 @@ _readRowMarkClause(void)
 	READ_LOCALS(RowMarkClause);
 
 	READ_UINT_FIELD(rti);
-	READ_BOOL_FIELD(forUpdate);
-	READ_BOOL_FIELD(noWait);
+	READ_ENUM_FIELD(strength, LockClauseStrength);
+	READ_ENUM_FIELD(waitPolicy, LockWaitPolicy);
 	READ_BOOL_FIELD(pushedDown);
 
 	READ_DONE();
@@ -593,6 +650,46 @@ _readWithClause(void)
 	READ_NODE_FIELD(ctes);
 	READ_BOOL_FIELD(recursive);
 	READ_LOCATION_FIELD(location);
+
+	READ_DONE();
+}
+
+/*
+ * _readRangeTableSample
+ */
+static RangeTableSample *
+_readRangeTableSample(void)
+{
+	READ_LOCALS(RangeTableSample);
+
+	READ_NODE_FIELD(relation);
+	READ_STRING_FIELD(method);
+	READ_NODE_FIELD(repeatable);
+	READ_NODE_FIELD(args);
+
+	READ_DONE();
+}
+
+/*
+ * _readTableSampleClause
+ */
+static TableSampleClause *
+_readTableSampleClause(void)
+{
+	READ_LOCALS(TableSampleClause);
+
+	READ_OID_FIELD(tsmid);
+	READ_BOOL_FIELD(tsmseqscan);
+	READ_BOOL_FIELD(tsmpagemode);
+	READ_OID_FIELD(tsminit);
+	READ_OID_FIELD(tsmnextblock);
+	READ_OID_FIELD(tsmnexttuple);
+	READ_OID_FIELD(tsmexaminetuple);
+	READ_OID_FIELD(tsmend);
+	READ_OID_FIELD(tsmreset);
+	READ_OID_FIELD(tsmcost);
+	READ_NODE_FIELD(repeatable);
+	READ_NODE_FIELD(args);
 
 	READ_DONE();
 }
@@ -664,6 +761,7 @@ _readIntoClause(void)
 	READ_NODE_FIELD(options);
 	READ_ENUM_FIELD(onCommit, OnCommitAction);
 	READ_STRING_FIELD(tableSpaceName);
+	READ_NODE_FIELD(viewQuery);
 	READ_BOOL_FIELD(skipData);
 	READ_NODE_FIELD(distributedBy);
 
@@ -1365,6 +1463,23 @@ _readAggref(void)
 }
 
 /*
+ * _readGroupingFunc
+ */
+static GroupingFunc *
+_readGroupingFunc(void)
+{
+	READ_LOCALS(GroupingFunc);
+
+	READ_NODE_FIELD(args);
+	READ_NODE_FIELD(refs);
+	READ_NODE_FIELD(cols);
+	READ_INT_FIELD(agglevelsup);
+	READ_LOCATION_FIELD(location);
+
+	READ_DONE();
+}
+
+/*
  * _readWindowFunc
  */
 static WindowFunc *
@@ -1462,7 +1577,7 @@ _readOpExpr(void)
 	/*
 	 * The opfuncid is stored in the textual format primarily for debugging
 	 * and documentation reasons.  We want to always read it as zero to force
-	 * it to be re-looked-up in the pg_operator entry.	This ensures that
+	 * it to be re-looked-up in the pg_operator entry.  This ensures that
 	 * stored rules don't have hidden dependencies on operators' functions.
 	 * (We don't currently support an ALTER OPERATOR command, but might
 	 * someday.)
@@ -1495,7 +1610,7 @@ _readDistinctExpr(void)
 	/*
 	 * The opfuncid is stored in the textual format primarily for debugging
 	 * and documentation reasons.  We want to always read it as zero to force
-	 * it to be re-looked-up in the pg_operator entry.	This ensures that
+	 * it to be re-looked-up in the pg_operator entry.  This ensures that
 	 * stored rules don't have hidden dependencies on operators' functions.
 	 * (We don't currently support an ALTER OPERATOR command, but might
 	 * someday.)
@@ -1526,7 +1641,7 @@ _readNullIfExpr(void)
 	/*
 	 * The opfuncid is stored in the textual format primarily for debugging
 	 * and documentation reasons.  We want to always read it as zero to force
-	 * it to be re-looked-up in the pg_operator entry.	This ensures that
+	 * it to be re-looked-up in the pg_operator entry.  This ensures that
 	 * stored rules don't have hidden dependencies on operators' functions.
 	 * (We don't currently support an ALTER OPERATOR command, but might
 	 * someday.)
@@ -1559,7 +1674,7 @@ _readScalarArrayOpExpr(void)
 	/*
 	 * The opfuncid is stored in the textual format primarily for debugging
 	 * and documentation reasons.  We want to always read it as zero to force
-	 * it to be re-looked-up in the pg_operator entry.	This ensures that
+	 * it to be re-looked-up in the pg_operator entry.  This ensures that
 	 * stored rules don't have hidden dependencies on operators' functions.
 	 * (We don't currently support an ALTER OPERATOR command, but might
 	 * someday.)
@@ -1612,6 +1727,7 @@ _readSubLink(void)
 	READ_LOCALS(SubLink);
 
 	READ_ENUM_FIELD(subLinkType, SubLinkType);
+	READ_INT_FIELD(subLinkId);
 	READ_NODE_FIELD(testexpr);
 	READ_NODE_FIELD(operName);
 	READ_NODE_FIELD(subselect);
@@ -1920,6 +2036,7 @@ _readNullTest(void)
 	READ_NODE_FIELD(arg);
 	READ_ENUM_FIELD(nulltesttype, NullTestType);
 	READ_BOOL_FIELD(argisrow);
+	READ_LOCATION_FIELD(location);
 
 	READ_DONE();
 }
@@ -1934,6 +2051,7 @@ _readBooleanTest(void)
 
 	READ_NODE_FIELD(arg);
 	READ_ENUM_FIELD(booltesttype, BoolTestType);
+	READ_LOCATION_FIELD(location);
 
 	READ_DONE();
 }
@@ -1989,6 +2107,39 @@ _readSetToDefault(void)
 }
 
 /*
+<<<<<<< HEAD
+=======
+ * _readCurrentOfExpr
+ */
+static CurrentOfExpr *
+_readCurrentOfExpr(void)
+{
+	READ_LOCALS(CurrentOfExpr);
+
+	READ_UINT_FIELD(cvarno);
+	READ_STRING_FIELD(cursor_name);
+	READ_INT_FIELD(cursor_param);
+
+	READ_DONE();
+}
+
+/*
+ * _readInferenceElem
+ */
+static InferenceElem *
+_readInferenceElem(void)
+{
+	READ_LOCALS(InferenceElem);
+
+	READ_NODE_FIELD(expr);
+	READ_OID_FIELD(infercollid);
+	READ_OID_FIELD(inferopclass);
+
+	READ_DONE();
+}
+
+/*
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * _readTargetEntry
  */
 static TargetEntry *
@@ -2057,6 +2208,25 @@ _readFromExpr(void)
 	READ_DONE();
 }
 
+/*
+ * _readOnConflictExpr
+ */
+static OnConflictExpr *
+_readOnConflictExpr(void)
+{
+	READ_LOCALS(OnConflictExpr);
+
+	READ_ENUM_FIELD(action, OnConflictAction);
+	READ_NODE_FIELD(arbiterElems);
+	READ_NODE_FIELD(arbiterWhere);
+	READ_NODE_FIELD(onConflictSet);
+	READ_NODE_FIELD(onConflictWhere);
+	READ_OID_FIELD(constraint);
+	READ_INT_FIELD(exclRelIndex);
+	READ_NODE_FIELD(exclRelTlist);
+
+	READ_DONE();
+}
 
 /*
  *	Stuff from parsenodes.h.
@@ -2157,6 +2327,7 @@ _readRangeTblEntry(void)
 		case RTE_RELATION:
 			READ_OID_FIELD(relid);
 			READ_CHAR_FIELD(relkind);
+			READ_NODE_FIELD(tablesample);
 			break;
 		case RTE_SUBQUERY:
 			READ_NODE_FIELD(subquery);
@@ -2167,10 +2338,8 @@ _readRangeTblEntry(void)
 			READ_NODE_FIELD(joinaliasvars);
 			break;
 		case RTE_FUNCTION:
-			READ_NODE_FIELD(funcexpr);
-			READ_NODE_FIELD(funccoltypes);
-			READ_NODE_FIELD(funccoltypmods);
-			READ_NODE_FIELD(funccolcollations);
+			READ_NODE_FIELD(functions);
+			READ_BOOL_FIELD(funcordinality);
 			break;
 		case RTE_TABLEFUNCTION:
 			READ_NODE_FIELD(subquery);
@@ -2203,12 +2372,34 @@ _readRangeTblEntry(void)
 			break;
 	}
 
+	READ_BOOL_FIELD(lateral);
 	READ_BOOL_FIELD(inh);
 	READ_BOOL_FIELD(inFromCl);
 	READ_UINT_FIELD(requiredPerms);
 	READ_OID_FIELD(checkAsUser);
 	READ_BITMAPSET_FIELD(selectedCols);
-	READ_BITMAPSET_FIELD(modifiedCols);
+	READ_BITMAPSET_FIELD(insertedCols);
+	READ_BITMAPSET_FIELD(updatedCols);
+	READ_NODE_FIELD(securityQuals);
+
+	READ_DONE();
+}
+
+/*
+ * _readRangeTblFunction
+ */
+static RangeTblFunction *
+_readRangeTblFunction(void)
+{
+	READ_LOCALS(RangeTblFunction);
+
+	READ_NODE_FIELD(funcexpr);
+	READ_INT_FIELD(funccolcount);
+	READ_NODE_FIELD(funccolnames);
+	READ_NODE_FIELD(funccoltypes);
+	READ_NODE_FIELD(funccoltypmods);
+	READ_NODE_FIELD(funccolcollations);
+	READ_BITMAPSET_FIELD(funcparams);
 
 	READ_BOOL_FIELD(forceDistRandom);
 	/* 'pseudocols' is intentionally missing, see out function */
@@ -2886,14 +3077,22 @@ parseNodeString(void)
 
 	if (MATCH("QUERY", 5))
 		return_value = _readQuery();
+	else if (MATCH("WITHCHECKOPTION", 15))
+		return_value = _readWithCheckOption();
 	else if (MATCH("SORTGROUPCLAUSE", 15))
 		return_value = _readSortGroupClause();
+	else if (MATCH("GROUPINGSET", 11))
+		return_value = _readGroupingSet();
 	else if (MATCH("WINDOWCLAUSE", 12))
 		return_value = _readWindowClause();
 	else if (MATCH("ROWMARKCLAUSE", 13))
 		return_value = _readRowMarkClause();
 	else if (MATCH("COMMONTABLEEXPR", 15))
 		return_value = _readCommonTableExpr();
+	else if (MATCH("RANGETABLESAMPLE", 16))
+		return_value = _readRangeTableSample();
+	else if (MATCH("TABLESAMPLECLAUSE", 17))
+		return_value = _readTableSampleClause();
 	else if (MATCH("SETOPERATIONSTMT", 16))
 		return_value = _readSetOperationStmt();
 	else if (MATCH("ALIAS", 5))
@@ -2910,6 +3109,8 @@ parseNodeString(void)
 		return_value = _readParam();
 	else if (MATCH("AGGREF", 6))
 		return_value = _readAggref();
+	else if (MATCH("GROUPINGFUNC", 12))
+		return_value = _readGroupingFunc();
 	else if (MATCH("WINDOWFUNC", 10))
 		return_value = _readWindowFunc();
 	else if (MATCH("ARRAYREF", 8))
@@ -2974,6 +3175,8 @@ parseNodeString(void)
 		return_value = _readSetToDefault();
 	else if (MATCH("CURRENTOFEXPR", 13))
 		return_value = _readCurrentOfExpr();
+	else if (MATCH("INFERENCEELEM", 13))
+		return_value = _readInferenceElem();
 	else if (MATCH("TARGETENTRY", 11))
 		return_value = _readTargetEntry();
 	else if (MATCH("RANGETBLREF", 11))
@@ -2982,8 +3185,12 @@ parseNodeString(void)
 		return_value = _readJoinExpr();
 	else if (MATCH("FROMEXPR", 8))
 		return_value = _readFromExpr();
+	else if (MATCH("ONCONFLICTEXPR", 14))
+		return_value = _readOnConflictExpr();
 	else if (MATCH("RTE", 3))
 		return_value = _readRangeTblEntry();
+	else if (MATCH("RANGETBLFUNCTION", 16))
+		return_value = _readRangeTblFunction();
 	else if (MATCH("NOTIFY", 6))
 		return_value = _readNotifyStmt();
 	else if (MATCH("DECLARECURSOR", 13))
@@ -3196,15 +3403,13 @@ readDatum(bool typbyval)
 
 	token = pg_strtok(&tokenLength);	/* read the '[' */
 	if (token == NULL || token[0] != '[')
-		elog(ERROR, "expected \"[\" to start datum, but got \"%s\"; length = %lu",
-			 token ? (const char *) token : "[NULL]",
-			 (unsigned long) length);
+		elog(ERROR, "expected \"[\" to start datum, but got \"%s\"; length = %zu",
+			 token ? (const char *) token : "[NULL]", length);
 
 	if (typbyval)
 	{
 		if (length > (Size) sizeof(Datum))
-			elog(ERROR, "byval datum but length = %lu",
-				 (unsigned long) length);
+			elog(ERROR, "byval datum but length = %zu", length);
 		res = (Datum) 0;
 		s = (char *) (&res);
 		for (i = 0; i < (Size) sizeof(Datum); i++)
@@ -3228,9 +3433,8 @@ readDatum(bool typbyval)
 
 	token = pg_strtok(&tokenLength);	/* read the ']' */
 	if (token == NULL || token[0] != ']')
-		elog(ERROR, "expected \"]\" to end datum, but got \"%s\"; length = %lu",
-			 token ? (const char *) token : "[NULL]",
-			 (unsigned long) length);
+		elog(ERROR, "expected \"]\" to end datum, but got \"%s\"; length = %zu",
+			 token ? (const char *) token : "[NULL]", length);
 
 	return res;
 }

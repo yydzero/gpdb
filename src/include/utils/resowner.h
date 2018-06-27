@@ -9,7 +9,7 @@
  * See utils/resowner/README for more info.
  *
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/utils/resowner.h
@@ -19,12 +19,15 @@
 #ifndef RESOWNER_H
 #define RESOWNER_H
 
+<<<<<<< HEAD
 #include "storage/fd.h"
 #include "storage/lock.h"
 #include "utils/catcache.h"
 #include "utils/plancache.h"
 #include "utils/snapshot.h"
 
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /*
  * ResourceOwner objects are an opaque data structure known only within
@@ -42,7 +45,7 @@ extern PGDLLIMPORT ResourceOwner TopTransactionResourceOwner;
 
 /*
  * Resource releasing is done in three phases: pre-locks, locks, and
- * post-locks.	The pre-lock phase must release any resources that are
+ * post-locks.  The pre-lock phase must release any resources that are
  * visible to other backends (such as pinned buffers); this ensures that
  * when we release a lock that another backend may be waiting on, it will
  * see us as being fully out of our transaction.  The post-lock phase
@@ -85,6 +88,7 @@ extern void RegisterResourceReleaseCallback(ResourceReleaseCallback callback,
 extern void UnregisterResourceReleaseCallback(ResourceReleaseCallback callback,
 								  void *arg);
 
+<<<<<<< HEAD
 /* support for buffer refcount management */
 extern void ResourceOwnerEnlargeBuffers(ResourceOwner owner);
 extern void ResourceOwnerRememberBuffer(ResourceOwner owner, Buffer buffer);
@@ -141,4 +145,6 @@ extern void ResourceOwnerRememberFile(ResourceOwner owner,
 extern void ResourceOwnerForgetFile(ResourceOwner owner,
 						File file);
 
+=======
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #endif   /* RESOWNER_H */

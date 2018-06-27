@@ -21,22 +21,25 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "postgres_fe.h"
 
 #include "pg_backup_archiver.h"
-#include "dumpmem.h"
-#include "dumputils.h"
-
-#include <unistd.h>				/* for dup */
+#include "pg_backup_utils.h"
 
 #include "libpq/libpq-fs.h"
 
-
-static size_t _WriteData(ArchiveHandle *AH, const void *data, size_t dLen);
-static size_t _WriteBlobData(ArchiveHandle *AH, const void *data, size_t dLen);
+static void _WriteData(ArchiveHandle *AH, const void *data, size_t dLen);
+static void _WriteBlobData(ArchiveHandle *AH, const void *data, size_t dLen);
 static void _EndData(ArchiveHandle *AH, TocEntry *te);
+<<<<<<< HEAD
 static int	_WriteByte(ArchiveHandle *AH __attribute__((unused)), const int i __attribute__((unused)));
 static size_t _WriteBuf(ArchiveHandle *AH __attribute__((unused)), const void *buf __attribute__((unused)), size_t len);
 static void _CloseArchive(ArchiveHandle *AH __attribute__((unused)));
+=======
+static int	_WriteByte(ArchiveHandle *AH, const int i);
+static void _WriteBuf(ArchiveHandle *AH, const void *buf, size_t len);
+static void _CloseArchive(ArchiveHandle *AH, DumpOptions *dopt);
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 static void _PrintTocData(ArchiveHandle *AH, TocEntry *te, RestoreOptions *ropt);
 static void _StartBlobs(ArchiveHandle *AH, TocEntry *te);
 static void _StartBlob(ArchiveHandle *AH, TocEntry *te, Oid oid);
@@ -84,19 +87,19 @@ InitArchiveFmt_Null(ArchiveHandle *AH)
 /*
  * Called by dumper via archiver from within a data dump routine
  */
-static size_t
+static void
 _WriteData(ArchiveHandle *AH, const void *data, size_t dLen)
 {
-	/* Just send it to output */
+	/* Just send it to output, ahwrite() already errors on failure */
 	ahwrite(data, 1, dLen, AH);
-	return dLen;
+	return;
 }
 
 /*
  * Called by dumper via archiver from within a data dump routine
  * We substitute this for _WriteData while emitting a BLOB
  */
-static size_t
+static void
 _WriteBlobData(ArchiveHandle *AH, const void *data, size_t dLen)
 {
 	if (dLen > 0)
@@ -112,7 +115,7 @@ _WriteBlobData(ArchiveHandle *AH, const void *data, size_t dLen)
 
 		destroyPQExpBuffer(buf);
 	}
-	return dLen;
+	return;
 }
 
 static void
@@ -199,12 +202,16 @@ _PrintTocData(ArchiveHandle *AH, TocEntry *te, RestoreOptions *ropt)
 {
 	if (te->dataDumper)
 	{
+		DumpOptions *dopt;
+
 		AH->currToc = te;
 
 		if (strcmp(te->desc, "BLOBS") == 0)
 			_StartBlobs(AH, te);
 
-		(*te->dataDumper) ((Archive *) AH, te->dataDumperArg);
+		dopt = dumpOptionsFromRestoreOptions(ropt);
+		(*te->dataDumper) ((Archive *) AH, dopt, te->dataDumperArg);
+		pg_free(dopt);
 
 		if (strcmp(te->desc, "BLOBS") == 0)
 			_EndBlobs(AH, te);
@@ -220,15 +227,24 @@ _WriteByte(ArchiveHandle *AH  __attribute__((unused)), const int i  __attribute_
 	return 0;
 }
 
+<<<<<<< HEAD
 static size_t
 			_WriteBuf(ArchiveHandle *AH __attribute__((unused)), const void *buf __attribute__((unused)), size_t len)
+=======
+static void
+_WriteBuf(ArchiveHandle *AH, const void *buf, size_t len)
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 {
 	/* Don't do anything */
-	return len;
+	return;
 }
 
 static void
+<<<<<<< HEAD
 _CloseArchive(ArchiveHandle *AH __attribute__((unused)))
+=======
+_CloseArchive(ArchiveHandle *AH, DumpOptions *dopt)
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 {
 	/* Nothing to do */
 }

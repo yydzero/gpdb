@@ -3,7 +3,7 @@
  * pg_type.c
  *	  routines to support manipulation of the pg_type relation
  *
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -15,7 +15,9 @@
 #include "postgres.h"
 
 #include "access/heapam.h"
+#include "access/htup_details.h"
 #include "access/xact.h"
+#include "catalog/binary_upgrade.h"
 #include "catalog/dependency.h"
 #include "catalog/indexing.h"
 #include "catalog/objectaccess.h"
@@ -36,6 +38,7 @@
 #include "utils/rel.h"
 #include "utils/syscache.h"
 
+<<<<<<< HEAD
 #include "cdb/cdbvars.h"
 
 /*
@@ -70,6 +73,10 @@ add_type_encoding(Oid typid, Datum typoptions)
 
 	heap_close(pg_type_encoding_desc, RowExclusiveLock);
 }
+=======
+/* Potentially set by pg_upgrade_support functions */
+Oid			binary_upgrade_next_pg_type_oid = InvalidOid;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* ----------------------------------------------------------------
  *		TypeShellMake
@@ -84,7 +91,7 @@ add_type_encoding(Oid typid, Datum typoptions)
  *		with correct ones, and "typisdefined" will be set to true.
  * ----------------------------------------------------------------
  */
-Oid
+ObjectAddress
 TypeShellMake(const char *typeName, Oid typeNamespace, Oid ownerId)
 {
 	Relation	pg_type_desc;
@@ -95,6 +102,7 @@ TypeShellMake(const char *typeName, Oid typeNamespace, Oid ownerId)
 	bool		nulls[Natts_pg_type];
 	Oid			typoid;
 	NameData	name;
+	ObjectAddress address;
 
 	Assert(PointerIsValid(typeName));
 
@@ -125,7 +133,7 @@ TypeShellMake(const char *typeName, Oid typeNamespace, Oid ownerId)
 	values[Anum_pg_type_typname - 1] = NameGetDatum(&name);
 	values[Anum_pg_type_typnamespace - 1] = ObjectIdGetDatum(typeNamespace);
 	values[Anum_pg_type_typowner - 1] = ObjectIdGetDatum(ownerId);
-	values[Anum_pg_type_typlen - 1] = Int16GetDatum(sizeof(int4));
+	values[Anum_pg_type_typlen - 1] = Int16GetDatum(sizeof(int32));
 	values[Anum_pg_type_typbyval - 1] = BoolGetDatum(true);
 	values[Anum_pg_type_typtype - 1] = CharGetDatum(TYPTYPE_PSEUDO);
 	values[Anum_pg_type_typcategory - 1] = CharGetDatum(TYPCATEGORY_PSEUDOTYPE);
@@ -158,6 +166,21 @@ TypeShellMake(const char *typeName, Oid typeNamespace, Oid ownerId)
 	 */
 	tup = heap_form_tuple(tupDesc, values, nulls);
 
+<<<<<<< HEAD
+=======
+	/* Use binary-upgrade override for pg_type.oid? */
+	if (IsBinaryUpgrade)
+	{
+		if (!OidIsValid(binary_upgrade_next_pg_type_oid))
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+			errmsg("pg_type OID value not set when in binary upgrade mode")));
+
+		HeapTupleSetOid(tup, binary_upgrade_next_pg_type_oid);
+		binary_upgrade_next_pg_type_oid = InvalidOid;
+	}
+
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	/*
 	 * insert the tuple in the relation and get the tuple's oid.
 	 */
@@ -189,8 +212,9 @@ TypeShellMake(const char *typeName, Oid typeNamespace, Oid ownerId)
 								 false);
 
 	/* Post creation hook for new shell type */
-	InvokeObjectAccessHook(OAT_POST_CREATE,
-						   TypeRelationId, typoid, 0, NULL);
+	InvokeObjectPostCreateHook(TypeRelationId, typoid, 0);
+
+	ObjectAddressSet(address, TypeRelationId, typoid);
 
 	/*
 	 * clean up and return the type-oid
@@ -198,7 +222,7 @@ TypeShellMake(const char *typeName, Oid typeNamespace, Oid ownerId)
 	heap_freetuple(tup);
 	heap_close(pg_type_desc, RowExclusiveLock);
 
-	return typoid;
+	return address;
 }
 
 /* ----------------------------------------------------------------
@@ -206,13 +230,18 @@ TypeShellMake(const char *typeName, Oid typeNamespace, Oid ownerId)
  *
  *		This does all the necessary work needed to define a new type.
  *
- *		Returns the OID assigned to the new type.  If newTypeOid is
- *		zero (the normal case), a new OID is created; otherwise we
- *		use exactly that OID.
+ *		Returns the ObjectAddress assigned to the new type.
+ *		If newTypeOid is zero (the normal case), a new OID is created;
+ *		otherwise we use exactly that OID.
  * ----------------------------------------------------------------
  */
+<<<<<<< HEAD
 Oid
 TypeCreateWithOptions(Oid newTypeOid,
+=======
+ObjectAddress
+TypeCreate(Oid newTypeOid,
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		   const char *typeName,
 		   Oid typeNamespace,
 		   Oid relationOid,		/* only for relation rowtypes */
@@ -255,6 +284,7 @@ TypeCreateWithOptions(Oid newTypeOid,
 	NameData	name;
 	int			i;
 	Acl		   *typacl = NULL;
+	ObjectAddress address;
 
 	/*
 	 * We assume that the caller validated the arguments individually, but did
@@ -421,7 +451,7 @@ TypeCreateWithOptions(Oid newTypeOid,
 	if (HeapTupleIsValid(tup))
 	{
 		/*
-		 * check that the type is not already defined.	It may exist as a
+		 * check that the type is not already defined.  It may exist as a
 		 * shell type, however.
 		 */
 		if (((Form_pg_type) GETSTRUCT(tup))->typisdefined)
@@ -464,6 +494,20 @@ TypeCreateWithOptions(Oid newTypeOid,
 		/* Force the OID if requested by caller */
 		if (OidIsValid(newTypeOid))
 			HeapTupleSetOid(tup, newTypeOid);
+<<<<<<< HEAD
+=======
+		/* Use binary-upgrade override for pg_type.oid, if supplied. */
+		else if (IsBinaryUpgrade)
+		{
+			if (!OidIsValid(binary_upgrade_next_pg_type_oid))
+				ereport(ERROR,
+						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						 errmsg("pg_type OID value not set when in binary upgrade mode")));
+
+			HeapTupleSetOid(tup, binary_upgrade_next_pg_type_oid);
+			binary_upgrade_next_pg_type_oid = InvalidOid;
+		}
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		/* else allow system to assign oid */
 
 		typeObjectId = simple_heap_insert(pg_type_desc, tup);
@@ -498,19 +542,24 @@ TypeCreateWithOptions(Oid newTypeOid,
 								 rebuildDeps);
 
 	/* Post creation hook for new type */
-	InvokeObjectAccessHook(OAT_POST_CREATE,
-						   TypeRelationId, typeObjectId, 0, NULL);
+	InvokeObjectPostCreateHook(TypeRelationId, typeObjectId, 0);
+
+	ObjectAddressSet(address, TypeRelationId, typeObjectId);
 
 	/*
 	 * finish up with pg_type
 	 */
 	heap_close(pg_type_desc, RowExclusiveLock);
 
+<<<<<<< HEAD
 	/* now pg_type_encoding */
 	if (DatumGetPointer(typoptions) != NULL)
 		add_type_encoding(typeObjectId, typoptions);
 
 	return typeObjectId;
+=======
+	return address;
+>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 }
 
 Oid
@@ -806,6 +855,8 @@ RenameTypeInternal(Oid typeOid, const char *newTypeName, Oid typeNamespace)
 
 	/* update the system catalog indexes */
 	CatalogUpdateIndexes(pg_type_desc, tuple);
+
+	InvokeObjectPostAlterHook(TypeRelationId, typeOid, 0);
 
 	heap_freetuple(tuple);
 	heap_close(pg_type_desc, RowExclusiveLock);
