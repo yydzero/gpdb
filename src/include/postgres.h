@@ -164,50 +164,34 @@ typedef struct
 	char		va_data[FLEXIBLE_ARRAY_MEMBER]; /* Data begins here */
 } varattrib_1b;
 
-<<<<<<< HEAD
-/* NOT Like Postgres! ...In GPDB, We waste a few bytes of padding, and don't always set the va_len_1be to anything */
-typedef struct
-{
-	uint8		va_header;		/* Always 0x80  */
-	uint8		va_len_1be;		/*** PG only:  Len of toast pointer w/ 1b header, ignored in GPDB  ***/ /* Physical length of datum */
-	uint8		va_padding[2];	/*** GPDB only:  Alignment padding ***/
-	char		va_data[1];		/* Data (for now always a TOAST pointer) */
-=======
 /* TOAST pointers are a subset of varattrib_1b with an identifying tag byte */
+/* Old comment (still valid?): NOT Like Postgres! ...In GPDB, We waste a few bytes of padding, and don't always set the va_len_1be to anything */
 typedef struct
 {
 	uint8		va_header;		/* Always 0x80 or 0x01 */
 	uint8		va_tag;			/* Type of datum */
 	char		va_data[FLEXIBLE_ARRAY_MEMBER]; /* Type-specific data */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 } varattrib_1b_e;
 
 /*
- * Bit layouts for varlena headers: (GPDB always stores this big-endian format)
+ * Bit layouts for varlena headers on big-endian machines:
  *
  * 00xxxxxx 4-byte length word, aligned, uncompressed data (up to 1G)
  * 01xxxxxx 4-byte length word, aligned, *compressed* data (up to 1G)
  * 10000000 1-byte length word, unaligned, TOAST pointer
  * 1xxxxxxx 1-byte length word, unaligned, uncompressed data (up to 126b)
  *
- * Greenplum differs from PostgreSQL here... In Postgres, they use different
- * macros for big-endian and little-endian machines, so the length is contiguous,
- * while the 4 byte lengths are stored in native endian format.
+ * Bit layouts for varlena headers on little-endian machines:
  *
- * Greenplum stored the 4 byte varlena header in network byte order, so it always
- * look big-endian in the tuple.   This is a bit ugly, but changing it would require
- * all our customers to initdb.
+ * xxxxxx00 4-byte length word, aligned, uncompressed data (up to 1G)
+ * xxxxxx10 4-byte length word, aligned, *compressed* data (up to 1G)
+ * 00000001 1-byte length word, unaligned, TOAST pointer
+ * xxxxxxx1 1-byte length word, unaligned, uncompressed data (up to 126b)
  *
  * The "xxx" bits are the length field (which includes itself in all cases).
-<<<<<<< HEAD
- * In the big-endian case we mask to extract the length.
- * Note that in both cases the flag bits are in the physically
- * first byte.	Also, it is not possible for a 1-byte length word to be zero;
-=======
  * In the big-endian case we mask to extract the length, in the little-endian
  * case we shift.  Note that in both cases the flag bits are in the physically
  * first byte.  Also, it is not possible for a 1-byte length word to be zero;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * this lets us disambiguate alignment padding bytes from the start of an
  * unaligned datum.  (We now *require* pad bytes to be filled with zero!)
  *
@@ -223,6 +207,22 @@ typedef struct
  * for such records. Hence you should usually check for IS_EXTERNAL before
  * checking for IS_1B.
  */
+
+/*
+ * GPDB always stores this big-endian format
+ *
+ * Greenplum differs from PostgreSQL here... In Postgres, they use different
+ * macros for big-endian and little-endian machines, so the length is contiguous,
+ * while the 4 byte lengths are stored in native endian format.
+ *
+ * Greenplum stored the 4 byte varlena header in network byte order, so it always
+ * look big-endian in the tuple.   This is a bit ugly, but changing it would require
+ * all our customers to initdb.
+ */
+
+#define WORDS_BIGENDIAN
+
+#ifdef WORDS_BIGENDIAN
 
 #define VARATT_IS_4B(PTR) \
 	((((varattrib_1b *) (PTR))->va_header & 0x80) == 0x00)
@@ -242,13 +242,10 @@ typedef struct
 	(ntohl(((varattrib_4b *) (PTR))->va_4byte.va_header) & 0x3FFFFFFF)
 #define VARSIZE_1B(PTR) \
 	(((varattrib_1b *) (PTR))->va_header & 0x7F)
-<<<<<<< HEAD
-/* In GPDB, VARSIZE_1B_E() is always the size of a toast pointer plus the 4 byte header */
-#define VARSIZE_1B_E(PTR) (VARHDRSZ_EXTERNAL + sizeof(struct varatt_external))
-=======
+/* FIXME: old comments, In GPDB, VARSIZE_1B_E() is always the size of a toast pointer plus the 4 byte header */
+/* Reinitdb? */
 #define VARTAG_1B_E(PTR) \
 	(((varattrib_1b_e *) (PTR))->va_tag)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #define SET_VARSIZE_4B(PTR,len) \
 	(((varattrib_4b *) (PTR))->va_4byte.va_header = htonl( (len) & 0x3FFFFFFF ))
@@ -256,16 +253,12 @@ typedef struct
 	(((varattrib_4b *) (PTR))->va_4byte.va_header = htonl( ((len) & 0x3FFFFFFF) | 0x40000000 ))
 #define SET_VARSIZE_1B(PTR,len) \
 	(((varattrib_1b *) (PTR))->va_header = (len) | 0x80)
-<<<<<<< HEAD
 /*
  * Although this macro sets var_len_1be, data stored in GPDB might
  * not have anything set in this byte, so you can't count on it's value
  * Not really a problem, since it is always based on TOAST_POINTER_LEN
+ * FIXME: OLD comments, shall we remove it?
  */
-#define SET_VARSIZE_1B_E(PTR,len) \
-	(((varattrib_1b_e *) (PTR))->va_header = 0x80, \
-	 ((varattrib_1b_e *) (PTR))->va_len_1be = (len))
-=======
 #define SET_VARTAG_1B_E(PTR,tag) \
 	(((varattrib_1b_e *) (PTR))->va_header = 0x80, \
 	 ((varattrib_1b_e *) (PTR))->va_tag = (tag))
@@ -302,7 +295,6 @@ typedef struct
 	(((varattrib_1b_e *) (PTR))->va_header = 0x01, \
 	 ((varattrib_1b_e *) (PTR))->va_tag = (tag))
 #endif   /* WORDS_BIGENDIAN */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #define VARHDRSZ_SHORT			offsetof(varattrib_1b, va_data)
 #define VARATT_SHORT_MAX		0x7F
@@ -312,12 +304,8 @@ typedef struct
 #define VARATT_CONVERTED_SHORT_SIZE(PTR) \
 	(VARSIZE(PTR) - VARHDRSZ + VARHDRSZ_SHORT)
 
-<<<<<<< HEAD
-/* In Postgres, this is 2 */
-#define VARHDRSZ_EXTERNAL		4
-=======
+/* In Postgres, this is 2. FIXME: GPDB hardcode it as 4 */
 #define VARHDRSZ_EXTERNAL		offsetof(varattrib_1b_e, va_data)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #define VARDATA_4B(PTR)		(((varattrib_4b *) (PTR))->va_4byte.va_data)
 #define VARDATA_4B_C(PTR)	(((varattrib_4b *) (PTR))->va_compressed.va_data)
@@ -418,8 +406,8 @@ typedef struct
  * or short may contain garbage when called as if it returned Datum.
  */
 
-typedef int64 Datum;
-typedef union Datum_U
+typedef int64 Datum;	/* in postgresql: typedef uintptr_t Datum; */
+typedef union Datum_U	/* gpdb specific */
 {
 	Datum d;
 
@@ -508,33 +496,30 @@ static inline Datum Int64GetDatumFast(int64 x) { return Int64GetDatum(x); }
  * to palloc'd space.
  */
 
-<<<<<<< HEAD
 #ifdef USE_FLOAT8_BYVAL
 #define UInt64GetDatum(X) ((Datum) SET_8_BYTES(X))
 #else
 #define UInt64GetDatum(X) Int64GetDatum((int64) (X))
 #endif
-=======
-#define TransactionIdGetDatum(X) ((Datum) SET_4_BYTES((X)))
+
+
+static inline Oid DatumGetObjectId(Datum d) { return (Oid) d; } 
+static inline Datum ObjectIdGetDatum(Oid oid) { return (Datum) oid; } 
+
+static inline TransactionId DatumGetTransactionId(Datum d) { return (TransactionId) d; } 
+static inline Datum TransactionIdGetDatum(TransactionId tid) { return (Datum) tid; }
 
 /*
  * MultiXactIdGetDatum
  *		Returns datum representation for a multixact identifier.
  */
 
-#define MultiXactIdGetDatum(X) ((Datum) SET_4_BYTES((X)))
+static inline Datum MultiXactIdGetDatum(TransactionId tid) { return (Datum) tid; }
 
 /*
  * DatumGetCommandId
  *		Returns command identifier value of a datum.
  */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
-
-static inline Oid DatumGetObjectId(Datum d) { return (Oid) d; } 
-static inline Datum ObjectIdGetDatum(Oid oid) { return (Datum) oid; } 
-
-static inline TransactionId DatumGetTransactionId(Datum d) { return (TransactionId) d; } 
-static inline Datum TransactionIdGetDatum(TransactionId tid) { return (Datum) tid; } 
 
 static inline CommandId DatumGetCommandId(Datum d) { return (CommandId) d; } 
 static inline Datum CommandIdGetDatum(CommandId cid) { return (Datum) cid; } 
@@ -587,81 +572,16 @@ static inline bool IsAligned(void *p, int align)
  * ----------------------------------------------------------------
  */
 
-<<<<<<< HEAD
+/* GPDB specific macros */
 #define COMPILE_ASSERT(e) ((void)sizeof(char[1-2*!(e)]))
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(*(x)))
 
-extern PGDLLIMPORT bool assert_enabled;
-
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /*
  * Backend only infrastructure for the assertion-related macros in c.h.
  *
  * ExceptionalCondition must be present even when assertions are not enabled.
  */
-<<<<<<< HEAD
 
-/*
- * Trap
- *		Generates an exception if the given condition is true.
- */
-#define Trap(condition, errorType) \
-	do { \
-		if ((assert_enabled) && (condition)) \
-			ExceptionalCondition(CppAsString(condition), (errorType), \
-								 __FILE__, __LINE__); \
-	} while (0)
-/*
- *	TrapMacro is the same as Trap but it's intended for use in macros:
- *
- *		#define foo(x) (AssertMacro(x != 0), bar(x))
- *
- *	Isn't CPP fun?
- */
-#define TrapMacro(condition, errorType) \
-	((bool) ((! assert_enabled) || ! (condition) || \
-			 (ExceptionalCondition(CppAsString(condition), (errorType), \
-								   __FILE__, __LINE__), 0)))
-
-#ifndef USE_ASSERT_CHECKING
-#define Assert(condition)
-#define AssertMacro(condition)	((void)true)
-#define AssertArg(condition)
-#define AssertState(condition)
-#define AssertImply(condition1, condition2)
-#define AssertEquivalent(cond1, cond2)
-#define AssertPointerAlignment(ptr, bndr)	((void)true)
-#else
-#define Assert(condition) \
-		Trap(!(condition), "FailedAssertion")
-
-#define AssertMacro(condition) \
-		((void) TrapMacro(!(condition), "FailedAssertion"))
-
-#define AssertArg(condition) \
-		Trap(!(condition), "BadArgument")
-
-#define AssertState(condition) \
-		Trap(!(condition), "BadState")
-
-#define AssertImply(cond1, cond2) \
-		Trap(!(!(cond1) || (cond2)), "AssertImply failed")
-
-#define AssertEquivalent(cond1, cond2) \
-		Trap(!((bool)(cond1) == (bool)(cond2)), "AssertEquivalent failed")
-
-/*
- * Check that `ptr' is `bndr' aligned.
- */
-#define AssertPointerAlignment(ptr, bndr) \
-	Trap(TYPEALIGN(bndr, (uintptr_t)(ptr)) != (uintptr_t)(ptr), \
-		 "UnalignedPointer")
-
-#endif   /* USE_ASSERT_CHECKING */
-
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern void ExceptionalCondition(const char *conditionName,
 					 const char *errorType,
 			   const char *fileName, int lineNumber) pg_attribute_noreturn();
