@@ -20,6 +20,8 @@
 #include "access/transam.h"
 #include "storage/bufpage.h"
 
+#include "access/memtup.h"
+
 /*
  * MaxTupleAttributeNumber limits the number of (user) columns in a tuple.
  * The key limit on this value is that the size of the fixed overhead for
@@ -235,6 +237,14 @@ struct HeapTupleHeaderData
  * information stored in t_infomask2:
  */
 #define HEAP_NATTS_MASK			0x07FF	/* 11 bits for number of attributes */
+#define HEAP_XMIN_DISTRIBUTED_SNAPSHOT_IGNORE		0x0800	/* GPDB specific */
+										/* t_xmin is either an old committed
+										 * distributed transaction or local.
+										 * They can be ignored for distributed
+										 * snapshots.
+										 */
+#define HEAP_XMAX_DISTRIBUTED_SNAPSHOT_IGNORE		0x1000	/* GPDB specific */
+										/* t_xmax same as above. */
 /* bits 0x1800 are available */
 #define HEAP_KEYS_UPDATED		0x2000	/* tuple was updated and key cols
 										 * modified, or tuple deleted */
@@ -785,14 +795,14 @@ extern void heap_deform_tuple(HeapTuple tuple, TupleDesc tupleDesc,
 
 /* these three are deprecated versions of the three above: */
 extern HeapTuple heap_formtuple(TupleDesc tupleDescriptor,
-			   Datum *values, char *nulls);
+			   Datum *values, char *nulls) __attribute__ ((deprecated));
 extern HeapTuple heap_modifytuple(HeapTuple tuple,
 				 TupleDesc tupleDesc,
 				 Datum *replValues,
 				 char *replNulls,
-				 char *replActions);
+				 char *replActions) __attribute__ ((deprecated));
 extern void heap_deformtuple(HeapTuple tuple, TupleDesc tupleDesc,
-				 Datum *values, char *nulls);
+				 Datum *values, char *nulls) __attribute__ ((deprecated));
 extern void heap_freetuple(HeapTuple htup);
 extern MinimalTuple heap_form_minimal_tuple(TupleDesc tupleDescriptor,
 						Datum *values, bool *isnull);
@@ -800,5 +810,39 @@ extern void heap_free_minimal_tuple(MinimalTuple mtup);
 extern MinimalTuple heap_copy_minimal_tuple(MinimalTuple mtup);
 extern HeapTuple heap_tuple_from_minimal_tuple(MinimalTuple mtup);
 extern MinimalTuple minimal_tuple_from_heap_tuple(HeapTuple htup);
+
+/* below are gpdb specific */
+
+extern bool heap_attisnull_normalattr(HeapTuple tup, int attnum);
+extern HeapTuple heaptuple_copy_to(HeapTuple tup, HeapTuple result, uint32 *len);
+extern HeapTuple heaptuple_form_to(TupleDesc tupdesc, Datum* values,
+								   bool *isnull, HeapTuple tup, uint32 *len);
+
+/*
+ * GenericTuple is a pointer that can point to either a HeapTuple or a
+ * MemTuple. Use is_memtuple() to check which one it is.
+ *
+ * GenericTupleData has no definition; this is a fake "supertype".
+ */
+struct GenericTupleData;
+typedef struct GenericTupleData *GenericTuple;
+
+/* XXX Hack Hack Hack
+ * heaptuple, or memtuple, cannot be more than 2G, so, if
+ * the first bit is ever set, it is really a memtuple
+ */
+static inline bool is_memtuple(GenericTuple tup)
+{
+	return ((((HeapTuple) tup)->t_len & 0x80000000) != 0);
+}
+
+static inline bool is_heaptuple_splitter(HeapTuple htup)
+{
+	return ((char *) htup->t_data) != ((char *) htup + HEAPTUPLESIZE);
+}
+static inline uint32 heaptuple_get_size(HeapTuple htup)
+{
+	return htup->t_len + HEAPTUPLESIZE;
+}
 
 #endif   /* HTUP_DETAILS_H */
