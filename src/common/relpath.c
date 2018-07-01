@@ -122,7 +122,7 @@ GetDatabasePath(Oid dbNode, Oid spcNode)
 	{
 		/* All other tablespaces are accessed via symlinks */
 		return psprintf("pg_tblspc/%u/%s/%u",
-						spcNode, TABLESPACE_VERSION_DIRECTORY, dbNode);
+						spcNode, tablespace_version_directory(), dbNode);
 	}
 }
 
@@ -134,6 +134,14 @@ GetDatabasePath(Oid dbNode, Oid spcNode)
  * Note: ideally, backendId would be declared as type BackendId, but relpath.h
  * would have to include a backend-only header to do that; doesn't seem worth
  * the trouble considering BackendId is just int anyway.
+ *
+ * In PostgreSQL, the 'backendid' is embedded in the filename of temporary
+ * relations. In GPDB, however, temporary relations are just prefixed with
+ * "t_*", without the backend id. For compatibility with upstream code, this
+ * function still takes 'backendid' as argument, but we only care whether
+ * it's InvalidBackendId or not. If you need to construct the path of a
+ * temporary relation, but don't know the real backend ID, pass
+ * TempRelBackendId.
  */
 char *
 GetRelationPath(Oid dbNode, Oid spcNode, Oid relNode,
@@ -183,26 +191,79 @@ GetRelationPath(Oid dbNode, Oid spcNode, Oid relNode,
 		{
 			if (forkNumber != MAIN_FORKNUM)
 				path = psprintf("pg_tblspc/%u/%s/%u/%u_%s",
-								spcNode, TABLESPACE_VERSION_DIRECTORY,
+								spcNode, tablespace_version_directory(),
 								dbNode, relNode,
 								forkNames[forkNumber]);
 			else
 				path = psprintf("pg_tblspc/%u/%s/%u/%u",
-								spcNode, TABLESPACE_VERSION_DIRECTORY,
+								spcNode, tablespace_version_directory(),
 								dbNode, relNode);
 		}
 		else
 		{
 			if (forkNumber != MAIN_FORKNUM)
 				path = psprintf("pg_tblspc/%u/%s/%u/t%d_%u_%s",
-								spcNode, TABLESPACE_VERSION_DIRECTORY,
+								spcNode, tablespace_version_directory(),
 								dbNode, backendId, relNode,
 								forkNames[forkNumber]);
 			else
 				path = psprintf("pg_tblspc/%u/%s/%u/t%d_%u",
-								spcNode, TABLESPACE_VERSION_DIRECTORY,
+								spcNode, tablespace_version_directory(),
 								dbNode, backendId, relNode);
 		}
 	}
 	return path;
+}
+
+/*
+ * Like relpath(), but gets the directory containing the data file
+ * and the filename separately.
+ */
+void
+reldir_and_filename(RelFileNode node, BackendId backend, ForkNumber forknum,
+					char **dir, char **filename)
+{
+	char	   *path;
+	int			i;
+
+	path = relpathbackend(node, backend, forknum);
+
+	/*
+	 * The base path is like "<path>/<rnode>". Split it into
+	 * path and filename parts.
+	 */
+	for (i = strlen(path) - 1; i >= 0; i--)
+	{
+		if (path[i] == '/')
+			break;
+	}
+	if (i <= 0 || path[i] != '/')
+		elog(ERROR, "unexpected path: \"%s\"", path);
+
+	*dir = pnstrdup(path, i);
+	*filename = pstrdup(&path[i + 1]);
+
+	pfree(path);
+}
+
+/*
+ * Like relpathbackend(), but more convenient when dealing with
+ * AO relations. The filename pattern is the same as for heap
+ * tables, but this variant takes also 'segno' as argument.
+ */
+char *
+aorelpathbackend(RelFileNode node, BackendId backend, int32 segno)
+{
+	char	   *fullpath;
+	char	   *path;
+
+	path = relpathbackend(node, backend, MAIN_FORKNUM);
+	if (segno == 0)
+		fullpath = path;
+	else
+	{
+		fullpath = psprintf("%s.%u", path, segno);
+		pfree(path);
+	}
+	return fullpath;
 }

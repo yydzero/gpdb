@@ -756,10 +756,6 @@ extern void _bt_leafbuild(BTSpool *btspool, BTSpool *spool2);
 <<<<<<< HEAD
 extern void btree_redo(XLogRecPtr beginLoc, XLogRecPtr lsn, XLogRecord *record);
 extern void btree_desc(StringInfo buf, XLogRecPtr beginLoc, XLogRecord *record);
-extern void btree_xlog_startup(void);
-extern void btree_xlog_cleanup(void);
-extern bool btree_safe_restartpoint(void);
-extern void btree_mask(char *pagedata, BlockNumber blkno);
 =======
 extern void btree_redo(XLogReaderState *record);
 extern void btree_desc(StringInfo buf, XLogReaderState *record);

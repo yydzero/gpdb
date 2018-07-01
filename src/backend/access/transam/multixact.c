@@ -3167,11 +3167,7 @@ WriteMZeroPageXlogRec(int pageno, uint8 info)
  * MULTIXACT resource manager's routines
  */
 void
-<<<<<<< HEAD
-multixact_redo(XLogRecPtr beginLoc __attribute__((unused)), XLogRecPtr lsn __attribute__((unused)), XLogRecord *record)
-=======
 multixact_redo(XLogReaderState *record)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 {
 	uint8		info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
@@ -3253,20 +3249,10 @@ multixact_redo(XLogReaderState *record)
 		elog(PANIC, "multixact_redo: unknown op code %u", info);
 }
 
-<<<<<<< HEAD
-void
-multixact_desc(StringInfo buf, XLogRecPtr beginLoc, XLogRecord *record)
-{
-	uint8		info = record->xl_info & ~XLR_INFO_MASK;
-	char		*rec = XLogRecGetData(record);
-
-	if (info == XLOG_MULTIXACT_ZERO_OFF_PAGE)
-=======
 Datum
 pg_get_multixact_members(PG_FUNCTION_ARGS)
 {
 	typedef struct
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	{
 		MultiXactMember *members;
 		int			nmembers;

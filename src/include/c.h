@@ -9,13 +9,9 @@
  *	  polluting the namespace with lots of stuff...
  *
  *
-<<<<<<< HEAD
  * Portions Copyright (c) 2006-2011, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
-=======
  * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/c.h
@@ -51,22 +47,14 @@
 #ifndef C_H
 #define C_H
 
-<<<<<<< HEAD
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/*
- * We have to include stdlib.h here because it defines many of these macros
- * on some platforms, and we only want our definitions used if stdlib.h doesn't
- * have its own.  The same goes for stddef and stdarg if present.
- */
-=======
 #include "postgres_ext.h"
 
 /* Must undef pg_config_ext.h symbols before including pg_config.h */
 #undef PG_INT64_TYPE
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #include "pg_config.h"
 #include "pg_config_manual.h"	/* must be after pg_config.h */
@@ -302,8 +290,6 @@ typedef unsigned long long int uint64;
 #define UINT64CONST(x) ((uint64) x)
 #endif
 
-<<<<<<< HEAD
-=======
 /* snprintf format strings to use for 64-bit integers */
 #define INT64_FORMAT "%" INT64_MODIFIER "d"
 #define UINT64_FORMAT "%" INT64_MODIFIER "u"
@@ -319,25 +305,10 @@ typedef PG_INT128_TYPE int128;
 typedef unsigned PG_INT128_TYPE uint128;
 #endif
 
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /*
  * stdint.h limits aren't guaranteed to be present and aren't guaranteed to
  * have compatible types with our fixed width types. So just define our own.
  */
-<<<<<<< HEAD
-#define PG_INT8_MIN     (-0x7F-1)
-#define PG_INT8_MAX     (0x7F)
-#define PG_UINT8_MAX    (0xFF)
-#define PG_INT16_MIN    (-0x7FFF-1)
-#define PG_INT16_MAX    (0x7FFF)
-#define PG_UINT16_MAX   (0xFFFF)
-#define PG_INT32_MIN    (-0x7FFFFFFF-1)
-#define PG_INT32_MAX    (0x7FFFFFFF)
-#define PG_UINT32_MAX   (0xFFFFFFFF)
-#define PG_INT64_MIN    (-INT64CONST(0x7FFFFFFFFFFFFFFF) - 1)
-#define PG_INT64_MAX    INT64CONST(0x7FFFFFFFFFFFFFFF)
-#define PG_UINT64_MAX   UINT64CONST(0xFFFFFFFFFFFFFFFF)
-=======
 #define PG_INT8_MIN		(-0x7F-1)
 #define PG_INT8_MAX		(0x7F)
 #define PG_UINT8_MAX	(0xFF)
@@ -350,7 +321,6 @@ typedef unsigned PG_INT128_TYPE uint128;
 #define PG_INT64_MIN	(-INT64CONST(0x7FFFFFFFFFFFFFFF) - 1)
 #define PG_INT64_MAX	INT64CONST(0x7FFFFFFFFFFFFFFF)
 #define PG_UINT64_MAX	UINT64CONST(0xFFFFFFFFFFFFFFFF)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* Select timestamp representation (float8 or int64) */
 #ifdef USE_INTEGER_DATETIMES
@@ -506,14 +476,8 @@ typedef struct
 	Oid			elemtype;
 	int			dim1;
 	int			lbound1;
-<<<<<<< HEAD
-	int2		values[1];		/* VARIABLE LENGTH ARRAY */
-} int2vector;					/* VARIABLE LENGTH STRUCT */
-#define Int2VectorSize(n)	(offsetof(int2vector, values) + (n) * sizeof(int2))
-=======
 	int16		values[FLEXIBLE_ARRAY_MEMBER];
 } int2vector;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 typedef struct
 {
@@ -636,8 +600,6 @@ typedef NameData *Name;
 #define DOUBLEALIGN_DOWN(LEN)	TYPEALIGN_DOWN(ALIGNOF_DOUBLE, (LEN))
 #define MAXALIGN_DOWN(LEN)		TYPEALIGN_DOWN(MAXIMUM_ALIGNOF, (LEN))
 
-<<<<<<< HEAD
-=======
 /*
  * The above macros will not work with types wider than uintptr_t, like with
  * uint64 on 32-bit platforms.  That's not problem for the usual use where a
@@ -649,7 +611,6 @@ typedef NameData *Name;
 
 /* we don't currently need wider versions of the other ALIGN macros */
 #define MAXALIGN64(LEN)			TYPEALIGN64(MAXIMUM_ALIGNOF, (LEN))
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* ----------------
  * Attribute macros
@@ -974,7 +935,6 @@ typedef NameData *Name;
 
 
 /*
-<<<<<<< HEAD
  * UnusedArg
  *  Silence the compiler's warning about an unreferenced parameter or variable.
  *
@@ -987,33 +947,15 @@ typedef NameData *Name;
  */
 #define UnusedArg(arg)    ((void)(arg))
 
-
 /*
- * UnusedInReleaseBuild
- *  Silence the compiler's warning about a parameter or variable which is
- *  used in debug builds but unused in release builds.
- */
-#ifdef USE_ASSERT_CHECKING
-#define UnusedInReleaseBuild(arg)   (UnusedArg(arg))
-#else
-#define UnusedInReleaseBuild(arg)
-#endif
-
-
-/*
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Mark a point as unreachable in a portable fashion.  This should preferably
  * be something that the compiler understands, to aid code generation.
  * In assert-enabled builds, we prefer abort() for debugging reasons.
  */
 #if defined(HAVE__BUILTIN_UNREACHABLE) && !defined(USE_ASSERT_CHECKING)
 #define pg_unreachable() __builtin_unreachable()
-<<<<<<< HEAD
-=======
 #elif defined(_MSC_VER) && !defined(USE_ASSERT_CHECKING)
 #define pg_unreachable() __assume(0)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #else
 #define pg_unreachable() abort()
 #endif

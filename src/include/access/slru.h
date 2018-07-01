@@ -145,12 +145,11 @@ extern int SimpleLruReadPage_ReadOnly(SlruCtl ctl, int pageno,
 extern void SimpleLruWritePage(SlruCtl ctl, int slotno);
 extern void SimpleLruFlush(SlruCtl ctl, bool checkpoint);
 extern void SimpleLruTruncate(SlruCtl ctl, int cutoffPage);
-<<<<<<< HEAD
+extern bool SimpleLruDoesPhysicalPageExist(SlruCtl ctl, int pageno);
+
+/* For distributedlog added by Greenplum */
 extern void SimpleLruTruncateWithLock(SlruCtl ctl, int cutoffPage);
 extern bool SimpleLruPageExists(SlruCtl ctl, int pageno);
-=======
-extern bool SimpleLruDoesPhysicalPageExist(SlruCtl ctl, int pageno);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 typedef bool (*SlruScanCallback) (SlruCtl ctl, char *filename, int segpage,
 											  void *data);

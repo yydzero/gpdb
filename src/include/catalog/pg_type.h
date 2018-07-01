@@ -370,23 +370,15 @@ DATA(insert OID = 142 ( xml		   PGNSP PGUID -1 f b U f t \054 0 0 143 xml_in xml
 DESCR("XML content");
 #define XMLOID 142
 DATA(insert OID = 143 ( _xml	   PGNSP PGUID -1 f b A f t \054 0 142 0 array_in array_out array_recv array_send - - array_typanalyze i x f 0 -1 0 0 _null_ _null_ _null_ ));
+DATA(insert OID = 199 ( _json	   PGNSP PGUID -1 f b A f t \054 0 114 0 array_in array_out array_recv array_send - - array_typanalyze i x f 0 -1 0 0 _null_ _null_ _null_ ));
 
 DATA(insert OID = 194 ( pg_node_tree	PGNSP PGUID -1 f b S f t \054 0 0 0 pg_node_tree_in pg_node_tree_out pg_node_tree_recv pg_node_tree_send - - - i x f 0 -1 0 100 _null_ _null_ _null_ ));
 DESCR("string representing an internal node tree");
 #define PGNODETREEOID	194
 
-<<<<<<< HEAD
-DATA(insert OID = 199 ( _json	   PGNSP PGUID -1 f b A f t \054 0 114 0 array_in array_out array_recv array_send - - array_typanalyze i x f 0 -1 0 0 _null_ _null_ _null_ ));
-
-DATA(insert OID = 7198 (	complex	   PGNSP PGUID 16 f b N f t \054 0 0	7199 complex_in complex_out complex_recv complex_send - - - d p f 0 -1 0 0 _null_ _null_ _null_ ));
-DESCR("double-precision floating point complex number, 16-byte storage");
-#define COMPLEXOID 7198
-DATA(insert OID = 7199 (	_complex	   PGNSP PGUID -1 f b A f t \054 0 7198 0 array_in array_out array_recv array_send - - - d x f 0 -1 0 0 _null_ _null_ _null_ ));
-=======
 DATA(insert OID = 32 ( pg_ddl_command	PGNSP PGUID SIZEOF_POINTER t p P f t \054 0 0 0 pg_ddl_command_in pg_ddl_command_out pg_ddl_command_recv pg_ddl_command_send - - - ALIGNOF_POINTER p f 0 -1 0 0 _null_ _null_ _null_ ));
 DESCR("internal type for passing CollectedCommand");
 #define PGDDLCOMMANDOID 32
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* OIDS 200 - 299 */
 
@@ -470,11 +462,7 @@ DATA(insert OID = 1001 (  _bytea	 PGNSP PGUID -1 f b A f t \054 0	17 0 array_in 
 DATA(insert OID = 1002 (  _char		 PGNSP PGUID -1 f b A f t \054 0	18 0 array_in array_out array_recv array_send - - array_typanalyze i x f 0 -1 0 0 _null_ _null_ _null_ ));
 DATA(insert OID = 1003 (  _name		 PGNSP PGUID -1 f b A f t \054 0	19 0 array_in array_out array_recv array_send - - array_typanalyze i x f 0 -1 0 0 _null_ _null_ _null_ ));
 DATA(insert OID = 1005 (  _int2		 PGNSP PGUID -1 f b A f t \054 0	21 0 array_in array_out array_recv array_send - - array_typanalyze i x f 0 -1 0 0 _null_ _null_ _null_ ));
-<<<<<<< HEAD
-#define INT2ARRAYOID 1005
-=======
 #define INT2ARRAYOID		1005
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 DATA(insert OID = 1006 (  _int2vector PGNSP PGUID -1 f b A f t \054 0	22 0 array_in array_out array_recv array_send - - array_typanalyze i x f 0 -1 0 0 _null_ _null_ _null_ ));
 DATA(insert OID = 1007 (  _int4		 PGNSP PGUID -1 f b A f t \054 0	23 0 array_in array_out array_recv array_send - - array_typanalyze i x f 0 -1 0 0 _null_ _null_ _null_ ));
 #define INT4ARRAYOID		1007
@@ -614,11 +602,7 @@ DATA(insert OID = 4090 ( _regnamespace PGNSP PGUID -1 f b A f t \054 0 4089 0 ar
 /* uuid */
 DATA(insert OID = 2950 ( uuid			PGNSP PGUID 16 f b U f t \054 0 0 2951 uuid_in uuid_out uuid_recv uuid_send - - - c p f 0 -1 0 0 _null_ _null_ _null_ ));
 DESCR("UUID datatype");
-<<<<<<< HEAD
-#define UUIDOID		2950
-=======
 #define UUIDOID 2950
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 DATA(insert OID = 2951 ( _uuid			PGNSP PGUID -1 f b A f t \054 0 2950 0 array_in array_out array_recv array_send - - array_typanalyze i x f 0 -1 0 0 _null_ _null_ _null_ ));
 
 /* pg_lsn */
@@ -741,6 +725,11 @@ DATA(insert OID = 7053 ( anytable		PGNSP PGUID -1 f p P f t \054 0	0 0 anytable_
 DESCR("Represents a generic TABLE value expression");
 #define ANYTABLEOID     7053
 
+
+DATA(insert OID = 7198 (	complex	   PGNSP PGUID 16 f b N f t \054 0 0	7199 complex_in complex_out complex_recv complex_send - - - d p f 0 -1 0 0 _null_ _null_ _null_ ));
+DESCR("double-precision floating point complex number, 16-byte storage");
+#define COMPLEXOID 7198
+DATA(insert OID = 7199 (	_complex	   PGNSP PGUID -1 f b A f t \054 0 7198 0 array_in array_out array_recv array_send - - - d x f 0 -1 0 0 _null_ _null_ _null_ ));
 
 /*
  * macros

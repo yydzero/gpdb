@@ -40,11 +40,8 @@
 
 #define SAMESIGN(a,b)	(((a) < 0) == ((b) < 0))
 
-<<<<<<< HEAD
-=======
 #define Int2VectorSize(n)	(offsetof(int2vector, values) + (n) * sizeof(int16))
 
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 typedef struct
 {
 	int32		current;

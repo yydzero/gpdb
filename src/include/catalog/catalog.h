@@ -34,31 +34,7 @@
 #define GP_TABLESPACE_VERSION_DIRECTORY	"GPDB_" GP_MAJORVERSION "_" \
 									CppAsString2(CATALOG_VERSION_NO)
 
-<<<<<<< HEAD
-extern const char *forkNames[];
-extern ForkNumber forkname_to_number(char *forkName);
-extern int	forkname_chars(const char *str, ForkNumber *);
-
-extern char *relpathbackend(RelFileNode rnode, BackendId backend,
-			   ForkNumber forknum);
-extern char *GetDatabasePath(Oid dbNode, Oid spcNode);
-
-extern void reldir_and_filename(RelFileNode rnode, BackendId backend, ForkNumber forknum,
-					char **dir, char **filename);
-extern char *aorelpathbackend(RelFileNode node, BackendId backend, int32 segno);
-
-/* First argument is a RelFileNodeBackend */
-#define relpath(rnode, forknum) \
-		relpathbackend((rnode).node, (rnode).backend, (forknum))
-
-/* First argument is a RelFileNode */
-#define relpathperm(rnode, forknum) \
-		relpathbackend((rnode), InvalidBackendId, (forknum))
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
-
-#define aorelpath(rnode, segno) \
-		aorelpathbackend((rnode).node, (rnode).backend, (segno))
+extern const char *tablespace_version_directory(void);
 
 extern bool IsSystemRelation(Relation relation);
 extern bool IsToastRelation(Relation relation);

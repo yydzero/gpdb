@@ -22,13 +22,6 @@ typedef uint8 RmgrId;
 #define PG_RMGR(symname,name,redo,desc,identify,startup,cleanup) \
 	symname,
 
-<<<<<<< HEAD
-/* GPDB specific */
-#define RM_BITMAP_ID			17
-#define RM_DISTRIBUTEDLOG_ID	18
-#define RM_APPEND_ONLY_ID		19
-#define RM_MAX_ID				RM_APPEND_ONLY_ID
-=======
 typedef enum RmgrIds
 {
 #include "access/rmgrlist.h"
@@ -38,6 +31,5 @@ typedef enum RmgrIds
 #undef PG_RMGR
 
 #define RM_MAX_ID				(RM_NEXT_ID - 1)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #endif   /* RMGR_H */

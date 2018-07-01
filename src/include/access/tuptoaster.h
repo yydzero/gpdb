@@ -13,12 +13,8 @@
 #ifndef TUPTOASTER_H
 #define TUPTOASTER_H
 
-<<<<<<< HEAD
-#include "access/htup.h"
 #include "access/memtup.h"
-=======
 #include "access/htup_details.h"
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include "utils/relcache.h"
 #include "storage/lock.h"
 

@@ -71,4 +71,13 @@ extern char *GetRelationPath(Oid dbNode, Oid spcNode, Oid relNode,
 #define relpath(rnode, forknum) \
 	relpathbackend((rnode).node, (rnode).backend, forknum)
 
+/* For Greenplum */
+
+extern void reldir_and_filename(RelFileNode rnode, BackendId backend, ForkNumber forknum,
+								char **dir, char **filename);
+extern char *aorelpathbackend(RelFileNode node, BackendId backend, int32 segno);
+
+#define aorelpath(rnode, segno) \
+		aorelpathbackend((rnode).node, (rnode).backend, (segno))
+
 #endif   /* RELPATH_H */
