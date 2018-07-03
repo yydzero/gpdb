@@ -36,18 +36,8 @@ endif
 
 gram.h: gram.c ;
 
-<<<<<<< HEAD
-gram.c: gram.y
-	$(PERL) $(top_srcdir)/src/tools/check_keywords.pl $(top_srcdir)
-ifdef BISON
-	$(BISON) -d $(BISONFLAGS) -o $@ $<
-else
-	@$(missing) bison $< $@
-endif
-=======
 gram.c: BISONFLAGS += -d
 gram.c: BISON_CHECK_CMD = $(PERL) $(srcdir)/check_keywords.pl $< $(top_srcdir)/src/include/parser/kwlist.h
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 
 scan.c: FLEXFLAGS = -CF -p -p

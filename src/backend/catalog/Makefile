@@ -52,9 +52,9 @@ POSTGRES_BKI_SRCS = $(addprefix $(top_srcdir)/src/include/catalog/,\
 	pg_ts_config.h pg_ts_config_map.h pg_ts_dict.h \
 	pg_ts_parser.h pg_ts_template.h pg_extension.h \
 	pg_foreign_data_wrapper.h pg_foreign_server.h pg_user_mapping.h \
-<<<<<<< HEAD
-	pg_foreign_table.h \
-	pg_default_acl.h pg_seclabel.h pg_shseclabel.h pg_collation.h pg_range.h \
+	pg_foreign_table.h pg_policy.h pg_replication_origin.h \
+    pg_tablesample_method.h pg_default_acl.h pg_seclabel.h pg_shseclabel.h \
+    pg_collation.h pg_range.h pg_transform.h toasting.h indexing.h \
 	pg_resqueue.h pg_resqueuecapability.h pg_resourcetype.h \
 	pg_resgroup.h pg_resgroupcapability.h \
 	gp_configuration_history.h gp_id.h gp_policy.h gp_version.h \
@@ -68,13 +68,6 @@ POSTGRES_BKI_SRCS = $(addprefix $(top_srcdir)/src/include/catalog/,\
 	pg_proc_callback.h \
 	pg_partition_encoding.h \
 	pg_type_encoding.h \
-	pg_stat_last_operation.h pg_stat_last_shoperation.h \
-	toasting.h indexing.h \
-=======
-	pg_foreign_table.h pg_policy.h pg_replication_origin.h \
-	pg_tablesample_method.h pg_default_acl.h pg_seclabel.h pg_shseclabel.h \
-	pg_collation.h pg_range.h pg_transform.h toasting.h indexing.h \
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
     )
 
 POSTGRES_BKI_SRCS := pg_proc_combined.h $(POSTGRES_BKI_SRCS)
@@ -107,14 +100,9 @@ $(CATALOG_JSON): process_foreign_keys.pl $(POSTGRES_BKI_SRCS) $(top_srcdir)/src/
 # even in distribution tarballs.  So this is cheating a bit, but it
 # will achieve the goal of updating the version number when it
 # changes.
-<<<<<<< HEAD
-postgres.bki: genbki.pl Catalog.pm $(POSTGRES_BKI_SRCS) $(top_srcdir)/configure
-	$(PERL) -I $(catalogdir) $< $(pg_includes) --set-version=$(PG_MAJORVERSION) $(POSTGRES_BKI_SRCS)
-=======
 postgres.bki: genbki.pl Catalog.pm $(POSTGRES_BKI_SRCS) $(top_srcdir)/configure $(top_srcdir)/src/include/catalog/duplicate_oids
 	cd $(top_srcdir)/src/include/catalog && $(PERL) ./duplicate_oids
 	$(PERL) -I $(catalogdir) $< $(pg_includes) --set-version=$(MAJORVERSION) $(POSTGRES_BKI_SRCS)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 .PHONY: install-data
 install-data: $(BKIFILES) installdirs

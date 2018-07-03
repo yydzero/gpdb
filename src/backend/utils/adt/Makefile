@@ -16,26 +16,6 @@ override CFLAGS+= -mieee
 endif
 endif
 
-<<<<<<< HEAD
-OBJS = acl.o arrayfuncs.o array_selfuncs.o array_typanalyze.o \
-	array_userfuncs.o arrayutils.o bool.o \
-	cash.o char.o complex_type.o gp_dump_oids.o gp_optimizer_functions.o \
-	gp_partition_functions.o interpolate.o matrix.o orderedsetaggs.o \
-	pivot.o date.o datetime.o datum.o domains.o \
-	enum.o float.o format_type.o \
-	geo_ops.o geo_selfuncs.o int.o int8.o like.o lockfuncs.o \
-	misc.o nabstime.o name.o numeric.o numutils.o \
-	oid.o oracle_compat.o pseudotypes.o rangetypes.o rangetypes_gist.o \
-	rowtypes.o regexp.o regproc.o ruleutils.o selfuncs.o \
-	tid.o timestamp.o varbit.o varchar.o varlena.o version.o xid.o \
-	network.o mac.o inet_cidr_ntop.o inet_net_pton.o \
-	ri_triggers.o pg_lzcompress.o pg_locale.o formatting.o \
-	ascii.o quote.o pgstatfuncs.o encode.o dbsize.o genfile.o trigfuncs.o \
-	tsginidx.o tsgistidx.o tsquery.o tsquery_cleanup.o tsquery_gist.o \
-	tsquery_op.o tsquery_rewrite.o tsquery_util.o tsrank.o \
-	tsvector.o tsvector_op.o tsvector_parser.o \
-	txid.o uuid.o windowfuncs.o xml.o json.o jsonfuncs.o
-=======
 # keep this list arranged alphabetically or it gets to be a mess
 OBJS = acl.o arrayfuncs.o array_expanded.o array_selfuncs.o \
 	array_typanalyze.o array_userfuncs.o arrayutils.o ascii.o \
@@ -58,7 +38,10 @@ OBJS = acl.o arrayfuncs.o array_expanded.o array_selfuncs.o \
 	tsvector.o tsvector_op.o tsvector_parser.o \
 	txid.o uuid.o varbit.o varchar.o varlena.o version.o \
 	windowfuncs.o xid.o xml.o
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+
+OBJS += complex_type.o gp_dump_oids.o gp_optimizer_functions.o \
+    gp_partition_functions.o interpolate.o matrix.o pivot.o \
+    pg_lzcompress.o
 
 like.o: like.c like_match.c
 

@@ -3,13 +3,7 @@ MODULES = gp_inject_fault
 EXTENSION = gp_inject_fault
 DATA = gp_inject_fault--1.0.sql
 
-<<<<<<< HEAD:contrib/gp_inject_fault/Makefile
 REGRESS = inject_fault_test
-=======
-EXTENSION = lo
-DATA = lo--1.0.sql lo--unpackaged--1.0.sql
-PGFILEDESC = "lo - management for large objects"
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8:contrib/lo/Makefile
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config
