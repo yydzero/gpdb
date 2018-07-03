@@ -57,15 +57,8 @@ extern void AutoVacWorkerFailed(void);
 extern void AutoVacuumUpdateDelay(void);
 
 #ifdef EXEC_BACKEND
-<<<<<<< HEAD
-extern void AutoVacMain(int argc, char *argv[]); // OLD interface
-extern void AutovacuumIAm(void);
-extern void AutoVacLauncherMain(int argc, char *argv[]);
-extern void AutoVacWorkerMain(int argc, char *argv[]);
-=======
 extern void AutoVacLauncherMain(int argc, char *argv[]) pg_attribute_noreturn();
 extern void AutoVacWorkerMain(int argc, char *argv[]) pg_attribute_noreturn();
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern void AutovacuumWorkerIAm(void);
 extern void AutovacuumLauncherIAm(void);
 #endif

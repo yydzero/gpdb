@@ -123,13 +123,6 @@ typedef struct
 extern WalRcvData *WalRcv;
 
 /* libpqwalreceiver hooks */
-<<<<<<< HEAD
-bool walrcv_connect(char *conninfo, XLogRecPtr startpoint);
-bool walrcv_receive(int timeout, unsigned char *type,
-					char **buffer, int *len);
-void walrcv_send(const char *buffer, int nbytes);
-void walrcv_disconnect(void);
-=======
 typedef void (*walrcv_connect_type) (char *conninfo);
 extern PGDLLIMPORT walrcv_connect_type walrcv_connect;
 
@@ -153,7 +146,6 @@ extern PGDLLIMPORT walrcv_send_type walrcv_send;
 
 typedef void (*walrcv_disconnect_type) (void);
 extern PGDLLIMPORT walrcv_disconnect_type walrcv_disconnect;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* prototypes for functions in walreceiver.c */
 extern void WalReceiverMain(void) pg_attribute_noreturn();

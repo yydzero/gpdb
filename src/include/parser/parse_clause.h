@@ -38,31 +38,32 @@ extern List *transformWindowDefinitions(ParseState *pstate,
 						   List *windowdefs,
 						   List **targetlist);
 
-extern List *transformDistinctToGroupBy(ParseState *pstate, List **targetlist,
-						   List **sortClause, List **groupClause);
+
 extern List *transformDistinctClause(ParseState *pstate,
 						List **targetlist, List *sortClause, bool is_agg);
 extern List *transformDistinctOnClause(ParseState *pstate, List *distinctlist,
 						  List **targetlist, List *sortClause);
-<<<<<<< HEAD
-extern List *transformScatterClause(ParseState *pstate, List *scatterlist,
-									List **targetlist);
-extern void processExtendedGrouping(ParseState *pstate, Node *havingQual,
-									List *windowClause, List *targetlist);
+extern void transformOnConflictArbiter(ParseState *pstate,
+									   OnConflictClause *onConflictClause,
+									   List **arbiterExpr, Node **arbiterWhere,
+									   Oid *constraint);
+
 extern List *addTargetToSortList(ParseState *pstate, TargetEntry *tle,
 					List *sortlist, List *targetlist, SortBy *sortby,
 					bool resolveUnknown);
-=======
-extern void transformOnConflictArbiter(ParseState *pstate,
-						   OnConflictClause *onConflictClause,
-						   List **arbiterExpr, Node **arbiterWhere,
-						   Oid *constraint);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 extern List *addTargetToSortList(ParseState *pstate, TargetEntry *tle,
 					List *sortlist, List *targetlist, SortBy *sortby,
 					bool resolveUnknown);
 extern Index assignSortGroupRef(TargetEntry *tle, List *tlist);
 extern bool targetIsInSortList(TargetEntry *tle, Oid sortop, List *sortList);
+
+/* gpdb specific */
+extern List *transformDistinctToGroupBy(ParseState *pstate, List **targetlist,
+										List **sortClause, List **groupClause);
+extern List *transformScatterClause(ParseState *pstate, List *scatterlist,
+									List **targetlist);
+extern void processExtendedGrouping(ParseState *pstate, Node *havingQual,
+									List *windowClause, List *targetlist);
 
 #endif   /* PARSE_CLAUSE_H */

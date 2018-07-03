@@ -27,15 +27,8 @@ extern RestrictInfo *make_restrictinfo(Expr *clause,
 				  bool pseudoconstant,
 				  Relids required_relids,
 				  Relids outer_relids,
-<<<<<<< HEAD
 				  Relids nullable_relids,
-				  Relids ojscope_relids);
-extern List *make_restrictinfo_from_bitmapqual(Path *bitmapqual,
-								  bool is_pushed_down,
-								  bool include_predicates);
-=======
-				  Relids nullable_relids);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+				  Relids ojscope_relids);	/* gpdb specific */
 extern List *make_restrictinfos_from_actual_clauses(PlannerInfo *root,
 									   List *clause_list);
 extern bool restriction_is_or_clause(RestrictInfo *restrictinfo);
@@ -50,5 +43,10 @@ extern bool join_clause_is_movable_to(RestrictInfo *rinfo, RelOptInfo *baserel);
 extern bool join_clause_is_movable_into(RestrictInfo *rinfo,
 							Relids currentrelids,
 							Relids current_and_outer);
+
+/* gpdb specific */
+extern List *make_restrictinfo_from_bitmapqual(Path *bitmapqual,
+											   bool is_pushed_down,
+											   bool include_predicates);
 
 #endif   /* RESTRICTINFO_H */

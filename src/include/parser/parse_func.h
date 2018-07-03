@@ -32,14 +32,11 @@ typedef enum
 
 extern Node *ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 				  FuncCall *fn, int location);
-<<<<<<< HEAD
-=======
 
 extern TableSampleClause *ParseTableSample(ParseState *pstate,
 				 char *samplemethod,
 				 Node *repeatable, List *args,
 				 int location);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 extern FuncDetailCode func_get_detail(List *funcname,
 				List *fargs, List *fargnames,

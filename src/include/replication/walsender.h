@@ -20,16 +20,6 @@
 /* global state */
 extern bool am_walsender;
 extern bool am_cascading_walsender;
-<<<<<<< HEAD
-extern volatile sig_atomic_t walsender_ready_to_stop;
-
-/* user-settable parameters */
-extern int	max_wal_senders;
-extern int	replication_timeout;
-extern int	repl_catchup_within_range;
-
-extern int	WalSenderMain(void);
-=======
 extern bool am_db_walsender;
 extern bool wake_wal_senders;
 
@@ -37,8 +27,8 @@ extern bool wake_wal_senders;
 extern int	max_wal_senders;
 extern int	wal_sender_timeout;
 extern bool log_replication_commands;
+extern int	repl_catchup_within_range;		/* gpdb specific */
 
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern void InitWalSender(void);
 extern void exec_replication_command(const char *query_string);
 extern void WalSndErrorCleanup(void);
