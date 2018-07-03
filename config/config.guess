@@ -1,14 +1,8 @@
 #! /bin/sh
 # Attempt to guess a canonical system name.
-<<<<<<< HEAD
 #   Copyright 1992-2017 Free Software Foundation, Inc.
 
 timestamp='2017-01-01'
-=======
-#   Copyright 1992-2014 Free Software Foundation, Inc.
-
-timestamp='2014-03-23'
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 # This file is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by
@@ -30,21 +24,12 @@ timestamp='2014-03-23'
 # program.  This Exception is an additional permission under section 7
 # of the GNU General Public License, version 3 ("GPLv3").
 #
-<<<<<<< HEAD
-# Originally written by Per Bothner; maintained since 2000 by Ben Elliston.
-#
-# You can get the latest version of this script from:
-# http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess
-#
-# Please send patches to <config-patches@gnu.org>.
-=======
 # Originally written by Per Bothner.
 #
 # You can get the latest version of this script from:
 # http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD
 #
 # Please send patches with a ChangeLog entry to config-patches@gnu.org.
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 
 me=`echo "$0" | sed -e 's,.*/,,'`
@@ -65,11 +50,7 @@ version="\
 GNU config.guess ($timestamp)
 
 Originally written by Per Bothner.
-<<<<<<< HEAD
 Copyright 1992-2017 Free Software Foundation, Inc.
-=======
-Copyright 1992-2014 Free Software Foundation, Inc.
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 This is free software; see the source for copying conditions.  There is NO
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
@@ -926,11 +907,7 @@ EOF
 	exit ;;
     *:GNU/*:*:*)
 	# other systems with GNU libc and userland
-<<<<<<< HEAD
-	echo ${UNAME_MACHINE}-unknown-`echo ${UNAME_SYSTEM} | sed 's,^[^/]*/,,' | tr "[:upper:]" "[:lower:]"``echo ${UNAME_RELEASE}|sed -e 's/[-(].*//'`-${LIBC}
-=======
 	echo ${UNAME_MACHINE}-unknown-`echo ${UNAME_SYSTEM} | sed 's,^[^/]*/,,' | tr '[A-Z]' '[a-z]'``echo ${UNAME_RELEASE}|sed -e 's/[-(].*//'`-${LIBC}
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	exit ;;
     i*86:Minix:*:*)
 	echo ${UNAME_MACHINE}-pc-minix
@@ -953,11 +930,7 @@ EOF
 	  EV68*) UNAME_MACHINE=alphaev68 ;;
 	esac
 	objdump --private-headers /bin/sh | grep -q ld.so.1
-<<<<<<< HEAD
-	if test "$?" = 0 ; then LIBC=gnulibc1 ; fi
-=======
 	if test "$?" = 0 ; then LIBC="gnulibc1" ; fi
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	echo ${UNAME_MACHINE}-unknown-linux-${LIBC}
 	exit ;;
     arc:Linux:*:* | arceb:Linux:*:*)
@@ -999,12 +972,6 @@ EOF
 	exit ;;
     ia64:Linux:*:*)
 	echo ${UNAME_MACHINE}-unknown-linux-${LIBC}
-<<<<<<< HEAD
-	exit ;;
-    k1om:Linux:*:*)
-	echo ${UNAME_MACHINE}-unknown-linux-${LIBC}
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	exit ;;
     m32r*:Linux:*:*)
 	echo ${UNAME_MACHINE}-unknown-linux-${LIBC}
@@ -1062,12 +1029,6 @@ EOF
 	exit ;;
     ppcle:Linux:*:*)
 	echo powerpcle-unknown-linux-${LIBC}
-<<<<<<< HEAD
-	exit ;;
-    riscv32:Linux:*:* | riscv64:Linux:*:*)
-	echo ${UNAME_MACHINE}-unknown-linux-${LIBC}
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	exit ;;
     s390:Linux:*:* | s390x:Linux:*:*)
 	echo ${UNAME_MACHINE}-ibm-linux-${LIBC}
@@ -1332,15 +1293,9 @@ EOF
 	    UNAME_PROCESSOR=powerpc
 	fi
 	if test `echo "$UNAME_RELEASE" | sed -e 's/\..*//'` -le 10 ; then
-<<<<<<< HEAD
-	    if [ "$CC_FOR_BUILD" != no_compiler_found ]; then
-		if (echo '#ifdef __LP64__'; echo IS_64BIT_ARCH; echo '#endif') | \
-		    (CCOPTS="" $CC_FOR_BUILD -E - 2>/dev/null) | \
-=======
 	    if [ "$CC_FOR_BUILD" != 'no_compiler_found' ]; then
 		if (echo '#ifdef __LP64__'; echo IS_64BIT_ARCH; echo '#endif') | \
 		    (CCOPTS= $CC_FOR_BUILD -E - 2>/dev/null) | \
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		    grep IS_64BIT_ARCH >/dev/null
 		then
 		    case $UNAME_PROCESSOR in
