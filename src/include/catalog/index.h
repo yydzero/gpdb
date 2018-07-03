@@ -14,12 +14,9 @@
 #ifndef INDEX_H
 #define INDEX_H
 
-<<<<<<< HEAD
 #include "access/relscan.h"     /* Relation, Snapshot */
 #include "executor/tuptable.h"  /* TupTableSlot */
-=======
 #include "catalog/objectaddress.h"
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include "nodes/execnodes.h"
 
 struct EState;                  /* #include "nodes/execnodes.h" */
@@ -38,16 +35,10 @@ typedef void (*IndexBuildCallback) (Relation index,
 typedef enum
 {
 	INDEX_CREATE_SET_READY,
-<<<<<<< HEAD
-	INDEX_CREATE_SET_VALID
-} IndexStateFlagsAction;
-=======
 	INDEX_CREATE_SET_VALID,
 	INDEX_DROP_CLEAR_VALID,
 	INDEX_DROP_SET_DEAD
 } IndexStateFlagsAction;
-
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 
 extern bool relationHasPrimaryKey(Relation rel);
@@ -74,12 +65,9 @@ extern Oid index_create(Relation heapRelation,
 			 bool allow_system_table_mods,
 			 bool skip_build,
 			 bool concurrent,
-<<<<<<< HEAD
-			 const char *altConName);
-=======
 			 bool is_internal,
-			 bool if_not_exists);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+			 bool if_not_exists,
+			 const char *altConName);
 
 extern ObjectAddress index_constraint_create(Relation heapRelation,
 						Oid indexRelationId,
@@ -115,14 +103,14 @@ extern void index_build(Relation heapRelation,
 			bool isprimary,
 			bool isreindex);
 
-<<<<<<< HEAD
+/* gpdb added? */
 extern double IndexBuildScan(Relation parentRelation,
 					Relation indexRelation,
 					IndexInfo *indexInfo,
 					bool allow_sync,
 					IndexBuildCallback callback,
 					void *callback_state);
-=======
+
 extern double IndexBuildHeapScan(Relation heapRelation,
 				   Relation indexRelation,
 				   IndexInfo *indexInfo,
@@ -137,18 +125,13 @@ extern double IndexBuildHeapRangeScan(Relation heapRelation,
 						BlockNumber end_blockno,
 						IndexBuildCallback callback,
 						void *callback_state);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 extern void validate_index(Oid heapId, Oid indexId, Snapshot snapshot);
 
 extern void index_set_state_flags(Oid indexId, IndexStateFlagsAction action);
 
-<<<<<<< HEAD
-extern void reindex_index(Oid indexId, bool skip_constraint_checks);
-=======
 extern void reindex_index(Oid indexId, bool skip_constraint_checks,
 			  char relpersistence, int options);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* Flag bits for reindex_relation(): */
 #define REINDEX_REL_PROCESS_TOAST			0x01

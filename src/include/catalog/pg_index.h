@@ -108,17 +108,10 @@ typedef FormData_pg_index *Form_pg_index;
 /*
  * Use of these macros is recommended over direct examination of the state
  * flag columns where possible; this allows source code compatibility with
-<<<<<<< HEAD
- * 9.2 and up.
- */
-#define IndexIsValid(indexForm) ((indexForm)->indisvalid)
-#define IndexIsReady(indexForm) ((indexForm)->indisready)
-=======
  * the hacky representation used in 9.2.
  */
 #define IndexIsValid(indexForm) ((indexForm)->indisvalid)
 #define IndexIsReady(indexForm) ((indexForm)->indisready)
 #define IndexIsLive(indexForm)	((indexForm)->indislive)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #endif   /* PG_INDEX_H */

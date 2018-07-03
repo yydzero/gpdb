@@ -13,19 +13,7 @@ top_builddir = ../..
 include $(top_builddir)/src/Makefile.global
 
 
-<<<<<<< HEAD
-all: pg_config.h pg_config_os.h check_oids
-
-
-# Subdirectories containing headers for server-side dev
-SUBDIRS = access bootstrap catalog commands datatype executor foreign lib libpq mb \
-	nodes optimizer parser postmaster regex replication rewrite storage \
-	tcop snowball snowball/libstemmer tsearch tsearch/dicts utils \
-	port port/atomics port/win32 port/win32_msvc port/win32_msvc/sys \
-	port/win32/arpa port/win32/netinet port/win32/sys \
-	portability
-=======
-all: pg_config.h pg_config_ext.h pg_config_os.h
+all: pg_config.h pg_config_ext.h pg_config_os.h check_oids
 
 
 # Subdirectories containing headers for server-side dev
@@ -35,7 +23,6 @@ SUBDIRS = access bootstrap catalog commands common datatype executor foreign \
 	tsearch/dicts utils port port/atomics port/win32 port/win32_msvc \
 	port/win32_msvc/sys port/win32/arpa port/win32/netinet \
 	port/win32/sys portability
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 SUBDIRS += cdb gpmon
 

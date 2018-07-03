@@ -145,11 +145,7 @@ DATA(insert OID =  95 ( "<"		   PGNSP PGUID b f f	21	21	16 520 524 int2lt scalar
 DESCR("less than");
 DATA(insert OID =  96 ( "="		   PGNSP PGUID b t t	23	23	16	96 518 int4eq eqsel eqjoinsel ));
 DESCR("equal");
-<<<<<<< HEAD
-#define Int4EqualOperator 96
-=======
 #define Int4EqualOperator	96
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 DATA(insert OID =  97 ( "<"		   PGNSP PGUID b f f	23	23	16 521 525 int4lt scalarltsel scalarltjoinsel ));
 DESCR("less than");
 #define Int4LessOperator	97

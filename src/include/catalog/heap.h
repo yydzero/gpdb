@@ -4,13 +4,9 @@
  *	  prototypes for functions in backend/catalog/heap.c
  *
  *
-<<<<<<< HEAD
  * Portions Copyright (c) 2005-2008, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
-=======
  * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/catalog/heap.h
@@ -93,12 +89,9 @@ extern Oid heap_create_with_catalog(const char *relname,
 						 Datum reloptions,
 						 bool use_user_acl,
 						 bool allow_system_table_mods,
-<<<<<<< HEAD
-						 bool valid_opts);
-=======
+						 bool valid_opts,
 						 bool is_internal,
 						 ObjectAddress *typaddress);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 extern void heap_create_init_fork(Relation rel);
 
@@ -126,15 +119,8 @@ extern List *AddRelationNewConstraints(Relation rel,
 						  List *newColDefaults,
 						  List *newConstraints,
 						  bool allow_merge,
-<<<<<<< HEAD
-						  bool is_local);
-extern List *AddRelationConstraints(Relation rel,
-						  List *rawColDefaults,
-						  List *constraints);
-=======
 						  bool is_local,
 						  bool is_internal);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 extern Oid StoreAttrDefault(Relation rel, AttrNumber attnum,
 				 Node *expr, bool is_internal);

@@ -8,13 +8,9 @@
  * but also length coercion functions.
  *
  *
-<<<<<<< HEAD
  * Portions Copyright (c) 2006-2010, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
- * Copyright (c) 2002-2012, PostgreSQL Global Development Group
-=======
  * Copyright (c) 2002-2015, PostgreSQL Global Development Group
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  *
  * src/include/catalog/pg_cast.h
  *
@@ -385,8 +381,11 @@ DATA(insert ( 1560 1560 1685 i f ));
 DATA(insert ( 1562 1562 1687 i f ));
 DATA(insert ( 1700 1700 1703 i f ));
 
-<<<<<<< HEAD
-/* complex type */
+/* json to/from jsonb */
+DATA(insert (  114 3802    0 a i ));
+DATA(insert ( 3802	114    0 a i ));
+
+/* complex type, gpdb added */
 DATA(insert (701  7198 3584 i f));
 DATA(insert (700  7198 3585 i f));
 DATA(insert (20   7198 3586 i f));
@@ -404,10 +403,5 @@ DATA(insert (   27   20 6021 e f ));
 /* GP: Allow explicit cast between tid and aotid. */
 DATA(insert (	27 3300    0 e b ));
 DATA(insert ( 3300	 27    0 e b ));
-=======
-/* json to/from jsonb */
-DATA(insert (  114 3802    0 a i ));
-DATA(insert ( 3802	114    0 a i ));
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #endif   /* PG_CAST_H */
