@@ -80,11 +80,8 @@ typedef struct StartReplicationCmd
 	char	   *slotname;
 	TimeLineID	timeline;
 	XLogRecPtr	startpoint;
-<<<<<<< HEAD
-	bool        sync;
-=======
+	bool        sync;		/* gpdb specific */
 	List	   *options;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 } StartReplicationCmd;
 
 

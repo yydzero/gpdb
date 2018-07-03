@@ -45,16 +45,9 @@ extern ObjectAddress RenameType(RenameStmt *stmt);
 extern ObjectAddress AlterTypeOwner(List *names, Oid newOwnerId, ObjectType objecttype);
 extern void AlterTypeOwnerInternal(Oid typeOid, Oid newOwnerId,
 					   bool hasDependEntry);
-<<<<<<< HEAD
-extern void AlterTypeNamespace(List *names, const char *newschema, ObjectType objecttype);
-extern Oid  AlterTypeNamespace_oid(Oid typeOid, Oid nspOid, ObjectAddresses *objsMoved);
-extern Oid  AlterTypeNamespaceInternal(Oid typeOid, Oid nspOid,
-									   bool isImplicitArray,
-									   bool errorOnTableType,
-									   ObjectAddresses *objsMoved);
+
 extern void AlterType(AlterTypeStmt *stmt);
-extern void AlterType(AlterTypeStmt *stmt);
-=======
+
 extern ObjectAddress AlterTypeNamespace(List *names, const char *newschema,
 				   ObjectType objecttype, Oid *oldschema);
 extern Oid	AlterTypeNamespace_oid(Oid typeOid, Oid nspOid, ObjectAddresses *objsMoved);
@@ -62,6 +55,5 @@ extern Oid AlterTypeNamespaceInternal(Oid typeOid, Oid nspOid,
 						   bool isImplicitArray,
 						   bool errorOnTableType,
 						   ObjectAddresses *objsMoved);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #endif   /* TYPECMDS_H */

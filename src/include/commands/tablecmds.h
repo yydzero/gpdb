@@ -47,20 +47,16 @@ typedef struct NewConstraint
 	List	   *qualstate;		/* Execution state for CHECK */
 } NewConstraint;
 
-<<<<<<< HEAD
 extern const char *synthetic_sql;
 
-extern Oid	DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId, char relstorage, bool dispatch);
+extern ObjectAddress DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
+									char relstorage, bool dispatch, ObjectAddress *typaddress);
 
 extern void	DefineExternalRelation(CreateExternalStmt *stmt);
 
 extern void	DefinePartitionedRelation(CreateStmt *stmt, Oid reloid);
 
 extern void EvaluateDeferredStatements(List *deferredStmts);
-=======
-extern ObjectAddress DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
-			   ObjectAddress *typaddress);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 extern void RemoveRelations(DropStmt *drop);
 
