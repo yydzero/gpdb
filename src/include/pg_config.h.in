@@ -91,14 +91,7 @@
 /* Define to 1 if you have the `append_history' function. */
 #undef HAVE_APPEND_HISTORY
 
-<<<<<<< HEAD
-/* Define to 1 if you have the <apr_getopt.h> header file. */
-#undef HAVE_APR_GETOPT_H
-
-/* Define to 1 if you want to use atomics. */
-=======
 /* Define to 1 if you want to use atomics if available. */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #undef HAVE_ATOMICS
 
 /* Define to 1 if you have the <atomic.h> header file. */
@@ -334,24 +327,6 @@
 /* Define to 1 if you have isinf(). */
 #undef HAVE_ISINF
 
-<<<<<<< HEAD
-/* Define to 1 if `e_data' is a member of `krb5_error'. */
-#undef HAVE_KRB5_ERROR_E_DATA
-
-/* Define to 1 if `text.data' is a member of `krb5_error'. */
-#undef HAVE_KRB5_ERROR_TEXT_DATA
-
-/* Define to 1 if you have krb5_free_unparsed_name. */
-#undef HAVE_KRB5_FREE_UNPARSED_NAME
-
-/* Define to 1 if `client' is a member of `krb5_ticket'. */
-#undef HAVE_KRB5_TICKET_CLIENT
-
-/* Define to 1 if `enc_part2' is a member of `krb5_ticket'. */
-#undef HAVE_KRB5_TICKET_ENC_PART2
-
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /* Define to 1 if you have the <langinfo.h> header file. */
 #undef HAVE_LANGINFO_H
 
@@ -443,12 +418,9 @@
 /* Define to 1 if you have the <mbarrier.h> header file. */
 #undef HAVE_MBARRIER_H
 
-<<<<<<< HEAD
-=======
 /* Define to 1 if you have the `mbstowcs_l' function. */
 #undef HAVE_MBSTOWCS_L
 
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /* Define to 1 if you have the `memmove' function. */
 #undef HAVE_MEMMOVE
 
@@ -458,13 +430,8 @@
 /* Define to 1 if the system has the type `MINIDUMP_TYPE'. */
 #undef HAVE_MINIDUMP_TYPE
 
-<<<<<<< HEAD
-/* Define to 1 if you have the <naucrates/init.h> header file. */
-#undef HAVE_NAUCRATES_INIT_H
-=======
 /* Define to 1 if you have the `mkdtemp' function. */
 #undef HAVE_MKDTEMP
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* Define to 1 if you have the <netinet/in.h> header file. */
 #undef HAVE_NETINET_IN_H
@@ -783,46 +750,11 @@
 /* Define to 1 if you have the <winldap.h> header file. */
 #undef HAVE_WINLDAP_H
 
-<<<<<<< HEAD
-/* Define to 1 if you have the <winsock2.h> header file. */
-#undef HAVE_WINSOCK2_H
-
-/* Define to 1 if your libxml has xmlStructuredErrorContext. */
-#undef HAVE_XMLSTRUCTUREDERRORCONTEXT
-
-/* Define to 1 if you have the <yaml.h> header file. */
-#undef HAVE_YAML_H
-
-/* Define to 1 if your compiler understands __builtin_constant_p. */
-#undef HAVE__BUILTIN_CONSTANT_P
-
-/* Define to 1 if your compiler understands __builtin_types_compatible_p. */
-#undef HAVE__BUILTIN_TYPES_COMPATIBLE_P
-
-/* Define to 1 if your compiler understands __builtin_unreachable. */
-#undef HAVE__BUILTIN_UNREACHABLE
-
-/* Define to 1 if you have __cpuid. */
-#undef HAVE__CPUID
-
-/* Define to 1 if you have __get_cpuid. */
-#undef HAVE__GET_CPUID
-
-/* Define to 1 if your compiler understands _Static_assert. */
-#undef HAVE__STATIC_ASSERT
-
-/* Define to 1 if your compiler understands __VA_ARGS__ in macros. */
-#undef HAVE__VA_ARGS
-
-/* Define to the appropriate snprintf format for 64-bit ints. */
-#undef INT64_FORMAT
-=======
 /* Define to 1 if your compiler understands __builtin_bswap32. */
 #undef HAVE__BUILTIN_BSWAP32
 
 /* Define to 1 if your compiler understands __builtin_constant_p. */
 #undef HAVE__BUILTIN_CONSTANT_P
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* Define to 1 if your compiler understands __builtin_types_compatible_p. */
 #undef HAVE__BUILTIN_TYPES_COMPATIBLE_P
@@ -872,13 +804,6 @@
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
 
-<<<<<<< HEAD
-/* Define to the name of a signed 64-bit integer type. */
-#undef PG_INT64_TYPE
-
-/* Define to the name of the default PostgreSQL service principal in Kerberos.
-   (--with-krb-srvnam=NAME) */
-=======
 /* Define to the name of a signed 128-bit integer type. */
 #undef PG_INT128_TYPE
 
@@ -887,27 +812,19 @@
 
 /* Define to the name of the default PostgreSQL service principal in Kerberos
    (GSSAPI). (--with-krb-srvnam=NAME) */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #undef PG_KRB_SRVNAM
 
 /* PostgreSQL major version as a string */
 #undef PG_MAJORVERSION
 
-<<<<<<< HEAD
-=======
 /* Define to gnu_printf if compiler supports it, else printf. */
 #undef PG_PRINTF_ATTRIBUTE
 
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /* Define to 1 if "static inline" works without unwanted warnings from
    compilations where static inline functions are defined but not called. */
 #undef PG_USE_INLINE
 
-<<<<<<< HEAD
 /* Postgres version Greenplum Database is based on */
-=======
-/* PostgreSQL version as a string */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #undef PG_VERSION
 
 /* PostgreSQL version as a number */
@@ -974,12 +891,6 @@
    (Always defined in GPDB) */
 #undef USE_FLOAT8_BYVAL
 
-<<<<<<< HEAD
-/* Define to 1 to build with gpcloud (--enable-gpcloud) */
-#undef USE_GPCLOUD
-
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /* Define to 1 if you want 64-bit integer timestamp and interval support.
    (--enable-integer-datetimes) */
 #undef USE_INTEGER_DATETIMES
@@ -1000,13 +911,8 @@
 /* Define to select named POSIX semaphores. */
 #undef USE_NAMED_POSIX_SEMAPHORES
 
-<<<<<<< HEAD
-/* Define to 1 to build with Greenplum ORCA optimizer. (--enable-orca) */
-#undef USE_ORCA
-=======
 /* Define to build with OpenSSL support. (--with-openssl) */
 #undef USE_OPENSSL
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* Define to 1 to build with PAM support. (--with-pam) */
 #undef USE_PAM
@@ -1017,23 +923,14 @@
 /* Define to 1 to use Intel SSE 4.2 CRC instructions with a runtime check. */
 #undef USE_SLICING_BY_8_CRC32C
 
-<<<<<<< HEAD
-/* Define to 1 to build with snmp capabilities. (--enable-snmp) */
-#undef USE_SNMP
-
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /* Define to 1 use Intel SSE 4.2 CRC instructions. */
 #undef USE_SSE42_CRC32C
 
 /* Define to 1 to use Intel SSSE 4.2 CRC instructions with a runtime check. */
 #undef USE_SSE42_CRC32C_WITH_RUNTIME_CHECK
-<<<<<<< HEAD
 
 /* Define to build with (Open)SSL support. (--with-openssl) */
 #undef USE_SSL
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* Define to select SysV-style semaphores. */
 #undef USE_SYSV_SEMAPHORES
@@ -1077,15 +974,6 @@
    XLOG_BLCKSZ). Changing XLOG_SEG_SIZE requires an initdb. */
 #undef XLOG_SEG_SIZE
 
-<<<<<<< HEAD
-/* Enable large inode numbers on Mac OS X 10.5.  */
-#ifndef _DARWIN_USE_64_BIT_INODE
-# define _DARWIN_USE_64_BIT_INODE 1
-#endif
-=======
-
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
-
 /* Number of bits in a file offset, on hosts where this is settable. */
 #undef _FILE_OFFSET_BITS
 
@@ -1111,3 +999,39 @@
 /* Define to the type of an unsigned integer type wide enough to hold a
    pointer, if such a type exists, and if the system does not define it. */
 #undef uintptr_t
+
+/* ============================*/
+/* gpdb specific config        */
+/* ============================*/
+
+/* Define to 1 if you have the <apr_getopt.h> header file. */
+#undef HAVE_APR_GETOPT_H
+
+/* Define to 1 if you have the <naucrates/init.h> header file, for orca. */
+#undef HAVE_NAUCRATES_INIT_H
+
+/* Define to 1 if you have the <winsock2.h> header file. */
+#undef HAVE_WINSOCK2_H
+
+/* Define to 1 if your libxml has xmlStructuredErrorContext. */
+#undef HAVE_XMLSTRUCTUREDERRORCONTEXT
+
+/* Define to 1 if you have the <yaml.h> header file, for gpfdist etc. */
+#undef HAVE_YAML_H
+
+/* Define to the appropriate snprintf format for 64-bit ints, for printf. */
+#undef INT64_FORMAT
+
+/* Define to 1 to build with gpcloud (--enable-gpcloud) */
+#undef USE_GPCLOUD
+
+/* Define to 1 to build with Greenplum ORCA optimizer. (--enable-orca) */
+#undef USE_ORCA
+
+/* Define to 1 to build with snmp capabilities. (--enable-snmp) */
+#undef USE_SNMP
+
+/* Enable large inode numbers on Mac OS X 10.5.  */
+#ifndef _DARWIN_USE_64_BIT_INODE
+# define _DARWIN_USE_64_BIT_INODE 1
+#endif

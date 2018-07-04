@@ -16,10 +16,7 @@
 
 #include "access/xlogdefs.h"
 #include "storage/block.h"
-<<<<<<< HEAD
 #include "storage/bufmgr.h"
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include "storage/item.h"
 #include "storage/off.h"
 
@@ -108,11 +105,7 @@ typedef struct
  * space management information generic to any page
  *
  *		pd_lsn		- identifies xlog record for last change to this page.
-<<<<<<< HEAD
- *		pd_checksum	- page checksum, if set.
-=======
  *		pd_checksum - page checksum, if set.
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  *		pd_flags	- flag bits.
  *		pd_lower	- offset to start of free space.
  *		pd_upper	- offset to end of free space.
@@ -200,7 +193,6 @@ typedef PageHeaderData *PageHeader;
  *
  * As of Release 9.3, the checksum version must also be considered when
  * handling pages.
-<<<<<<< HEAD
  *
  * GPDB 4 uses 4. However, it didn't have the pd_prune_xid field
  * GPDB 5.0 uses 14. The layout is the same as PostgreSQL 8.3's, but
@@ -208,10 +200,6 @@ typedef PageHeaderData *PageHeader;
  *		used 4 for the previous format.
  */
 #define PG_PAGE_LAYOUT_VERSION		14
-=======
- */
-#define PG_PAGE_LAYOUT_VERSION		4
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #define PG_DATA_CHECKSUM_VERSION	1
 
 /* ----------------------------------------------------------------
@@ -365,7 +353,6 @@ typedef PageHeaderData *PageHeader;
 	  / sizeof(ItemIdData)))
 
 /*
-<<<<<<< HEAD
  * Retrieving LSN of a shared buffer is safe only if: (1) exclusive lock on the
  * buffer's contents is held OR (2) shared lock on the buffer's contents and
  * the buffer header spinlock is held.  The Assert() validates that a shared
@@ -374,6 +361,7 @@ typedef PageHeaderData *PageHeader;
  * shared/exclusive mode.  The assert applies only to shared buffers because
  * local buffers do not need to worry about concurrency.
  *
+ * gpdb specifc introduced by 737ba06bec8
  */
 static inline XLogRecPtr
 PageGetLSN(Page page)
@@ -404,7 +392,8 @@ PageGetLSN(Page page)
 	(((PageHeader) (page))->pd_lsn = (lsn))
 #define PageXLogRecPtrSet(ptr, lsn) \
 	((ptr).xlogid = (uint32) ((lsn) >> 32), (ptr).xrecoff = (uint32) (lsn))
-=======
+
+/*
  * Additional macros for access to page headers. (Beware multiple evaluation
  * of the arguments!)
  */
@@ -412,7 +401,6 @@ PageGetLSN(Page page)
 	PageXLogRecPtrGet(((PageHeader) (page))->pd_lsn)
 #define PageSetLSN(page, lsn) \
 	PageXLogRecPtrSet(((PageHeader) (page))->pd_lsn, lsn)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #define PageHasFreeLinePointers(page) \
 	(((PageHeader) (page))->pd_flags & PD_HAS_FREE_LINES)
@@ -478,11 +466,8 @@ extern Size PageGetExactFreeSpace(Page page);
 extern Size PageGetHeapFreeSpace(Page page);
 extern void PageIndexTupleDelete(Page page, OffsetNumber offset);
 extern void PageIndexMultiDelete(Page page, OffsetNumber *itemnos, int nitems);
-<<<<<<< HEAD
-=======
 extern void PageIndexDeleteNoCompact(Page page, OffsetNumber *itemnos,
 						 int nitems);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern char *PageSetChecksumCopy(Page page, BlockNumber blkno);
 extern void PageSetChecksumInplace(Page page, BlockNumber blkno);
 

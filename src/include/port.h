@@ -115,40 +115,6 @@ extern BOOL AddUserToTokenDacl(HANDLE hToken);
 #define DEVNULL "nul"
 #else
 #define DEVNULL "/dev/null"
-<<<<<<< HEAD
-#endif
-
-/*
- *	Win32 needs double quotes at the beginning and end of system()
- *	strings.  If not, it gets confused with multiple quoted strings.
- *	It also requires double-quotes around the executable name and
- *	any files used for redirection.  Other args can use single-quotes.
- *
- *	Generated using Win32 "CMD /?":
- *
- *	1. If all of the following conditions are met, then quote characters
- *	on the command line are preserved:
- *
- *	 - no /S switch
- *	 - exactly two quote characters
- *	 - no special characters between the two quote characters, where special
- *	   is one of: &<>()@^|
- *	 - there are one or more whitespace characters between the two quote
- *	   characters
- *	 - the string between the two quote characters is the name of an
- *	   executable file.
- *
- *	 2. Otherwise, old behavior is to see if the first character is a quote
- *	 character and if so, strip the leading character and remove the last
- *	 quote character on the command line, preserving any text after the last
- *	 quote character.
- */
-#if defined(WIN32) && !defined(__CYGWIN__)
-#define SYSTEMQUOTE "\""
-#else
-#define SYSTEMQUOTE ""
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #endif
 
 /* Portable delay handling */
@@ -459,16 +425,12 @@ extern void srandom(unsigned int seed);
 /* thread.h */
 extern char *pqStrerror(int errnum, char *strerrbuf, size_t buflen);
 
-<<<<<<< HEAD
 #if !defined(WIN32) || defined(__CYGWIN__)
 // Obsolete -- use pqGetpwuid() instead.
 extern struct passwd * get_gp_passwdptr(void);
 #endif
 
-#if !defined(WIN32) || defined(__CYGWIN__)
-=======
 #ifndef WIN32
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern int pqGetpwuid(uid_t uid, struct passwd * resultbuf, char *buffer,
 		   size_t buflen, struct passwd ** result);
 #endif
@@ -507,21 +469,9 @@ extern int	pg_check_dir(const char *dir);
 /* port/pgmkdirp.c */
 extern int	pg_mkdir_p(char *path, int omode);
 
-<<<<<<< HEAD
-/* port/inet_net_ntop.c */
-extern char *inet_net_ntop(int af, const void *src, int bits,
-			  char *dst, size_t size);
-
-/* port/pgcheckdir.c */
-extern int	pg_check_dir(const char *dir);
-
-/* port/pgmkdirp.c */
-extern int	pg_mkdir_p(char *path, int omode);
-=======
 /* port/pqsignal.c */
 typedef void (*pqsigfunc) (int signo);
 extern pqsigfunc pqsignal(int signo, pqsigfunc func);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* port/quotes.c */
 extern char *escape_single_quotes_ascii(const char *src);

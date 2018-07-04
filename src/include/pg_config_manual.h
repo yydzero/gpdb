@@ -57,8 +57,6 @@
 #define NUM_USER_DEFINED_LWLOCKS	4
 
 /*
-<<<<<<< HEAD
-=======
  * When we don't have native spinlocks, we use semaphores to simulate them.
  * Decreasing this value reduces consumption of OS resources; increasing it
  * may improve performance, but supplying a real spinlock implementation is
@@ -67,17 +65,12 @@
 #define NUM_SPINLOCK_SEMAPHORES		1024
 
 /*
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * When we have neither spinlocks nor atomic operations support we're
  * implementing atomic operations on top of spinlock on top of semaphores. To
  * be safe against atomic operations while holding a spinlock separate
  * semaphores have to be used.
  */
-<<<<<<< HEAD
-#define NUM_ATOMICS_SEMAPHORES      64
-=======
 #define NUM_ATOMICS_SEMAPHORES		64
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /*
  * Define this if you want to allow the lo_import and lo_export SQL
@@ -317,7 +310,6 @@
  */
 /* #define HEAPDEBUGALL */
 /* #define ACLDEBUG */
-<<<<<<< HEAD
 /* #define RTDEBUG */
 
 /*
@@ -370,5 +362,3 @@
  * set by set_gp_replication_config()
  */
 #define GP_REPLICATION_CONFIG_FILENAME "gp_replication.conf"
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
