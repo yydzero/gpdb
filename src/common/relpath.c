@@ -220,13 +220,13 @@ GetRelationPath(Oid dbNode, Oid spcNode, Oid relNode,
  * and the filename separately.
  */
 void
-reldir_and_filename(RelFileNode node, BackendId backend, ForkNumber forknum,
-					char **dir, char **filename)
+aoreldir_and_filename(Oid dbNode, Oid spcNode, Oid relNode, BackendId backend,
+					ForkNumber forknum, char **dir, char **filename)
 {
 	char	   *path;
 	int			i;
 
-	path = relpathbackend(node, backend, forknum);
+	path = GetRelationPath(dbNode, spcNode, relNode, backend, forknum);
 
 	/*
 	 * The base path is like "<path>/<rnode>". Split it into
@@ -237,8 +237,11 @@ reldir_and_filename(RelFileNode node, BackendId backend, ForkNumber forknum,
 		if (path[i] == '/')
 			break;
 	}
+#ifndef FRONTEND
+	/* MERGE_95_FIXME: move these ao related functions to better place */
 	if (i <= 0 || path[i] != '/')
 		elog(ERROR, "unexpected path: \"%s\"", path);
+#endif
 
 	*dir = pnstrdup(path, i);
 	*filename = pstrdup(&path[i + 1]);
@@ -252,12 +255,13 @@ reldir_and_filename(RelFileNode node, BackendId backend, ForkNumber forknum,
  * tables, but this variant takes also 'segno' as argument.
  */
 char *
-aorelpathbackend(RelFileNode node, BackendId backend, int32 segno)
+aorelpathbackend(Oid dbNode, Oid spcNode, Oid relNode, int backend,
+				 int32 segno)
 {
 	char	   *fullpath;
 	char	   *path;
 
-	path = relpathbackend(node, backend, MAIN_FORKNUM);
+	path = GetRelationPath(dbNode, spcNode, relNode, backend, MAIN_FORKNUM);
 	if (segno == 0)
 		fullpath = path;
 	else

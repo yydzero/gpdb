@@ -4,13 +4,9 @@
  *	  POSTGRES error reporting/logging definitions.
  *
  *
-<<<<<<< HEAD
  * Portions Copyright (c) 2006-2009, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
-=======
  * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/utils/elog.h
@@ -194,11 +190,7 @@ void elog_internalerror(const char *filename, int lineno, const char *funcname)
 		if (__builtin_constant_p(elevel) && (elevel) >= ERROR) \
 			pg_unreachable(); \
 	} while(0)
-<<<<<<< HEAD
-#else /* !HAVE__BUILTIN_CONSTANT_P */
-=======
 #else							/* !HAVE__BUILTIN_CONSTANT_P */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #define ereport_domain(elevel, domain, rest)	\
 	do { \
 		const int elevel_ = (elevel); \
@@ -207,11 +199,7 @@ void elog_internalerror(const char *filename, int lineno, const char *funcname)
 		if (elevel_ >= ERROR) \
 			pg_unreachable(); \
 	} while(0)
-<<<<<<< HEAD
-#endif /* HAVE__BUILTIN_CONSTANT_P */
-=======
 #endif   /* HAVE__BUILTIN_CONSTANT_P */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #define ereport(elevel, rest)	\
 	ereport_domain(elevel, TEXTDOMAIN, rest)
@@ -239,68 +227,9 @@ extern int	errcode(int sqlerrcode);
 extern int	errcode_for_file_access(void);
 extern int	errcode_for_socket_access(void);
 
-<<<<<<< HEAD
 extern int sqlstate_to_errcode(const char *sqlstate);
 extern char *errcode_to_sqlstate(int errcode, char outbuf[6]);
 
-extern int
-errmsg(const char *fmt,...)
-/* This extension allows gcc to check the format string for consistency with
-   the supplied arguments. */
-__attribute__((format(PG_PRINTF_ATTRIBUTE, 1, 2)));
-
-extern int
-errmsg_internal(const char *fmt,...)
-/* This extension allows gcc to check the format string for consistency with
-   the supplied arguments. */
-__attribute__((format(PG_PRINTF_ATTRIBUTE, 1, 2)));
-
-extern int
-errmsg_plural(const char *fmt_singular, const char *fmt_plural,
-			  unsigned long n,...)
-/* This extension allows gcc to check the format string for consistency with
-   the supplied arguments. */
-__attribute__((format(PG_PRINTF_ATTRIBUTE, 1, 4)))
-__attribute__((format(PG_PRINTF_ATTRIBUTE, 2, 4)));
-
-extern int
-errdetail(const char *fmt,...)
-/* This extension allows gcc to check the format string for consistency with
-   the supplied arguments. */
-__attribute__((format(PG_PRINTF_ATTRIBUTE, 1, 2)));
-
-extern int
-errdetail_internal(const char *fmt,...)
-/* This extension allows gcc to check the format string for consistency with
-   the supplied arguments. */
-__attribute__((format(PG_PRINTF_ATTRIBUTE, 1, 2)));
-
-extern int
-errdetail_log(const char *fmt,...)
-/* This extension allows gcc to check the format string for consistency with
-   the supplied arguments. */
-__attribute__((format(PG_PRINTF_ATTRIBUTE, 1, 2)));
-
-extern int
-errdetail_plural(const char *fmt_singular, const char *fmt_plural,
-				 unsigned long n,...)
-/* This extension allows gcc to check the format string for consistency with
-   the supplied arguments. */
-__attribute__((format(PG_PRINTF_ATTRIBUTE, 1, 4)))
-__attribute__((format(PG_PRINTF_ATTRIBUTE, 2, 4)));
-
-extern int
-errhint(const char *fmt,...)
-/* This extension allows gcc to check the format string for consistency with
-   the supplied arguments. */
-__attribute__((format(PG_PRINTF_ATTRIBUTE, 1, 2)));
-
-extern int
-errcontext(const char *fmt,...)
-/* This extension allows gcc to check the format string for consistency with
-   the supplied arguments. */
-__attribute__((format(PG_PRINTF_ATTRIBUTE, 1, 2)));
-=======
 extern int	errmsg(const char *fmt,...) pg_attribute_printf(1, 2);
 extern int	errmsg_internal(const char *fmt,...) pg_attribute_printf(1, 2);
 
@@ -334,7 +263,6 @@ extern int	errhint(const char *fmt,...) pg_attribute_printf(1, 2);
 extern int	set_errcontext_domain(const char *domain);
 
 extern int	errcontext_msg(const char *fmt,...) pg_attribute_printf(1, 2);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 extern int	errhidestmt(bool hide_stmt);
 extern int	errhidecontext(bool hide_ctx);
@@ -377,11 +305,7 @@ extern int errSendAlert(bool sendAlert);		/* GPDB: Send alert via e-mail or SNMP
 		if (__builtin_constant_p(elevel) && (elevel) >= ERROR) \
 			pg_unreachable(); \
 	} while(0)
-<<<<<<< HEAD
-#else /* !HAVE__BUILTIN_CONSTANT_P */
-=======
 #else							/* !HAVE__BUILTIN_CONSTANT_P */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #define elog(elevel, ...)  \
 	do { \
 		int		elevel_; \
@@ -391,21 +315,12 @@ extern int errSendAlert(bool sendAlert);		/* GPDB: Send alert via e-mail or SNMP
 		if (elevel_ >= ERROR) \
 			pg_unreachable(); \
 	} while(0)
-<<<<<<< HEAD
-#endif /* HAVE__BUILTIN_CONSTANT_P */
-#else /* !HAVE__VA_ARGS */
-#define elog  \
-	elog_start(__FILE__, __LINE__, PG_FUNCNAME_MACRO), \
-	elog_finish
-#endif /* HAVE__VA_ARGS */
-=======
 #endif   /* HAVE__BUILTIN_CONSTANT_P */
 #else							/* !HAVE__VA_ARGS */
 #define elog  \
 	elog_start(__FILE__, __LINE__, PG_FUNCNAME_MACRO), \
 	elog_finish
 #endif   /* HAVE__VA_ARGS */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 extern void elog_start(const char *filename, int lineno, const char *funcname);
 extern void elog_finish(int elevel, const char *fmt,...) pg_attribute_printf(2, 3);
@@ -500,13 +415,8 @@ extern PGDLLIMPORT ErrorContextCallback *error_context_stack;
 	} while (0)
 
 /*
-<<<<<<< HEAD
- * gcc understands __attribute__((noreturn)); for other compilers, insert
- * pg_unreachable() so that the compiler gets the point.
-=======
  * Some compilers understand pg_attribute_noreturn(); for other compilers,
  * insert pg_unreachable() so that the compiler gets the point.
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  */
 #ifdef HAVE_PG_ATTRIBUTE_NORETURN
 #define PG_RE_THROW()  \
@@ -558,31 +468,24 @@ typedef struct ErrorData
 	int			internalpos;	/* cursor index into internalquery */
 	char	   *internalquery;	/* text of internally-generated query */
 	int			saved_errno;	/* errno at entry */
-<<<<<<< HEAD
-	void	   *stacktracearray[30];
-	size_t		stacktracesize;
-	bool		printstack;		/* force output stack trace */
-=======
 
 	/* context containing associated non-constant strings */
 	struct MemoryContextData *assoc_context;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+
+	void	   *stacktracearray[30];	/* gpdb specific */
+	size_t		stacktracesize;			/* gpdb specific */
+	bool		printstack;		/* force output stack trace */
 } ErrorData;
 
 extern void EmitErrorReport(void);
 extern ErrorData *CopyErrorData(void);
 extern void FreeErrorData(ErrorData *edata);
 extern void FlushErrorState(void);
-<<<<<<< HEAD
-extern void ReThrowError(ErrorData *edata)  __attribute__((__noreturn__));
-extern void pg_re_throw(void) __attribute__((noreturn));
-=======
 extern void ReThrowError(ErrorData *edata) pg_attribute_noreturn();
 extern void ThrowErrorData(ErrorData *edata);
 extern void pg_re_throw(void) pg_attribute_noreturn();
 
 extern char *GetErrorContextStack(void);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* Hook for intercepting messages before they are sent to the server log */
 typedef void (*emit_log_hook_type) (ErrorData *edata);

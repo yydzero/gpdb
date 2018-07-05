@@ -4,13 +4,9 @@
  *	  Relation descriptor cache definitions.
  *
  *
-<<<<<<< HEAD
  * Portions Copyright (c) 2005-2009, Greenplum inc.
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
-=======
  * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/utils/relcache.h
@@ -20,8 +16,6 @@
 #ifndef RELCACHE_H
 #define RELCACHE_H
 
-#include "access/htup.h"
-#include "access/skey.h"
 #include "access/tupdesc.h"
 #include "nodes/bitmapset.h"
 
@@ -96,7 +90,6 @@ extern Relation RelationBuildLocalRelation(const char *relname,
 						   Oid relid,
 						   Oid relfilenode,
 						   Oid reltablespace,
-			               char relkind,            /*CDB*/
 						   bool shared_relation,
 						   bool mapped_relation,
 						   char relpersistence,

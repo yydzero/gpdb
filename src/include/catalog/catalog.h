@@ -22,8 +22,6 @@
 #include "catalog/pg_class.h"
 #include "utils/relcache.h"
 
-#include "catalog/oid_dispatch.h"
-
 #define OIDCHARS		10		/* max chars printed by %u */
 /*
  * In PostgreSQL, this is called just TABLESPACE_VERSION_DIRECTORY. But in 

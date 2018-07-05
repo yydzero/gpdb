@@ -324,7 +324,6 @@ find_other_exec(const char *argv0, const char *target,
 	if (validate_exec(retpath) != 0)
 		return -1;
 
-<<<<<<< HEAD:src/port/exec.c
 	/*
 	 * In PostgreSQL, the version check is always performed. In GPDB, this
 	 * is also used to find scripts that don't necessarily have the same
@@ -333,9 +332,6 @@ find_other_exec(const char *argv0, const char *target,
 	if (versionstr)
 	{
 		snprintf(cmd, sizeof(cmd), "\"%s\" -V", retpath);
-=======
-	snprintf(cmd, sizeof(cmd), "\"%s\" -V", retpath);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8:src/common/exec.c
 
 		if (!pipe_read_line(cmd, line, sizeof(line)))
 			return -1;
@@ -517,15 +513,6 @@ pipe_read_line(char *cmd, char *line, int maxsize)
 
 /*
  * pclose() plus useful error reporting
-<<<<<<< HEAD:src/port/exec.c
-<<<<<<< HEAD
-=======
- * Is this necessary?  bjm 2004-05-11
- * Originaally this was stated to be here because pipe.c had backend linkage.
- * Perhaps that's no longer so now we have got rid of pipe.c amd 2012-03-28
->>>>>>> 80edfd76591fdb9beec061de3c05ef4e9d96ce56
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8:src/common/exec.c
  */
 int
 pclose_check(FILE *stream)

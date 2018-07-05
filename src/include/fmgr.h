@@ -23,11 +23,7 @@ typedef struct Node *fmNodePtr;
 typedef struct Aggref *fmAggrefPtr;
 
 /* Likewise, avoid including execnodes.h here */
-<<<<<<< HEAD
-typedef struct ExprContext *fmExprContextPtr;
-=======
 typedef void (*fmExprContextCallbackFunction) (Datum arg);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* Likewise, avoid including stringinfo.h here */
 typedef struct StringInfoData *fmStringInfo;
@@ -322,12 +318,8 @@ extern struct varlena *pg_detoast_datum_packed(struct varlena * datum);
 #define PG_RETURN_TEXT_P(x)    PG_RETURN_POINTER(x)
 #define PG_RETURN_BPCHAR_P(x)  PG_RETURN_POINTER(x)
 #define PG_RETURN_VARCHAR_P(x) PG_RETURN_POINTER(x)
-<<<<<<< HEAD
-#define PG_RETURN_HEAPTUPLEHEADER(x)  PG_RETURN_POINTER(x)
-#define PG_RETURN_XID(x)	 return TransactionIdGetDatum(x)
-=======
 #define PG_RETURN_HEAPTUPLEHEADER(x)  return HeapTupleHeaderGetDatum(x)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+#define PG_RETURN_XID(x)	 		  return TransactionIdGetDatum(x)
 
 
 /*-------------------------------------------------------------------------
@@ -700,15 +692,10 @@ extern void RestoreLibraryState(char *start_address);
 extern int AggCheckCallContext(FunctionCallInfo fcinfo,
 					MemoryContext *aggcontext);
 extern fmAggrefPtr AggGetAggref(FunctionCallInfo fcinfo);
-<<<<<<< HEAD
-extern fmExprContextPtr AggGetPerTupleEContext(FunctionCallInfo fcinfo);
-extern fmExprContextPtr AggGetPerAggEContext(FunctionCallInfo fcinfo);
-=======
 extern MemoryContext AggGetTempMemoryContext(FunctionCallInfo fcinfo);
 extern void AggRegisterCallback(FunctionCallInfo fcinfo,
 					fmExprContextCallbackFunction func,
 					Datum arg);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /*
  * We allow plugin modules to hook function entry/exit.  This is intended
