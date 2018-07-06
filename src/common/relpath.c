@@ -243,7 +243,8 @@ aoreldir_and_filename(Oid dbNode, Oid spcNode, Oid relNode, BackendId backend,
 		elog(ERROR, "unexpected path: \"%s\"", path);
 #endif
 
-	*dir = pnstrdup(path, i);
+	path[i] = '\0';	// to use pstrdup for FRONTEND.
+	*dir = pstrdup(path);
 	*filename = pstrdup(&path[i + 1]);
 
 	pfree(path);

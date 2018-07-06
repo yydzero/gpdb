@@ -20,19 +20,10 @@ OBJS= localtime.o strftime.o pgtz.o
 OBJS += gptime.o
 
 # files needed to build zic utility program
-<<<<<<< HEAD
-ZICOBJS= zic.o $(WIN32RES)
+ZICOBJS= zic.o ialloc.o scheck.o localtime.o $(WIN32RES)
 
 # we now distribute the timezone data as a single file
 TZDATAFILES = $(srcdir)/data/tzdata.zi
-=======
-ZICOBJS= zic.o ialloc.o scheck.o localtime.o $(WIN32RES)
-
-# timezone data files
-TZDATA = africa antarctica asia australasia europe northamerica southamerica \
-	pacificnew etcetera factory backward systemv
-TZDATAFILES = $(TZDATA:%=$(srcdir)/data/%)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 # which zone should determine the DST rules (not the specific UTC offset!)
 # for POSIX-style timezone specs

@@ -8,26 +8,11 @@
 
 #include "postgres_fe.h"
 
-<<<<<<< HEAD
-/* GPDB_95_MERGE_FIXME: Remove when commit 60ff2fdd99 is merged */
-#ifdef HAVE_GETOPT_H
-#include <getopt.h>
-#endif
-
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <time.h>
 
-extern int     optind;
-extern char *optarg;
-/* #include "pg_getopt.h" */
-=======
-#include <limits.h>
-#include <locale.h>
-#include <time.h>
-
 #include "pg_getopt.h"
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #include "private.h"
 #include "tzfile.h"
@@ -188,19 +173,10 @@ static zic_t leapmaxyear;
 static lineno_t linenum;
 static int	max_abbrvar_len = PERCENT_Z_LEN_BOUND;
 static int	max_format_len;
-<<<<<<< HEAD
 static zic_t max_year;
 static zic_t min_year;
 static bool noise;
 static bool print_abbrevs;
-=======
-static zic_t max_time;
-static int	max_year;
-static zic_t min_time;
-static int	min_year;
-static int	noise;
-static int	print_abbrevs;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 static zic_t print_cutoff;
 static const char *rfilename;
 static lineno_t rlinenum;
@@ -551,7 +527,6 @@ close_file(FILE *stream, char const *dir, char const *name)
 static void
 usage(FILE *stream, int status)
 {
-<<<<<<< HEAD
 	fprintf(stream,
 			_("%s: usage is %s [ --version ] [ --help ] [ -v ] [ -P ] \\\n"
 			  "\t[ -l localtime ] [ -p posixrules ] [ -d directory ] \\\n"
@@ -560,14 +535,7 @@ usage(FILE *stream, int status)
 			progname, progname, PACKAGE_BUGREPORT);
 	if (status == EXIT_SUCCESS)
 		close_file(stream, NULL, NULL);
-=======
-	(void) fprintf(stream, _("%s: usage is %s \
-[ --version ] [ --help ] [ -v ] [ -P ] [ -l localtime ] [ -p posixrules ] \\\n\
-\t[ -d directory ] [ -L leapseconds ] [ -y yearistype ] [ filename ... ]\n\
-\n\
-Report bugs to tz@elsie.nci.nih.gov.\n"),
-				   progname, progname);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+
 	exit(status);
 }
 
@@ -670,14 +638,10 @@ main(int argc, char **argv)
 				break;
 			case 'y':
 				if (yitcommand == NULL)
-<<<<<<< HEAD
 				{
 					warning(_("-y is obsolescent"));
 					yitcommand = strdup(optarg);
 				}
-=======
-					yitcommand = strdup(optarg);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 				else
 				{
 					fprintf(stderr,
@@ -702,10 +666,6 @@ main(int argc, char **argv)
 				break;
 			case 'P':
 				print_abbrevs = true;
-				print_cutoff = time(NULL);
-				break;
-			case 'P':
-				print_abbrevs = TRUE;
 				print_cutoff = time(NULL);
 				break;
 			case 's':
@@ -2252,11 +2212,7 @@ writezone(const char *const name, const char *const string, char version)
 					/* filter out assorted junk entries */
 					if (strcmp(thisabbrev, GRANDPARENTED) != 0 &&
 						strcmp(thisabbrev, "zzz") != 0)
-<<<<<<< HEAD
 						fprintf(stdout, "%s\t" INT64_FORMAT "%s\n",
-=======
-						fprintf(stdout, "%s\t%ld%s\n",
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 								thisabbrev,
 								gmtoffs[tm],
 								isdsts[tm] ? "\tD" : "");

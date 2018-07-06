@@ -3,11 +3,7 @@
  * pgtz.c
  *	  Timezone Library Integration Functions
  *
-<<<<<<< HEAD
- * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
-=======
  * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  *
  * IDENTIFICATION
  *	  src/timezone/pgtz.c
@@ -115,11 +111,6 @@ pg_open_tzfile(const char *name, char *canonname)
 	 * Loop to split the given name into directory levels; for each level,
 	 * search using scan_directory_ci().
 	 */
-<<<<<<< HEAD
-=======
-	strlcpy(fullname, pg_TZDIR(), sizeof(fullname));
-	orignamelen = fullnamelen = strlen(fullname);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	fname = name;
 	for (;;)
 	{
@@ -321,14 +312,6 @@ pg_tzset(const char *name)
 	return &tzp->tz;
 }
 
-<<<<<<< HEAD
-#if 0
-/*
- * GPDB_94_MERGE_FIXME: uncomment this code after merging in
- * 631dc390f49909a5c8ebd6002cfb2bcee5415a9d from 9.4 dev
- */
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /*
  * Load a fixed-GMT-offset timezone.
  * This is used for SQL-spec SET TIME ZONE INTERVAL 'foo' cases.
@@ -349,24 +332,14 @@ pg_tzset_offset(long gmtoffset)
 	char		tzname[128];
 
 	snprintf(offsetstr, sizeof(offsetstr),
-<<<<<<< HEAD
 			 "%02ld", absoffset / SECS_PER_HOUR);
 	absoffset %= SECS_PER_HOUR;
-=======
-			 "%02ld", absoffset / SECSPERHOUR);
-	absoffset %= SECSPERHOUR;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	if (absoffset != 0)
 	{
 		snprintf(offsetstr + strlen(offsetstr),
 				 sizeof(offsetstr) - strlen(offsetstr),
-<<<<<<< HEAD
 				 ":%02ld", absoffset / SECS_PER_MINUTE);
 		absoffset %= SECS_PER_MINUTE;
-=======
-				 ":%02ld", absoffset / SECSPERMIN);
-		absoffset %= SECSPERMIN;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		if (absoffset != 0)
 			snprintf(offsetstr + strlen(offsetstr),
 					 sizeof(offsetstr) - strlen(offsetstr),
@@ -381,11 +354,6 @@ pg_tzset_offset(long gmtoffset)
 
 	return pg_tzset(tzname);
 }
-<<<<<<< HEAD
-#endif
-=======
-
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /*
  * Initialize timezone library
