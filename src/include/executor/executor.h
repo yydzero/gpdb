@@ -4,13 +4,9 @@
  *	  support for the POSTGRES executor module
  *
  *
-<<<<<<< HEAD
  * Portions Copyright (c) 2005-2009, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
-=======
  * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/executor/executor.h
@@ -42,16 +38,11 @@ struct ChunkTransportState;             /* #include "cdb/cdbinterconnect.h" */
  * of startup should occur.  However, error checks (such as permission checks)
  * should be performed.
  *
-<<<<<<< HEAD
- * REWIND indicates that the plan node should expect to be rescanned. This
- * implies delaying freeing up resources when EagerFree is called.
-=======
  * REWIND indicates that the plan node should try to efficiently support
  * rescans without parameter changes.  (Nodes must support ExecReScan calls
  * in any case, but if this flag was not given, they are at liberty to do it
  * through complete recalculation.  Note that a parameter change forces a
  * full recalculation in any case.)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  *
  * BACKWARD indicates that the plan node must respect the es_direction flag.
  * When this is not passed, the plan node will only be run forwards.
@@ -557,12 +548,8 @@ extern void ExecAssignScanTypeFromOuterPlan(ScanState *scanstate);
 
 extern bool ExecRelationIsTargetRelation(EState *estate, Index scanrelid);
 
-<<<<<<< HEAD
-extern Relation ExecOpenScanRelation(EState *estate, Index scanrelid);
-extern Relation ExecOpenScanExternalRelation(EState *estate, Index scanrelid);
-=======
 extern Relation ExecOpenScanRelation(EState *estate, Index scanrelid, int eflags);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+extern Relation ExecOpenScanExternalRelation(EState *estate, Index scanrelid);
 extern void ExecCloseScanRelation(Relation scanrel);
 extern void ExecCloseScanAppendOnlyRelation(Relation scanrel);
 
@@ -573,35 +560,6 @@ extern void UnregisterExprContextCallback(ExprContext *econtext,
 							  ExprContextCallbackFunction function,
 							  Datum arg);
 
-<<<<<<< HEAD
-/* Share input utilities defined in execUtils.c */
-extern ShareNodeEntry * ExecGetShareNodeEntry(EState *estate, int shareid, bool fCreate);
-
-/* ResultRelInfo and Append Only segment assignment */
-void ResultRelInfoSetSegno(ResultRelInfo *resultRelInfo, List *mapping);
-
-/* Additions for MPP Slice table utilities defined in execUtils.c */
-extern GpExecIdentity getGpExecIdentity(QueryDesc *queryDesc,
-										  ScanDirection direction,
-										  EState	   *estate);
-extern void mppExecutorFinishup(QueryDesc *queryDesc);
-extern void mppExecutorCleanup(QueryDesc *queryDesc);
-
-
-/* prototypes defined in nodeAgg.c for rollup-aware Agg/Group nodes. */
-extern int64 tuple_grouping(TupleTableSlot *outerslot, int numGroupCols,
-							int input_grouping, bool input_has_grouping,
-							int grpingIdx);
-extern uint64 get_grouping_groupid(TupleTableSlot *slot,
-								   int grping_idx);
-
-extern ResultRelInfo *targetid_get_partition(Oid targetid, EState *estate, bool openIndices);
-extern ResultRelInfo *slot_get_partition(TupleTableSlot *slot, EState *estate);
-extern ResultRelInfo *values_get_partition(Datum *values, bool *nulls,
-					 TupleDesc desc, EState *estate, bool openIndices);
-
-extern void SendAOTupCounts(EState *estate);
-=======
 /*
  * prototypes from functions in execIndexing.c
  */
@@ -618,6 +576,34 @@ extern void check_exclusion_constraint(Relation heap, Relation index,
 						   Datum *values, bool *isnull,
 						   EState *estate, bool newIndex);
 
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+/* gpdb specific */
+
+/* Share input utilities defined in execUtils.c */
+extern ShareNodeEntry * ExecGetShareNodeEntry(EState *estate, int shareid, bool fCreate);
+
+/* ResultRelInfo and Append Only segment assignment */
+void ResultRelInfoSetSegno(ResultRelInfo *resultRelInfo, List *mapping);
+
+/* Additions for MPP Slice table utilities defined in execUtils.c */
+extern GpExecIdentity getGpExecIdentity(QueryDesc *queryDesc,
+										ScanDirection direction,
+										EState	   *estate);
+extern void mppExecutorFinishup(QueryDesc *queryDesc);
+extern void mppExecutorCleanup(QueryDesc *queryDesc);
+
+
+/* prototypes defined in nodeAgg.c for rollup-aware Agg/Group nodes. */
+extern int64 tuple_grouping(TupleTableSlot *outerslot, int numGroupCols,
+							int input_grouping, bool input_has_grouping,
+							int grpingIdx);
+extern uint64 get_grouping_groupid(TupleTableSlot *slot,
+								   int grping_idx);
+
+extern ResultRelInfo *targetid_get_partition(Oid targetid, EState *estate, bool openIndices);
+extern ResultRelInfo *slot_get_partition(TupleTableSlot *slot, EState *estate);
+extern ResultRelInfo *values_get_partition(Datum *values, bool *nulls,
+										   TupleDesc desc, EState *estate, bool openIndices);
+
+extern void SendAOTupCounts(EState *estate);
 
 #endif   /* EXECUTOR_H  */

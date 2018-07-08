@@ -57,10 +57,9 @@ extern int SendProcSignal(pid_t pid, ProcSignalReason reason,
 			   BackendId backendId);
 
 extern void procsignal_sigusr1_handler(SIGNAL_ARGS);
-<<<<<<< HEAD
-extern bool AmIInSIGUSR1Handler(void);
-=======
 extern PGDLLIMPORT bool set_latch_on_sigusr1;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+
+/* gpdb specific */
+extern bool AmIInSIGUSR1Handler(void);
 
 #endif   /* PROCSIGNAL_H */

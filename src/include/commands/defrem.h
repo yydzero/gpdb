@@ -17,11 +17,8 @@
 #include "catalog/objectaddress.h"
 #include "nodes/parsenodes.h"
 #include "utils/array.h"
-<<<<<<< HEAD
 
-struct HTAB;  /* utils/hsearch.h */
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+struct HTAB;  /* utils/hsearch.h, gpdb specific */
 
 /* commands/dropcmds.c */
 extern void RemoveObjects(DropStmt *stmt);
@@ -33,34 +30,20 @@ extern ObjectAddress DefineIndex(Oid relationId,
 			bool is_alter_table,
 			bool check_rights,
 			bool skip_build,
-<<<<<<< HEAD
 			bool quiet,
-			bool concurrent,
-			IndexStmt *stmt /* MPP */);
-extern void ReindexIndex(ReindexStmt *stmt);
-extern void ReindexTable(ReindexStmt *stmt);
-extern void ReindexDatabase(ReindexStmt *stmt);
-=======
-			bool quiet);
+			bool concurrent	/* gpdb specific */);
 extern Oid	ReindexIndex(RangeVar *indexRelation, int options);
 extern Oid	ReindexTable(RangeVar *relation, int options);
 extern void ReindexMultipleTables(const char *objectName, ReindexObjectType objectKind,
 					  int options);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+extern void ReindexDatabase(ReindexStmt *stmt);		/* gpdb specific */
 extern char *makeObjectName(const char *name1, const char *name2,
 			   const char *label);
 extern char *ChooseRelationName(const char *name1, const char *name2,
 				   const char *label, Oid namespaceid);
-<<<<<<< HEAD
 extern char *ChooseRelationNameWithCache(const char *name1, const char *name2,
 								const char *label, Oid namespaceid, 
-								struct HTAB *cache);
-extern char *ChooseIndexName(const char *tabname, Oid namespaceId,
-				List *colnames, List *exclusionOpNames,
-				bool primary, bool isconstraint);
-extern List *ChooseIndexColumnNames(List *indexElems);
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+								struct HTAB *cache);	/* gpdb specific */
 extern bool CheckIndexCompatible(Oid oldId,
 					 char *accessMethodName,
 					 List *attributeList,
@@ -75,28 +58,10 @@ extern void SetFunctionArgType(Oid funcOid, int argIndex, Oid newArgType);
 extern ObjectAddress AlterFunction(AlterFunctionStmt *stmt);
 extern ObjectAddress CreateCast(CreateCastStmt *stmt);
 extern void DropCastById(Oid castOid);
-<<<<<<< HEAD
-extern Oid  get_cast_oid(Oid sourcetypeid, Oid targettypeid, bool missing_ok);
-extern void interpret_function_parameter_list(List *parameters,
-								  Oid languageOid,
-								  bool is_aggregate,
-								  const char *queryString,
-								  oidvector **parameterTypes,
-								  ArrayType **allParameterTypes,
-								  ArrayType **parameterModes,
-								  ArrayType **parameterNames,
-								  List **parameterDefaults,
-								  Oid *variadicArgType,
-								  Oid *requiredResultType);
-extern void AlterFunctionNamespace(List *name, List *argtypes, bool isagg,
-					   const char *newschema);
-extern Oid	AlterFunctionNamespace_oid(Oid procOid, Oid nspOid);
-=======
 extern ObjectAddress CreateTransform(CreateTransformStmt *stmt);
 extern void DropTransformById(Oid transformOid);
 extern void IsThereFunctionInNamespace(const char *proname, int pronargs,
 						   oidvector *proargtypes, Oid nspOid);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern void ExecuteDoStmt(DoStmt *stmt);
 extern Oid	get_cast_oid(Oid sourcetypeid, Oid targettypeid, bool missing_ok);
 extern Oid	get_transform_oid(Oid type_id, Oid lang_id, bool missing_ok);
@@ -117,15 +82,10 @@ extern ObjectAddress DefineOperator(List *names, List *parameters);
 extern void RemoveOperatorById(Oid operOid);
 
 /* commands/aggregatecmds.c */
-<<<<<<< HEAD
-extern void DefineAggregate(List *name, List *args, bool oldstyle,
-							List *parameters, bool ordered, const char *queryString);
 extern void RenameAggregate(List *name, List *args, const char *newname);
 extern void AlterAggregateOwner(List *name, List *args, Oid newOwnerId);
-=======
 extern ObjectAddress DefineAggregate(List *name, List *args, bool oldstyle,
 				List *parameters, const char *queryString);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* commands/opclasscmds.c */
 extern ObjectAddress DefineOpClass(CreateOpClassStmt *stmt);

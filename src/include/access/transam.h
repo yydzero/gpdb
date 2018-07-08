@@ -64,8 +64,6 @@
 	(AssertMacro(TransactionIdIsNormal(id1) && TransactionIdIsNormal(id2)), \
 	(int32) ((id1) - (id2)) < 0)
 
-<<<<<<< HEAD
-=======
 /* compare two XIDs already known to be normal; this is a macro for speed */
 #define NormalTransactionIdFollows(id1, id2) \
 	(AssertMacro(TransactionIdIsNormal(id1) && TransactionIdIsNormal(id2)), \
@@ -96,7 +94,6 @@
 #define FirstBootstrapObjectId	10000
 #define FirstNormalObjectId		16384
 
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /*
  * VariableCache is a data structure in shared memory that is used to track
  * OID and XID assignment state.  For largely historical reasons, there is
@@ -160,16 +157,9 @@ extern bool TransactionStartedDuringRecovery(void);
 /* in transam/varsup.c */
 extern PGDLLIMPORT VariableCache ShmemVariableCache;
 
-<<<<<<< HEAD
 extern int xid_stop_limit;
 extern int xid_warn_limit;
 
-/* in transam/transam.c */
-extern const XLogRecPtr InvalidXLogRecPtr;
-
-
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /*
  * prototypes for functions in transam/transam.c
  */

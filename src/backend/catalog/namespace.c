@@ -19,22 +19,13 @@
  */
 #include "postgres.h"
 
-<<<<<<< HEAD
-#include "access/genam.h"
-=======
 #include "access/htup_details.h"
 #include "access/parallel.h"
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include "access/xact.h"
 #include "access/xlog.h"
 #include "catalog/dependency.h"
-<<<<<<< HEAD
-#include "catalog/indexing.h"
-#include "catalog/namespace.h"
-#include "catalog/oid_dispatch.h"
-=======
 #include "catalog/objectaccess.h"
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+#include "catalog/oid_dispatch.h"
 #include "catalog/pg_authid.h"
 #include "catalog/pg_collation.h"
 #include "catalog/pg_conversion.h"
@@ -61,11 +52,7 @@
 #include "storage/sinval.h"
 #include "utils/acl.h"
 #include "utils/builtins.h"
-<<<<<<< HEAD
-#include "utils/fmgroids.h"
-=======
 #include "utils/catcache.h"
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include "utils/guc.h"
 #include "utils/inval.h"
 #include "utils/lsyscache.h"
@@ -3673,7 +3660,7 @@ recomputeNamespacePath(void)
  * instead.
  *
  * MyTempSessionId() macro should be used in place of MyBackendId, wherever
- * we deal with RelFileNodes. That includes at leastRelFileNodeBackend.backend
+ * we deal with RelFileNodes. That includes at least RelFileNodeBackend.backend
  * and RelationData.rd_backend fields.
  */
 #define MyTempSessionId() \
@@ -3745,17 +3732,13 @@ InitTempTableNamespace(void)
 				(errcode(ERRCODE_READ_ONLY_SQL_TRANSACTION),
 				 errmsg("cannot create temporary tables during recovery")));
 
-<<<<<<< HEAD
-	snprintf(namespaceName, sizeof(namespaceName), "pg_temp_%d", session_suffix);
-=======
 	/* Parallel workers can't create temporary tables, either. */
 	if (IsParallelWorker())
 		ereport(ERROR,
 				(errcode(ERRCODE_READ_ONLY_SQL_TRANSACTION),
 				 errmsg("cannot create temporary tables in parallel mode")));
 
-	snprintf(namespaceName, sizeof(namespaceName), "pg_temp_%d", MyBackendId);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+	snprintf(namespaceName, sizeof(namespaceName), "pg_temp_%d", session_suffix);
 
 	namespaceId = get_namespace_oid(namespaceName, true);
 

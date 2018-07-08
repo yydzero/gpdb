@@ -140,14 +140,9 @@ extern PGDLLIMPORT LWLockPadded *MainLWLockArray;
 
 /*
  * It's a bit odd to declare NUM_BUFFER_PARTITIONS and NUM_LOCK_PARTITIONS
-<<<<<<< HEAD
- * here, but we need them to set up enum LWLockId correctly, and having
- * this file include lock.h or bufmgr.h would be backwards.
- * This also applies for WORKFILE_HASHSTABLE_NUM_PARTITIONS.
-=======
  * here, but we need them to figure out offsets within MainLWLockArray, and
  * having this file include lock.h or bufmgr.h would be backwards.
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+ * This also applies for WORKFILE_HASHSTABLE_NUM_PARTITIONS.
  */
 
 /* Number of partitions of the shared buffer mapping hashtable */
@@ -161,87 +156,15 @@ extern PGDLLIMPORT LWLockPadded *MainLWLockArray;
 #define LOG2_NUM_PREDICATELOCK_PARTITIONS  4
 #define NUM_PREDICATELOCK_PARTITIONS  (1 << LOG2_NUM_PREDICATELOCK_PARTITIONS)
 
-<<<<<<< HEAD
-/* Number of partitions of the workfile manager hashtable */
+/* Number of partitions of the workfile manager hashtable, gpdb specific */
 #define NUM_WORKFILEMGR_PARTITIONS 32
 
-/* Number of partitions of the workfile query diskspace hashtable */
+/* Number of partitions of the workfile query diskspace hashtable, gpdb specific */
 #define NUM_WORKFILE_QUERYSPACE_PARTITIONS 128
 
-/*
- * We have a number of predefined LWLocks, plus a bunch of LWLocks that are
- * dynamically assigned (e.g., for shared buffers).  The LWLock structures
- * live in shared memory (since they contain shared data) and are identified
- * by values of this enumerated type.  We abuse the notion of an enum somewhat
- * by allowing values not listed in the enum declaration to be assigned.
- * The extra value MaxDynamicLWLock is there to keep the compiler from
- * deciding that the enum can be represented as char or short ...
- *
- * If you remove a lock, please replace it with a placeholder. This retains
- * the lock numbering, which is helpful for DTrace and other external
- * debugging scripts.
- */
-typedef enum LWLockId
-{
-	NullLock = 0,		// Have 0 be no lock.
-	BufFreelistLock,
-	ShmemIndexLock,
-	OidGenLock,
-	XidGenLock,
-	ProcArrayLock,
-	SInvalReadLock,
-	SInvalWriteLock,
-	WALInsertLock,
-	WALWriteLock,
-	ControlFileLock,
-	CheckpointLock,
-	CLogControlLock,
-	SubtransControlLock,
-	MultiXactGenLock,
-	MultiXactOffsetControlLock,
-	MultiXactMemberControlLock,
-	RelCacheInitLock,
-	CheckpointerCommLock,
-	TwoPhaseStateLock,
-	TablespaceCreateLock,
-	BtreeVacuumLock,
-	AddinShmemInitLock,
-	AutovacuumLock,
-	AutovacuumScheduleLock,
-	SyncScanLock,
-	RelationMappingLock,
-	AsyncCtlLock,
-	AsyncQueueLock,
-	SerializableXactHashLock,
-	SerializableFinishedListLock,
-	SerializablePredicateLockListLock,
-	OldSerXidLock,
-	SyncRepLock,
-	SharedSnapshotLock,
-	DistributedLogControlLock,
-	SeqServerControlLock,
-	AOSegFileLock,
-	ResQueueLock,
-	ResGroupLock,
-	ErrorLogLock,
-	FirstWorkfileMgrLock,
-	FirstWorkfileQuerySpaceLock = FirstWorkfileMgrLock + NUM_WORKFILEMGR_PARTITIONS,
-	FirstBufMappingLock = FirstWorkfileQuerySpaceLock + NUM_WORKFILE_QUERYSPACE_PARTITIONS,
-	FirstLockMgrLock = FirstBufMappingLock + NUM_BUFFER_PARTITIONS,
-	FirstPredicateLockMgrLock = FirstLockMgrLock + NUM_LOCK_PARTITIONS,
-	SessionStateLock = FirstPredicateLockMgrLock + NUM_LOCK_PARTITIONS,
-	RelfilenodeGenLock,
-	FilespaceHashLock,
-	TablespaceHashLock,
-	GpReplicationConfigFileLock,
-	/* must be last except for MaxDynamicLWLock: */
-	NumFixedLWLocks,
-
-	MaxDynamicLWLock = 1000000000
-} LWLockId;
-
+/* gpdb specific */
 #define LWLOCK_IS_PREDEFINED(lwlock) (lwlock < NumFixedLWLocks + NUM_LOCK_PARTITIONS)
-=======
+
 /* Offsets for various chunks of preallocated lwlocks. */
 #define BUFFER_MAPPING_LWLOCK_OFFSET	NUM_INDIVIDUAL_LWLOCKS
 #define LOCK_MANAGER_LWLOCK_OFFSET		\
@@ -250,7 +173,6 @@ typedef enum LWLockId
 	(LOCK_MANAGER_LWLOCK_OFFSET + NUM_LOCK_PARTITIONS)
 #define NUM_FIXED_LWLOCKS \
 	(PREDICATELOCK_MANAGER_LWLOCK_OFFSET + NUM_PREDICATELOCK_PARTITIONS)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 typedef enum LWLockMode
 {
@@ -271,23 +193,11 @@ extern bool LWLockConditionalAcquire(LWLock *lock, LWLockMode mode);
 extern bool LWLockAcquireOrWait(LWLock *lock, LWLockMode mode);
 extern void LWLockRelease(LWLock *lock);
 extern void LWLockReleaseAll(void);
-<<<<<<< HEAD
-extern bool LWLockHeldByMe(LWLockId lockid);
-extern bool LWLockHeldExclusiveByMe(LWLockId lockid);
-
-#ifdef USE_TEST_UTILS_X86
-extern uint32 LWLocksHeld(void);
-extern LWLockId LWLockHeldLatestId(void);
-extern void *LWLockHeldLatestCaller(void);
-extern const char *LWLocksHeldStackTraces(void);
-#endif /* USE_TEST_UTILS_X86 */
-=======
 extern bool LWLockHeldByMe(LWLock *lock);
 
 extern bool LWLockAcquireWithVar(LWLock *lock, uint64 *valptr, uint64 val);
 extern bool LWLockWaitForVar(LWLock *lock, uint64 *valptr, uint64 oldval, uint64 *newval);
 extern void LWLockUpdateVar(LWLock *lock, uint64 *valptr, uint64 value);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 extern Size LWLockShmemSize(void);
 extern void CreateLWLocks(void);

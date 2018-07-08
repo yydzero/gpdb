@@ -4,13 +4,9 @@
  *	  definitions for executor state nodes
  *
  *
-<<<<<<< HEAD
  * Portions Copyright (c) 2005-2009, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
-=======
  * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/nodes/execnodes.h
@@ -29,11 +25,7 @@
 #include "utils/reltrigger.h"
 #include "utils/sortsupport.h"
 #include "utils/tuplestore.h"
-<<<<<<< HEAD
-#include "nodes/parsenodes.h"
-=======
 #include "utils/tuplesort.h"
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #include "gpmon/gpmon.h"                /* gpmon_packet_t */
 
@@ -349,7 +341,8 @@ typedef void *RelationDeleteDesc;
  *		ConstraintExprs			array of constraint-checking expr states
  *		junkFilter				for removing junk attributes from tuples
  *		projectReturning		for computing a RETURNING list
-<<<<<<< HEAD
+ *		onConflictSetProj		for computing ON CONFLICT DO UPDATE SET
+ *		onConflictSetWhere		list of ON CONFLICT DO UPDATE exprs (qual)
  *		tupdesc_match			???
  *		mt_bind					???
  *		aoInsertDesc			context for appendonly relation buffered INSERT.
@@ -361,10 +354,6 @@ typedef void *RelationDeleteDesc;
  *		partInsertMap			map input attrno to target attrno
  *		partSlot				TupleTableSlot for the target part relation
  *		resultSlot          	TupleTableSlot for the target relation
-=======
- *		onConflictSetProj		for computing ON CONFLICT DO UPDATE SET
- *		onConflictSetWhere		list of ON CONFLICT DO UPDATE exprs (qual)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * ----------------
  */
 typedef struct ResultRelInfo
@@ -386,7 +375,11 @@ typedef struct ResultRelInfo
 	List	  **ri_ConstraintExprs;
 	JunkFilter *ri_junkFilter;
 	ProjectionInfo *ri_projectReturning;
-<<<<<<< HEAD
+	ProjectionInfo *ri_onConflictSetProj;
+	List	   *ri_onConflictSetWhere;
+
+	/* gpdb added fields */
+
 	int			tupdesc_match;
 	struct MemTupleBinding *mt_bind;
 
@@ -413,11 +406,6 @@ typedef struct ResultRelInfo
 	 * Keyed by partition's OID.
 	 */
 	HTAB	   *ri_partition_hash;
-
-=======
-	ProjectionInfo *ri_onConflictSetProj;
-	List	   *ri_onConflictSetWhere;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 } ResultRelInfo;
 
 typedef struct ShareNodeEntry
@@ -915,10 +903,7 @@ typedef struct WholeRowVarExprState
 {
 	ExprState	xprstate;
 	struct PlanState *parent;	/* parent PlanState, or NULL if none */
-<<<<<<< HEAD
-=======
 	TupleDesc	wrv_tupdesc;	/* descriptor for resulting tuples */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	JunkFilter *wrv_junkFilter; /* JunkFilter to remove resjunk cols */
 } WholeRowVarExprState;
 
@@ -935,18 +920,6 @@ typedef struct AggrefExprState
 	int			aggno;			/* ID number for agg within its plan node */
 } AggrefExprState;
 
-/*
- * ----------------
- *		GroupingFuncExprState node
- * ----------------
- */
-typedef struct GroupingFuncExprState
-{
-	ExprState  xprstate;
-	List          *args;
-	int        ngrpcols;   /* number of unique grouping attributes */
-} GroupingFuncExprState;
-
 /* ----------------
  *		GroupingFuncExprState node
  *
@@ -961,6 +934,7 @@ typedef struct GroupingFuncExprState
 	ExprState	xprstate;
 	struct AggState *aggstate;
 	List	   *clauses;		/* integer list of column numbers */
+	int        ngrpcols;   		/* gpdb specific? number of unique grouping attributes */
 } GroupingFuncExprState;
 
 /* ----------------
@@ -1192,11 +1166,8 @@ typedef struct SubPlanState
 	struct PlanState *parent;	/* parent plan node's state tree */
 	ExprState  *testexpr;		/* state of combining expression */
 	List	   *args;			/* states of argument expression(s) */
-<<<<<<< HEAD
-	struct MemTupleData *curTuple;                /* copy of most recent tuple from subplan */
-=======
+	// struct MemTupleData *curTuple;  /* gpdb tuning? copy of most recent tuple from subplan */
 	HeapTuple	curTuple;		/* copy of most recent tuple from subplan */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	Datum		curArray;		/* most recent array from ARRAY() subplan */
 	/* these are used when hashing the subselect's output: */
 	ProjectionInfo *projLeft;	/* for projecting lefthand exprs */
@@ -1897,13 +1868,6 @@ typedef struct IndexScanState
 	Relation	iss_RelationDesc;
 	IndexScanDesc iss_ScanDesc;
 
-<<<<<<< HEAD
-	/*
-	 * tableOid is the oid of the partition or relation on which our current
-	 * index relation is defined.
-	 */
-	Oid			tableOid;
-=======
 	/* These are needed for re-checking ORDER BY expr ordering */
 	pairingheap *iss_ReorderQueue;
 	bool		iss_ReachedEnd;
@@ -1912,7 +1876,12 @@ typedef struct IndexScanState
 	SortSupport iss_SortSupport;
 	bool	   *iss_OrderByTypByVals;
 	int16	   *iss_OrderByTypLens;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+
+	/*
+	 * tableOid is the oid of the partition or relation on which our current
+	 * index relation is defined. gpdb sepcific.
+	 */
+	Oid			tableOid;
 } IndexScanState;
 
 /*
@@ -2066,13 +2035,9 @@ typedef struct BitmapHeapScanState
 	Node	   *tbm;
 	GenericBMIterator *tbmiterator;
 	TBMIterateResult *tbmres;
-<<<<<<< HEAD
-	GenericBMIterator *prefetch_iterator;
-=======
 	long		exact_pages;
 	long		lossy_pages;
 	TBMIterator *prefetch_iterator;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	int			prefetch_pages;
 	int			prefetch_target;
 } BitmapHeapScanState;
@@ -2172,14 +2137,10 @@ typedef struct SubqueryScanState
  *		function appearing in FROM (typically a function returning set).
  *
  *		eflags				node's capability flags
-<<<<<<< HEAD
  *		tupdesc				expected return tuple description
- *		tuplestorestate		private state of tuplestore.c
- *		funcexpr			state for function expression being evaluated
  *		cdb_want_ctid		true => ctid is referenced in targetlist
  *		cdb_fake_ctid
  *		cdb_mark_ctid
-=======
  *		ordinality			is this scan WITH ORDINALITY?
  *		simple				true if we have 1 function and no ordinality
  *		ordinal				current ordinal column value
@@ -2187,7 +2148,6 @@ typedef struct SubqueryScanState
  *		funcstates			per-function execution states (private in
  *							nodeFunctionscan.c)
  *		argcontext			memory context to evaluate function arguments in
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * ----------------
  */
 struct FunctionScanPerFuncState;
@@ -2196,14 +2156,10 @@ typedef struct FunctionScanState
 {
 	ScanState	ss;				/* its first field is NodeTag */
 	int			eflags;
-<<<<<<< HEAD
 	TupleDesc	tupdesc;
-	Tuplestorestate *tuplestorestate;
-	ExprState  *funcexpr;
-	bool		cdb_want_ctid;
+	bool			cdb_want_ctid;
 	ItemPointerData cdb_fake_ctid;
 	ItemPointerData cdb_mark_ctid;
-=======
 	bool		ordinality;
 	bool		simple;
 	int64		ordinal;
@@ -2211,7 +2167,6 @@ typedef struct FunctionScanState
 	struct FunctionScanPerFuncState *funcstates;		/* array of length
 														 * nfuncs */
 	MemoryContext argcontext;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 } FunctionScanState;
 
 
@@ -2261,11 +2216,7 @@ typedef struct ValuesScanState
 	List	  **exprlists;
 	int			array_len;
 	int			curr_idx;
-<<<<<<< HEAD
-	int			marked_idx;
 	bool		cdb_want_ctid;	/* true => ctid is referenced in targetlist */
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 } ValuesScanState;
 
 /* ----------------
@@ -2320,7 +2271,52 @@ typedef struct ForeignScanState
 } ForeignScanState;
 
 /* ----------------
-<<<<<<< HEAD
+ *	 CustomScanState information
+ *
+ *		CustomScan nodes are used to execute custom code within executor.
+ *
+ * Core code must avoid assuming that the CustomScanState is only as large as
+ * the structure declared here; providers are allowed to make it the first
+ * element in a larger structure, and typically would need to do so.  The
+ * struct is actually allocated by the CreateCustomScanState method associated
+ * with the plan node.  Any additional fields can be initialized there, or in
+ * the BeginCustomScan method.
+ * ----------------
+ */
+struct ExplainState;			/* avoid including explain.h here */
+struct CustomScanState;
+
+typedef struct CustomExecMethods
+{
+	const char *CustomName;
+
+	/* Executor methods: mark/restore are optional, the rest are required */
+	void		(*BeginCustomScan) (struct CustomScanState *node,
+									EState *estate,
+									int eflags);
+	TupleTableSlot *(*ExecCustomScan) (struct CustomScanState *node);
+	void		(*EndCustomScan) (struct CustomScanState *node);
+	void		(*ReScanCustomScan) (struct CustomScanState *node);
+	void		(*MarkPosCustomScan) (struct CustomScanState *node);
+	void		(*RestrPosCustomScan) (struct CustomScanState *node);
+
+	/* Optional: print additional information in EXPLAIN */
+	void		(*ExplainCustomScan) (struct CustomScanState *node,
+									  List *ancestors,
+									  struct ExplainState *es);
+} CustomExecMethods;
+
+typedef struct CustomScanState
+{
+	ScanState	ss;
+	uint32		flags;			/* mask of CUSTOMPATH_* flags, see relation.h */
+	List	   *custom_ps;		/* list of child PlanState nodes, if any */
+	const CustomExecMethods *methods;
+} CustomScanState;
+
+/* gpdb added structs. Refactor using CustomScan? */
+
+/* ----------------
  *         ExternalScanState information
  *
  *	 ExternalScan nodes are used to scan external tables
@@ -2448,50 +2444,6 @@ typedef struct DynamicTableScanState
 
 
 } DynamicTableScanState;
-=======
- *	 CustomScanState information
- *
- *		CustomScan nodes are used to execute custom code within executor.
- *
- * Core code must avoid assuming that the CustomScanState is only as large as
- * the structure declared here; providers are allowed to make it the first
- * element in a larger structure, and typically would need to do so.  The
- * struct is actually allocated by the CreateCustomScanState method associated
- * with the plan node.  Any additional fields can be initialized there, or in
- * the BeginCustomScan method.
- * ----------------
- */
-struct ExplainState;			/* avoid including explain.h here */
-struct CustomScanState;
-
-typedef struct CustomExecMethods
-{
-	const char *CustomName;
-
-	/* Executor methods: mark/restore are optional, the rest are required */
-	void		(*BeginCustomScan) (struct CustomScanState *node,
-												EState *estate,
-												int eflags);
-	TupleTableSlot *(*ExecCustomScan) (struct CustomScanState *node);
-	void		(*EndCustomScan) (struct CustomScanState *node);
-	void		(*ReScanCustomScan) (struct CustomScanState *node);
-	void		(*MarkPosCustomScan) (struct CustomScanState *node);
-	void		(*RestrPosCustomScan) (struct CustomScanState *node);
-
-	/* Optional: print additional information in EXPLAIN */
-	void		(*ExplainCustomScan) (struct CustomScanState *node,
-												  List *ancestors,
-												  struct ExplainState *es);
-} CustomExecMethods;
-
-typedef struct CustomScanState
-{
-	ScanState	ss;
-	uint32		flags;			/* mask of CUSTOMPATH_* flags, see relation.h */
-	List	   *custom_ps;		/* list of child PlanState nodes, if any */
-	const CustomExecMethods *methods;
-} CustomScanState;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* ----------------------------------------------------------------
  *				 Join State Information
@@ -2775,13 +2727,6 @@ typedef struct AggState
 	ExprContext **aggcontexts;	/* econtexts for long-lived data (per GS) */
 	ExprContext *tmpcontext;	/* econtext for input expressions */
 	AggStatePerAgg curperagg;	/* identifies currently active aggregate */
-<<<<<<< HEAD
-	bool		agg_done;		/* indicates completion of Agg scan */
-	bool        has_partial_agg;/* indicate if a partial aggregate result
-								 * has been calculated in the previous call.
-								 */
-
-=======
 	bool		input_done;		/* indicates end of input */
 	bool		agg_done;		/* indicates completion of Agg scan */
 	int			projected_set;	/* The last projected grouping set */
@@ -2795,7 +2740,6 @@ typedef struct AggState
 	Tuplesortstate *sort_in;	/* sorted input to phases > 0 */
 	Tuplesortstate *sort_out;	/* input is copied here for next phase */
 	TupleTableSlot *sort_slot;	/* slot for sort results */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	/* these fields are used in AGG_PLAIN and AGG_SORTED modes: */
 	AggStatePerGroup pergroup;	/* per-Aggref-per-group working state */
 	struct MemTupleData *grp_firstTuple; /* copy of first tuple of current group */
@@ -2825,6 +2769,9 @@ typedef struct AggState
 	/* set if the operator created workfiles */
 	bool		workfiles_created;
 
+	bool        has_partial_agg;/* indicate if a partial aggregate result
+								 * has been calculated in the previous call.
+								 * gpdb specific */
 } AggState;
 
 /* ----------------

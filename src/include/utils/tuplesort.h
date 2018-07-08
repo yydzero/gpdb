@@ -10,7 +10,6 @@
  * amounts are sorted using temporary files and a standard external sort
  * algorithm.
  *
-<<<<<<< HEAD
  * GPDB has two implementations of sorting. One is inherited from PostgreSQL,
  * and lives in tuplesort.c. The other one lives in tuplesort_mk.c. Both
  * provide the same API, and have the same set of functions, just with a
@@ -31,10 +30,7 @@
  *
  * Portions Copyright (c) 2007-2008, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
-=======
  * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/utils/tuplesort.h
@@ -94,6 +90,7 @@
 #include "access/itup.h"
 #include "executor/tuptable.h"
 #include "fmgr.h"
+#include "nodes/execnodes.h"
 #include "utils/relcache.h"
 
 #include "utils/tuplesort_gp.h"
@@ -179,16 +176,12 @@ extern bool tuplesort_skiptuples(Tuplesortstate *state, int64 ntuples,
 
 extern void tuplesort_end(Tuplesortstate *state);
 
-<<<<<<< HEAD
-extern int	tuplesort_merge_order(long allowedMem);
-=======
 extern void tuplesort_get_stats(Tuplesortstate *state,
 					const char **sortMethod,
 					const char **spaceType,
 					long *spaceUsed);
 
 extern int	tuplesort_merge_order(int64 allowedMem);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /*
  * These routines may only be called if randomAccess was specified 'true'.

@@ -51,17 +51,9 @@ extern PGDLLIMPORT SnapshotData CatalogSnapshotData;
  *	Beware of multiple evaluations of snapshot argument.
  *	Hint bits in the HeapTuple's t_infomask may be updated as a side effect;
  *	if so, the indicated buffer is marked dirty.
- *
- *   GP: The added relation parameter helps us decide if we are going to set tuple hint
- *   bits.  If it is null, we ignore the gp_disable_tuple_hints GUC.
  */
-<<<<<<< HEAD
-#define HeapTupleSatisfiesVisibility(rel, tuple, snapshot, buffer)	\
-	((*(snapshot)->satisfies) (rel, (tuple)->t_data, snapshot, buffer))
-=======
 #define HeapTupleSatisfiesVisibility(tuple, snapshot, buffer) \
 	((*(snapshot)->satisfies) (tuple, snapshot, buffer))
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* Result codes for HeapTupleSatisfiesVacuum */
 typedef enum
@@ -74,19 +66,6 @@ typedef enum
 } HTSV_Result;
 
 /* These are the "satisfies" test routines for the various snapshot types */
-<<<<<<< HEAD
-extern bool HeapTupleSatisfiesMVCC(Relation relation, HeapTupleHeader tuple,
-					   Snapshot snapshot, Buffer buffer);
-extern bool HeapTupleSatisfiesNow(Relation relation, HeapTupleHeader tuple,
-					  Snapshot snapshot, Buffer buffer);
-extern bool HeapTupleSatisfiesSelf(Relation relation, HeapTupleHeader tuple,
-					   Snapshot snapshot, Buffer buffer);
-extern bool HeapTupleSatisfiesAny(Relation relation, HeapTupleHeader tuple,
-					  Snapshot snapshot, Buffer buffer);
-extern bool HeapTupleSatisfiesToast(Relation relation, HeapTupleHeader tuple,
-						Snapshot snapshot, Buffer buffer);
-extern bool HeapTupleSatisfiesDirty(Relation relation, HeapTupleHeader tuple,
-=======
 extern bool HeapTupleSatisfiesMVCC(HeapTuple htup,
 					   Snapshot snapshot, Buffer buffer);
 extern bool HeapTupleSatisfiesSelf(HeapTuple htup,
@@ -96,21 +75,14 @@ extern bool HeapTupleSatisfiesAny(HeapTuple htup,
 extern bool HeapTupleSatisfiesToast(HeapTuple htup,
 						Snapshot snapshot, Buffer buffer);
 extern bool HeapTupleSatisfiesDirty(HeapTuple htup,
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 						Snapshot snapshot, Buffer buffer);
 extern bool HeapTupleSatisfiesHistoricMVCC(HeapTuple htup,
 							   Snapshot snapshot, Buffer buffer);
 
 /* Special "satisfies" routines with different APIs */
-<<<<<<< HEAD
-extern HTSU_Result HeapTupleSatisfiesUpdate(Relation relation, HeapTupleHeader tuple,
-						 CommandId curcid, Buffer buffer);
-extern HTSV_Result HeapTupleSatisfiesVacuum(Relation relation, HeapTupleHeader tuple,
-=======
 extern HTSU_Result HeapTupleSatisfiesUpdate(HeapTuple htup,
 						 CommandId curcid, Buffer buffer);
 extern HTSV_Result HeapTupleSatisfiesVacuum(HeapTuple htup,
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 						 TransactionId OldestXmin, Buffer buffer);
 extern bool HeapTupleIsSurelyDead(HeapTuple htup,
 					  TransactionId OldestXmin);

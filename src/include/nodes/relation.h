@@ -4,13 +4,9 @@
  *	  Definitions for planner's internal data structures.
  *
  *
-<<<<<<< HEAD
  * Portions Copyright (c) 2005-2010, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
-=======
  * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/nodes/relation.h
@@ -139,16 +135,13 @@ typedef struct PlannerGlobal
 	Index		lastRowMarkId;	/* highest PlanRowMark ID assigned */
 
 	bool		transientPlan;	/* redo plan when TransactionXmin changes? */
-<<<<<<< HEAD
+
+	bool		hasRowSecurity; /* row security applied? */
+
 	bool		oneoffPlan;		/* redo plan on every execution? */
 	bool		simplyUpdatable; /* can be used with CURRENT OF? */
 
 	ApplyShareInputContext share;	/* workspace for GPDB plan sharing */
-
-=======
-
-	bool		hasRowSecurity; /* row security applied? */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 } PlannerGlobal;
 
 /*----------
@@ -317,12 +310,10 @@ typedef struct PlannerInfo
 	/* optional private data for join_search_hook, e.g., GEQO */
 	void	   *join_search_private;
 
-<<<<<<< HEAD
-	int		   upd_del_replicated_table;
-=======
 	/* for GroupingFunc fixup in setrefs */
 	AttrNumber *grouping_map;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+
+	int		   upd_del_replicated_table;
 } PlannerInfo;
 
 /*
@@ -603,17 +594,12 @@ typedef struct RelOptInfo
     bool        cdb_default_stats_used; /* true if ANALYZE needed */
 	double		allvisfrac;
 	/* use "struct Plan" to avoid including plannodes.h here */
-<<<<<<< HEAD
-	struct Plan *subplan;		/* if subquery (in GPDB: or CTE) */
-	PlannerInfo *subroot;		/* if subquery (in GPDB: or CTE) */
-=======
-	struct Plan *subplan;		/* if subquery */
-	PlannerInfo *subroot;		/* if subquery */
+	struct Plan *subplan;		/* if subquery (in GPDB: or CTE)  */
+	PlannerInfo *subroot;		/* if subquery (in GPDB: or CTE)  */
 	List	   *subplan_params; /* if subquery */
 
 	/* Information about foreign tables and foreign joins */
 	Oid			serverid;		/* identifies server for the table or join */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	/* use "struct FdwRoutine" to avoid including fdwapi.h here */
 	struct FdwRoutine *fdwroutine;
 	void	   *fdw_private;
@@ -2015,9 +2001,9 @@ typedef struct Partition
 	Oid partid;			/* OID of row in pg_partition. */
 	Oid parrelid;		/* OID in pg_class of top-level partitioned relation */
 	char parkind;		/* 'r', 'l', or (unsupported) 'h' */
-	int2 parlevel;		/* depth below parent partitioned table */
+	int16 parlevel;		/* depth below parent partitioned table */
 	bool paristemplate;	/* just a template, or really a part? */
-	int2 parnatts;		/* number of partitioning attributes */
+	int16 parnatts;		/* number of partitioning attributes */
 	AttrNumber *paratts;/* attribute number vector */ 
 	Oid *parclass;		/* operator class vector */
 } Partition;
@@ -2046,7 +2032,7 @@ typedef struct PartitionRule
 	bool		 parrangeendincl;
 	Node		*parrangeevery;
 	List		*parlistvalues;
-	int2		 parruleord;
+	int16		 parruleord;
 	List		*parreloptions;
 	Oid			 partemplatespaceId; 	/* the tablespace id for the
 										 * template (or InvalidOid for 

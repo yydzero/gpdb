@@ -4,13 +4,9 @@
  *	  POSTGRES relation descriptor (a/k/a relcache entry) definitions.
  *
  *
-<<<<<<< HEAD
  * Portions Copyright (c) 2005-2009, Greenplum inc.
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
-=======
  * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/utils/rel.h
@@ -81,12 +77,7 @@ typedef struct RelationData
 	struct SMgrRelationData *rd_smgr;	/* cached file handle, or NULL */
 	int			rd_refcnt;		/* reference count */
 	BackendId	rd_backend;		/* owning backend id, if temporary relation */
-<<<<<<< HEAD
-	// GPDB_91_MERGE_FIXME: is rd_issyscat still needed?
-	bool		rd_issyscat;	/* GP: true => system catalog table (has "pg_" prefix) */
-=======
 	bool		rd_islocaltemp; /* rel is a temp rel of this session */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	bool		rd_isnailed;	/* rel is nailed in cache */
 	bool		rd_isvalid;		/* relcache entry is valid */
 	char		rd_indexvalid;	/* state of rd_indexlist: 0 = not valid, 1 =
@@ -116,10 +107,8 @@ typedef struct RelationData
 	RuleLock   *rd_rules;		/* rewrite rules */
 	MemoryContext rd_rulescxt;	/* private memory cxt for rd_rules, if any */
 	TriggerDesc *trigdesc;		/* Trigger info, or NULL if rel has none */
-<<<<<<< HEAD
     struct GpPolicy *rd_cdbpolicy; /* Partitioning info if distributed rel */
     bool        rd_cdbDefaultStatsWarningIssued;
-=======
 	/* use "struct" here to avoid needing to include rowsecurity.h: */
 	struct RowSecurityDesc *rd_rsdesc;	/* row security policies, or NULL */
 
@@ -132,7 +121,6 @@ typedef struct RelationData
 	Bitmapset  *rd_indexattr;	/* identifies columns used in indexes */
 	Bitmapset  *rd_keyattr;		/* cols that can be ref'd by foreign keys */
 	Bitmapset  *rd_idattr;		/* included in replica identity index */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/*
 	 * rd_options is set whenever rd_rel is loaded into the relcache entry.
@@ -241,8 +229,10 @@ typedef struct StdRdOptions
 	int32		vl_len_;		/* varlena header (do not touch directly!) */
 	int			fillfactor;		/* page fill factor in percent (0..100) */
 	AutoVacOpts autovacuum;		/* autovacuum-related options */
-<<<<<<< HEAD
+	bool		user_catalog_table;		/* use as an additional catalog
+										 * relation */
 
+	/* gpdb specific */
 	bool		appendonly;		/* is this an appendonly relation? */
 	int			blocksize;		/* max varblock size (AO rels only) */
 	int			compresslevel;  /* compression level (AO rels only) */
@@ -250,11 +240,6 @@ typedef struct StdRdOptions
 	bool		checksum;		/* checksum (AO rels only) */
 	bool 		columnstore;	/* columnstore (AO only) */
 	char		orientation[NAMEDATALEN]; /* orientation (AO only) */
-	bool		security_barrier;		/* for views */
-=======
-	bool		user_catalog_table;		/* use as an additional catalog
-										 * relation */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 } StdRdOptions;
 
 #define HEAP_MIN_FILLFACTOR			10
@@ -537,11 +522,7 @@ typedef struct ViewOptions
  * Beware of multiple eval of argument
  */
 #define RELATION_IS_LOCAL(relation) \
-<<<<<<< HEAD
-	((relation)->rd_backend == TempRelBackendId || \
-=======
 	((relation)->rd_islocaltemp || \
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	 (relation)->rd_createSubid != InvalidSubTransactionId)
 
 /*
@@ -551,10 +532,6 @@ typedef struct ViewOptions
  * Beware of multiple eval of argument
  */
 #define RELATION_IS_OTHER_TEMP(relation) \
-<<<<<<< HEAD
-	((relation)->rd_rel->relpersistence == RELPERSISTENCE_TEMP \
-	 && (relation)->rd_backend != TempRelBackendId)
-=======
 	((relation)->rd_rel->relpersistence == RELPERSISTENCE_TEMP && \
 	 !(relation)->rd_islocaltemp)
 
@@ -600,7 +577,6 @@ typedef struct ViewOptions
 	(XLogLogicalInfoActive() && \
 	 RelationNeedsWAL(relation) && \
 	 !IsCatalogRelation(relation))
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* routines in utils/cache/relcache.c */
 extern void RelationIncrementReferenceCount(Relation rel);

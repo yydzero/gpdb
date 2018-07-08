@@ -7417,92 +7417,6 @@ heap_tuple_needs_freeze(HeapTupleHeader tuple, TransactionId cutoff_xid,
 	return false;
 }
 
-<<<<<<< HEAD
-/* ----------------
- *		heap_markpos	- mark scan position
- * ----------------
- */
-void
-heap_markpos(HeapScanDesc scan)
-{
-	/* Note: no locking manipulations needed */
-
-	if (scan->rs_ctup.t_data != NULL)
-	{
-		scan->rs_mctid = scan->rs_ctup.t_self;
-		if (scan->rs_pageatatime)
-			scan->rs_mindex = scan->rs_cindex;
-	}
-	else
-		ItemPointerSetInvalid(&scan->rs_mctid);
-}
-
-
-void
-heap_markposx(HeapScanDesc scan, HeapTuple tuple)
-{
-	if (tuple && tuple->t_data)
-	{
-		Assert(ItemPointerIsValid(&tuple->t_self));
-		scan->rs_mctid = tuple->t_self;
-		if (scan->rs_pageatatime)
-			scan->rs_mindex = ItemPointerGetOffsetNumber(&tuple->t_self);
-	}
-	else
-	{
-		ItemPointerSetInvalid(&scan->rs_mctid);
-	}
-}
-
-
-/* ----------------
- *		heap_restrpos	- restore position to marked location
- * ----------------
- */
-void
-heap_restrpos(HeapScanDesc scan)
-{
-	/* XXX no amrestrpos checking that ammarkpos called */
-
-	if (!ItemPointerIsValid(&scan->rs_mctid))
-	{
-		scan->rs_ctup.t_data = NULL;
-
-		/*
-		 * unpin scan buffers
-		 */
-		if (BufferIsValid(scan->rs_cbuf))
-			ReleaseBuffer(scan->rs_cbuf);
-		scan->rs_cbuf = InvalidBuffer;
-		scan->rs_cblock = InvalidBlockNumber;
-		scan->rs_inited = false;
-	}
-	else
-	{
-		/*
-		 * If we reached end of scan, rs_inited will now be false.	We must
-		 * reset it to true to keep heapgettup from doing the wrong thing.
-		 */
-		scan->rs_inited = true;
-		scan->rs_ctup.t_self = scan->rs_mctid;
-		if (scan->rs_pageatatime)
-		{
-			scan->rs_cindex = scan->rs_mindex;
-			heapgettup_pagemode(scan,
-								NoMovementScanDirection,
-								0,		/* needn't recheck scan keys */
-								NULL);
-		}
-		else
-			heapgettup(scan,
-					   NoMovementScanDirection,
-					   0,		/* needn't recheck scan keys */
-					   NULL);
-	}
-}
-
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /*
  * If 'tuple' contains any visible XID greater than latestRemovedXid,
  * ratchet forwards latestRemovedXid to the greatest one found.
@@ -7541,39 +7455,6 @@ HeapTupleHeaderAdvanceLatestRemovedXid(HeapTupleHeader tuple,
 	}
 
 	/* *latestRemovedXid may still be invalid at end */
-}
-
-/*
- * Perform XLogInsert for a new heap page operation
- */
-void
-log_heap_newpage(Relation rel, 
-				 Page page,
-				 BlockNumber bno)
-{
-	xl_heap_newpage xlrec;
-	XLogRecPtr recptr;
-	XLogRecData rdata[2];
-
-	START_CRIT_SECTION();
-
-	xlrec.node = rel->rd_node;
-	xlrec.blkno = bno;
-
-	rdata[0].data = (char*) &xlrec;
-	rdata[0].len = SizeOfHeapNewpage;
-	rdata[0].buffer = InvalidBuffer;
-	rdata[0].next = &rdata[1];
-
-	rdata[1].data = (char*) page;
-	rdata[1].len = BLCKSZ;
-	rdata[1].buffer = InvalidBuffer;
-	rdata[1].next = NULL;
-
-	recptr = XLogInsert(RM_HEAP_ID, XLOG_HEAP_NEWPAGE, rdata);
-	PageSetLSN(page, recptr);
-
-	END_CRIT_SECTION();
 }
 
 /*

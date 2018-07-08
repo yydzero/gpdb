@@ -5,13 +5,9 @@
  *	  definitions for query plan nodes
  *
  *
-<<<<<<< HEAD
  * Portions Copyright (c) 2005-2008, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
-=======
  * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/nodes/plannodes.h
@@ -130,7 +126,10 @@ typedef struct PlannedStmt
 
 	int			nParamExec;		/* number of PARAM_EXEC Params used */
 
-<<<<<<< HEAD
+	bool		hasRowSecurity; /* row security applied? */
+
+	/* gpdb fields */
+
 	int			nMotionNodes;	/* number of Motion nodes in plan */
 
 	int			nInitPlans;		/* number of initPlans in plan */
@@ -150,9 +149,6 @@ typedef struct PlannedStmt
 
 	/* GPDB: Refer Query->intoClause for explanations. */
 	IntoClause *intoClause;
-=======
-	bool		hasRowSecurity; /* row security applied? */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 } PlannedStmt;
 
 /*
@@ -1125,7 +1121,11 @@ typedef struct Agg
 	AttrNumber *grpColIdx;		/* their indexes in the target list */
 	Oid		   *grpOperators;	/* equality operators to compare with */
 	long		numGroups;		/* estimated number of groups in input */
-<<<<<<< HEAD
+	List	   *groupingSets;	/* grouping sets to use */
+	List	   *chain;			/* chained Agg/Sort nodes */
+
+	/* below fields are gpdb specific */
+
 	int			transSpace;		/* est storage per group for byRef transition values */
 
 	/*
@@ -1183,10 +1183,6 @@ typedef struct Agg
 
 	/* Stream entries when out of memory instead of spilling to disk */
 	bool 		streaming;
-=======
-	List	   *groupingSets;	/* grouping sets to use */
-	List	   *chain;			/* chained Agg/Sort nodes */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 } Agg;
 
 /* ----------------
@@ -1473,18 +1469,13 @@ typedef enum RowMarkType
 	ROW_MARK_EXCLUSIVE,			/* obtain exclusive tuple lock */
 	ROW_MARK_NOKEYEXCLUSIVE,	/* obtain no-key exclusive tuple lock */
 	ROW_MARK_SHARE,				/* obtain shared tuple lock */
-<<<<<<< HEAD
-	ROW_MARK_REFERENCE,			/* just fetch the TID */
+	ROW_MARK_KEYSHARE,			/* obtain keyshare tuple lock */
+	ROW_MARK_REFERENCE,			/* just fetch the TID, don't lock it */
 	ROW_MARK_COPY,				/* physically copy the row value */
 	ROW_MARK_TABLE_SHARE,		/* (GPDB) Acquire RowShareLock on table,
 								 * but no tuple locks */
 	ROW_MARK_TABLE_EXCLUSIVE	/* (GPDB) Acquire ExclusiveLock on table,
 								 * blocking all other updates */
-=======
-	ROW_MARK_KEYSHARE,			/* obtain keyshare tuple lock */
-	ROW_MARK_REFERENCE,			/* just fetch the TID, don't lock it */
-	ROW_MARK_COPY				/* physically copy the row value */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 } RowMarkType;
 
 #define RowMarkRequiresRowShareLock(marktype)  ((marktype) <= ROW_MARK_KEYSHARE)

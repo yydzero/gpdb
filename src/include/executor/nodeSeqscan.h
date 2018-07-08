@@ -1,4 +1,3 @@
-#if 0
 /*-------------------------------------------------------------------------
  *
  * nodeSeqscan.h
@@ -23,4 +22,3 @@ extern void ExecEndSeqScan(SeqScanState *node);
 extern void ExecReScanSeqScan(SeqScanState *node);
 
 #endif   /* NODESEQSCAN_H */
-#endif

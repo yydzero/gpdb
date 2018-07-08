@@ -377,28 +377,18 @@ PageGetLSN(Page page)
 	if (BufferBlocks <= pagePtr &&
 		pagePtr < (BufferBlocks + NBuffers * BLCKSZ))
 	{
-		BufferDesc *hdr = &BufferDescriptors[(pagePtr - BufferBlocks) / BLCKSZ];
-		Assert(LWLockHeldByMe(hdr->content_lock));
+		BufferDescPadded *hdr = &BufferDescriptors[(pagePtr - BufferBlocks) / BLCKSZ];
+		Assert(LWLockHeldByMe(hdr->bufferdesc.content_lock));
 	}
 #endif
 
-	return ((PageHeader) page)->pd_lsn;
+	return PageXLogRecPtrGet(((PageHeader) (page))->pd_lsn);
 }
-
-/*
- * Additional macros for access to page headers
- */
-#define PageSetLSN(page, lsn) \
-	(((PageHeader) (page))->pd_lsn = (lsn))
-#define PageXLogRecPtrSet(ptr, lsn) \
-	((ptr).xlogid = (uint32) ((lsn) >> 32), (ptr).xrecoff = (uint32) (lsn))
 
 /*
  * Additional macros for access to page headers. (Beware multiple evaluation
  * of the arguments!)
  */
-#define PageGetLSN(page) \
-	PageXLogRecPtrGet(((PageHeader) (page))->pd_lsn)
 #define PageSetLSN(page, lsn) \
 	PageXLogRecPtrSet(((PageHeader) (page))->pd_lsn, lsn)
 

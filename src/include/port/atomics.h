@@ -18,11 +18,7 @@
  * new platform. If no such generic implementation is available spinlocks (or
  * even OS provided semaphores) will be used to implement the API.
  *
-<<<<<<< HEAD
  * Implement the _u64 variants if and only if your platform can use them
-=======
- * Implement the _u64 variantes if and only if your platform can use them
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * efficiently (and obviously correctly).
  *
  * Use higher level functionality (lwlocks, spinlocks, heavyweight locks)
@@ -50,11 +46,7 @@
  *
  * These files can provide the full set of atomics or can do pretty much
  * nothing if all the compilers commonly used on these platforms provide
-<<<<<<< HEAD
  * usable generics.
-=======
- * useable generics.
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  *
  * Don't add an inline assembly of the actual atomic operations if all the
  * common implementations of your platform provide intrinsics. Intrinsics are
@@ -89,20 +81,8 @@
  * * pg_atomic_compare_exchange_u32(), pg_atomic_fetch_add_u32()
  * using compiler intrinsics are a good idea.
  */
-<<<<<<< HEAD
-/*
- * Given a gcc-compatible xlc compiler, prefer the xlc implementation.  The
- * ppc64le "IBM XL C/C++ for Linux, V13.1.2" implements both interfaces, but
- * __sync_lock_test_and_set() of one-byte types elicits SIGSEGV.
- */
-#if defined(__IBMC__) || defined(__IBMCPP__)
-#include "port/atomics/generic-xlc.h"
-/* gcc or compatible, including clang and icc */
-#elif defined(__GNUC__) || defined(__INTEL_COMPILER)
-=======
 /* gcc or compatible, including clang and icc */
 #if defined(__GNUC__) || defined(__INTEL_COMPILER)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include "port/atomics/generic-gcc.h"
 #elif defined(WIN32_ONLY_COMPILER)
 #include "port/atomics/generic-msvc.h"
@@ -110,11 +90,8 @@
 #include "port/atomics/generic-acc.h"
 #elif defined(__SUNPRO_C) && !defined(__GNUC__)
 #include "port/atomics/generic-sunpro.h"
-<<<<<<< HEAD
-=======
 #elif (defined(__IBMC__) || defined(__IBMCPP__)) && !defined(__GNUC__)
 #include "port/atomics/generic-xlc.h"
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #else
 /*
  * Unsupported compiler, we'll likely use slower fallbacks... At least
@@ -298,24 +275,6 @@ pg_atomic_init_u32(volatile pg_atomic_uint32 *ptr, uint32 val)
 }
 
 /*
-<<<<<<< HEAD
-=======
- * pg_atomic_write_u32 - unlocked write to atomic variable.
- *
- * The write is guaranteed to succeed as a whole, i.e. it's not possible to
- * observe a partial write for any reader.
- *
- * No barrier semantics.
- */
-STATIC_IF_INLINE uint32
-pg_atomic_read_u32(volatile pg_atomic_uint32 *ptr)
-{
-	AssertPointerAlignment(ptr, 4);
-	return pg_atomic_read_u32_impl(ptr);
-}
-
-/*
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * pg_atomic_read_u32 - unlocked read from atomic variable.
  *
  * The read is guaranteed to return a value as it has been written by this or
@@ -325,7 +284,6 @@ pg_atomic_read_u32(volatile pg_atomic_uint32 *ptr)
  *
  * No barrier semantics.
  */
-<<<<<<< HEAD
 STATIC_IF_INLINE uint32
 pg_atomic_read_u32(volatile pg_atomic_uint32 *ptr)
 {
@@ -341,8 +299,6 @@ pg_atomic_read_u32(volatile pg_atomic_uint32 *ptr)
  *
  * No barrier semantics.
  */
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 STATIC_IF_INLINE_DECLARE void
 pg_atomic_write_u32(volatile pg_atomic_uint32 *ptr, uint32 val)
 {

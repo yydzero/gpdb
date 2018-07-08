@@ -366,12 +366,6 @@ ExecMarkPos(PlanState *node)
 			ExecDynamicTableMarkPos((DynamicTableScanState *) node);
 			break;
 
-		case T_SeqScanState:
-		case T_AppendOnlyScanState:
-		case T_AOCSScanState:
-			insist_log(false, "SeqScan/AppendOnlyScan/AOCSScan are defunct");
-			break;
-
 =======
 >>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		case T_IndexScanState:

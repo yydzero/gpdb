@@ -62,26 +62,12 @@ extern bool check_max_stack_depth(int *newval, void **extra, GucSource source);
 extern void assign_max_stack_depth(int newval, void *extra);
 
 extern void die(SIGNAL_ARGS);
-<<<<<<< HEAD
-extern void quickdie(SIGNAL_ARGS);
-extern void quickdie_impl(void);
-=======
 extern void quickdie(SIGNAL_ARGS) pg_attribute_noreturn();
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+extern void quickdie_impl(void);
 extern void StatementCancelHandler(SIGNAL_ARGS);
 extern void FloatExceptionHandler(SIGNAL_ARGS) pg_attribute_noreturn();
 extern void RecoveryConflictInterrupt(ProcSignalReason reason); /* called from SIGUSR1
 																 * handler */
-<<<<<<< HEAD
-extern void prepare_for_client_read(void);
-extern void client_read_ended(void);
-extern void prepare_for_client_write(void);
-extern void client_write_ended(void);
-extern void process_postgres_switches(int argc, char *argv[],
-						  GucContext ctx, const char **dbname);
-extern int	PostgresMain(int argc, char *argv[],
-			 const char *dbname, const char *username);
-=======
 extern void ProcessClientReadInterrupt(bool blocked);
 extern void ProcessClientWriteInterrupt(bool blocked);
 
@@ -90,7 +76,6 @@ extern void process_postgres_switches(int argc, char *argv[],
 extern void PostgresMain(int argc, char *argv[],
 			 const char *dbname,
 			 const char *username) pg_attribute_noreturn();
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern long get_stack_depth_rlimit(void);
 extern void ResetUsage(void);
 extern void ShowUsage(const char *title);
@@ -100,5 +85,12 @@ extern void set_debug_options(int debug_flag,
 extern bool set_plan_disabling_options(const char *arg,
 						   GucContext context, GucSource source);
 extern const char *get_stats_option_name(const char *arg);
+
+/* gpdb specific functions */
+
+extern void prepare_for_client_read(void);
+extern void client_read_ended(void);
+extern void prepare_for_client_write(void);
+extern void client_write_ended(void);
 
 #endif   /* TCOPPROT_H */

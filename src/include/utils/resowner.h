@@ -19,15 +19,12 @@
 #ifndef RESOWNER_H
 #define RESOWNER_H
 
-<<<<<<< HEAD
+#include "storage/buf.h"
 #include "storage/fd.h"
 #include "storage/lock.h"
 #include "utils/catcache.h"
 #include "utils/plancache.h"
 #include "utils/snapshot.h"
-
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /*
  * ResourceOwner objects are an opaque data structure known only within
@@ -88,7 +85,8 @@ extern void RegisterResourceReleaseCallback(ResourceReleaseCallback callback,
 extern void UnregisterResourceReleaseCallback(ResourceReleaseCallback callback,
 								  void *arg);
 
-<<<<<<< HEAD
+/* below are gpdb added functions */
+
 /* support for buffer refcount management */
 extern void ResourceOwnerEnlargeBuffers(ResourceOwner owner);
 extern void ResourceOwnerRememberBuffer(ResourceOwner owner, Buffer buffer);
@@ -145,6 +143,4 @@ extern void ResourceOwnerRememberFile(ResourceOwner owner,
 extern void ResourceOwnerForgetFile(ResourceOwner owner,
 						File file);
 
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #endif   /* RESOWNER_H */

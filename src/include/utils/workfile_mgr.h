@@ -19,7 +19,6 @@
 
 #include "executor/execWorkfile.h"
 #include "utils/sharedcache.h"
-#include "nodes/execnodes.h"
 #include "utils/timestamp.h"
 #include "utils/resowner.h"
 
@@ -126,6 +125,8 @@ typedef struct QueryspaceDesc
 	/* Number of workfiles this query has created */
 	int32 workfilesCreated;
 } QueryspaceDesc;
+
+typedef struct PlanState PlanState;
 
 /* Workfile Set operations */
 workfile_set *workfile_mgr_create_set(enum ExecWorkFileType type, bool can_be_reused,

@@ -57,14 +57,12 @@ extern RunningTransactions GetRunningTransactionData(void);
 
 extern bool TransactionIdIsInProgress(TransactionId xid);
 extern bool TransactionIdIsActive(TransactionId xid);
-<<<<<<< HEAD
-extern TransactionId GetOldestXmin(bool allDbs, bool ignoreVacuum);
-extern TransactionId GetLocalOldestXmin(bool allDbs, bool ignoreVacuum);
-=======
 extern TransactionId GetOldestXmin(Relation rel, bool ignoreVacuum);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern TransactionId GetOldestActiveTransactionId(void);
 extern TransactionId GetOldestSafeDecodingTransactionId(void);
+
+/* gpdb specific */
+extern TransactionId GetLocalOldestXmin(bool allDbs, bool ignoreVacuum);
 
 extern VirtualTransactionId *GetVirtualXIDsDelayingChkpt(int *nvxids);
 extern bool HaveVirtualXIDsDelayingChkpt(VirtualTransactionId *vxids, int nvxids);

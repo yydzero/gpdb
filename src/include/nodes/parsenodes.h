@@ -10,13 +10,9 @@
  * the location.
  *
  *
-<<<<<<< HEAD
  * Portions Copyright (c) 2006-2009, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
-=======
  * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/nodes/parsenodes.h
@@ -358,12 +354,6 @@ typedef struct RoleSpec
  * agg_order (if not NIL) indicates we saw 'foo(... ORDER BY ...)', or if
  * agg_within_group is true, it was 'foo(...) WITHIN GROUP (ORDER BY ...)'.
  * agg_star indicates we saw a 'foo(*)' construct, while agg_distinct
-<<<<<<< HEAD
- * indicates we saw 'foo(DISTINCT ...)'.  In either case, the construct
- * *must* be an aggregate call.  Otherwise, it might be either an
- * aggregate or some other kind of function.  However, if FILTER or OVER is
- * present it had better be an aggregate or window function.
-=======
  * indicates we saw 'foo(DISTINCT ...)'.  In any of these cases, the
  * construct *must* be an aggregate call.  Otherwise, it might be either an
  * aggregate or some other kind of function.  However, if FILTER or OVER is
@@ -371,7 +361,6 @@ typedef struct RoleSpec
  *
  * Normally, you'd initialize this via makeFuncCall() and then only change the
  * parts of the struct its defaults don't match afterwards, as needed.
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  */
 typedef struct FuncCall
 {
@@ -915,20 +904,12 @@ typedef struct RangeTblEntry
 	 * Fields valid for a function RTE (else NIL/zero):
 	 *
 	 * When funcordinality is true, the eref->colnames list includes an alias
-	 * for the ordinality column.  The ordinality column is otherwise
+	 * for the ordinality column.  The ordinality column is oth/structerwise
 	 * implicit, and must be accounted for "by hand" in places such as
 	 * expandRTE().
 	 */
-<<<<<<< HEAD
-	Node	   *funcexpr;		/* expression tree for func call */
-	List	   *funccoltypes;	/* OID list of column type OIDs */
-	List	   *funccoltypmods; /* integer list of column typmods */
-	List	   *funccolcollations;		/* OID list of column collation OIDs */
-	bytea	   *funcuserdata;	/* describe function user data. assume bytea */
-=======
 	List	   *functions;		/* list of RangeTblFunction nodes */
 	bool		funcordinality; /* is this called WITH ORDINALITY? */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/*
 	 * Fields valid for a values RTE (else NIL):
@@ -962,21 +943,21 @@ typedef struct RangeTblEntry
 	AclMode		requiredPerms;	/* bitmask of required access permissions */
 	Oid			checkAsUser;	/* if valid, check access as this role */
 	Bitmapset  *selectedCols;	/* columns needing SELECT permission */
-<<<<<<< HEAD
+	Bitmapset  *insertedCols;	/* columns needing INSERT permission */
+	Bitmapset  *updatedCols;	/* columns needing UPDATE permission */
+	List	   *securityQuals;	/* any security barrier quals to apply */
+
+	/* gpdb specific */
+
 	Bitmapset  *modifiedCols;	/* columns needing INSERT/UPDATE permission */
 
-    List       *pseudocols;     /* CDB: List of CdbRelColumnInfo nodes defining
+	List       *pseudocols;     /* CDB: List of CdbRelColumnInfo nodes defining
                                  *  pseudo columns for targetlist of scan node.
                                  *  Referenced by Var nodes with varattno =
                                  *  FirstLowInvalidHeapAttributeNumber minus
                                  *  the 0-based position in the list.  Used
                                  *  only in planner & EXPLAIN, not in executor.
                                  */
-=======
-	Bitmapset  *insertedCols;	/* columns needing INSERT permission */
-	Bitmapset  *updatedCols;	/* columns needing UPDATE permission */
-	List	   *securityQuals;	/* any security barrier quals to apply */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 } RangeTblEntry;
 
 /*
@@ -1008,6 +989,7 @@ typedef struct RangeTblFunction
 	List	   *funccolcollations;		/* OID list of column collation OIDs */
 	/* This is set during planning for use by the executor: */
 	Bitmapset  *funcparams;		/* PARAM_EXEC Param IDs affecting this func */
+	// bytea	   *funcuserdata;	/* describe function user data. assume bytea */
 } RangeTblFunction;
 
 /*
@@ -1101,7 +1083,6 @@ typedef struct SortGroupClause
 } SortGroupClause;
 
 /*
-<<<<<<< HEAD
  * GroupingClause -
  *     representation of grouping extension clauses,
  *     such as ROLLUP, CUBE, and GROUPING SETS.
@@ -1114,38 +1095,6 @@ typedef struct GroupingClause
 } GroupingClause;
 
 /*
- * GroupingFunc -
- *     representation of a grouping function for grouping extension
- *     clauses.
- *
- * This is used to determine whether a null value for a column in
- * the output tuple is the result of grouping. For example, a table
- *
- *    test (a integer, b integer)
- *
- * has two rows:
- *
- *    (1,1), (null,1)
- *
- * The query "select a,sum(b),grouping(a) from test group by rollup(a)"
- * returns
- *
- *    1   ,    1,    0
- *    null,    1,    0
- *    null,    2,    1
- *
- * The output row "null,1,0" indicates that the 'null' value for 'a' is not
- * from grouping, while the row "null,2,1" indicates that the 'null' value for
- * 'a' is from grouping.
- */
-typedef struct GroupingFunc
-{
-	NodeTag   type;
-	List     *args;  /* arguments provided in the query. */
-	int       ngrpcols; /* the number of grouping attributes */
-} GroupingFunc;
-
-=======
  * GroupingSet -
  *		representation of CUBE, ROLLUP and GROUPING SETS clauses
  *
@@ -1211,7 +1160,6 @@ typedef struct GroupingSet
 	List	   *content;
 	int			location;
 } GroupingSet;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /*
  * WindowClause -
@@ -1435,13 +1383,8 @@ typedef struct SelectStmt
 	Node	   *whereClause;	/* WHERE qualification */
 	List	   *groupClause;	/* GROUP BY clauses */
 	Node	   *havingClause;	/* HAVING conditional-expression */
-<<<<<<< HEAD
-	List	   *windowClause;	/* window specification clauses */
 	List       *scatterClause;	/* GPDB: TableValueExpr data distribution */
-	WithClause *withClause; 	/* WITH clause */
-=======
 	List	   *windowClause;	/* WINDOW window_name AS (...), ... */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/*
 	 * In a "leaf" node representing a VALUES list, the above fields are all
@@ -1577,13 +1520,9 @@ typedef enum ObjectType
 	OBJECT_TSPARSER,
 	OBJECT_TSTEMPLATE,
 	OBJECT_TYPE,
-<<<<<<< HEAD
+	OBJECT_USER_MAPPING,
 	OBJECT_VIEW,
 	OBJECT_RESQUEUE
-=======
-	OBJECT_USER_MAPPING,
-	OBJECT_VIEW
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 } ObjectType;
 
 /* ----------------------
@@ -1600,7 +1539,7 @@ typedef struct CreateSchemaStmt
 	char	   *schemaname;		/* the name of the schema to create */
 	Node	   *authrole;		/* the owner of the created schema */
 	List	   *schemaElts;		/* schema components (list of parsenodes) */
-<<<<<<< HEAD
+	bool		if_not_exists;	/* just do nothing if schema already exists? */
 
 	/*
 	 * In GPDB, when a CreateSchemaStmt is dispatched to executor nodes, the
@@ -1612,9 +1551,6 @@ typedef struct CreateSchemaStmt
 	 * both created in the same command, with istemp='true'.
 	 */
 	bool        istemp;         /* true for temp schemas (internal only) */
-=======
-	bool		if_not_exists;	/* just do nothing if schema already exists? */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 } CreateSchemaStmt;
 
 typedef enum DropBehavior
@@ -1694,8 +1630,6 @@ typedef enum AlterTableType
 	AT_DropInherit,				/* NO INHERIT parent */
 	AT_AddOf,					/* OF <type_name> */
 	AT_DropOf,					/* NOT OF */
-<<<<<<< HEAD
-	AT_GenericOptions,			/* OPTIONS (...) */
 	AT_SetDistributedBy,		/* SET DISTRIBUTED BY */
 	/* CDB: Partitioned Tables */
 	AT_PartAdd,					/* Add */
@@ -1707,13 +1641,12 @@ typedef enum AlterTableType
 	AT_PartSetTemplate,			/* Set Subpartition Template */
 	AT_PartSplit,				/* Split */
 	AT_PartTruncate,			/* Truncate */
-	AT_PartAddInternal			/* CREATE TABLE time partition addition */
-=======
+	AT_PartAddInternal,			/* CREATE TABLE time partition addition */
 	AT_ReplicaIdentity,			/* REPLICA IDENTITY */
 	AT_EnableRowSecurity,		/* ENABLE ROW SECURITY */
 	AT_DisableRowSecurity,		/* DISABLE ROW SECURITY */
 	AT_GenericOptions			/* OPTIONS (...) */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+
 } AlterTableType;
 
 typedef struct ReplicaIdentityStmt
@@ -1728,21 +1661,15 @@ typedef struct AlterTableCmd	/* one subcommand of an ALTER TABLE */
 	NodeTag		type;
 	AlterTableType subtype;		/* Type of table alteration to apply */
 	char	   *name;			/* column, constraint, or trigger to act on,
-<<<<<<< HEAD
 								 * or new owner or tablespace */
-	Node	   *def;			/* definition of new column, column type,
-								 * index, constraint, or parent table */
 	Node	   *transform;		/* transformation expr for ALTER TYPE */
-=======
-								 * or tablespace */
 	Node	   *newowner;		/* RoleSpec */
 	Node	   *def;			/* definition of new column, index,
 								 * constraint, or parent table */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	DropBehavior behavior;		/* RESTRICT or CASCADE for DROP cases */
+	bool		missing_ok;		/* skip error if missing? */
 	bool		part_expanded;	/* expands from another command, for partitioning */
 	List	   *partoids;		/* If applicable, OIDs of partition part tables */
-	bool		missing_ok;		/* skip error if missing? */
 } AlterTableCmd;
 
 
@@ -1947,10 +1874,7 @@ typedef struct CopyStmt
 								 * for all columns */
 	bool		is_from;		/* TO or FROM */
 	bool		is_program;		/* is 'filename' a program to popen? */
-<<<<<<< HEAD
 	bool		skip_ext_partition;		/* skip external partitions */
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	char	   *filename;		/* filename, or NULL for STDIN/STDOUT */
 	List	   *options;		/* List of DefElem nodes */
 	Node	   *sreh;			/* Single row error handling info */
@@ -2958,12 +2882,8 @@ typedef struct IndexStmt
 	List	   *excludeOpNames; /* exclusion operator names, or NIL if none */
 	char	   *idxcomment;		/* comment to apply to index, or NULL */
 	Oid			indexOid;		/* OID of an existing index, if any */
-<<<<<<< HEAD
 	bool		is_part_child;	/* in service of a part of a partition? */
-	Oid			oldNode;		/* relfilenode of my former self */
-=======
 	Oid			oldNode;		/* relfilenode of existing storage, if any */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	bool		unique;			/* is index unique? */
 	bool		primary;		/* is index a primary key? */
 	bool		isconstraint;	/* is it for a pkey/unique constraint? */
@@ -2971,13 +2891,10 @@ typedef struct IndexStmt
 	bool		initdeferred;	/* is the constraint INITIALLY DEFERRED? */
 	bool		transformed;	/* true when transformIndexStmt is finished */
 	bool		concurrent;		/* should this be a concurrent index build? */
-<<<<<<< HEAD
+	bool		if_not_exists;	/* just do nothing if index already exists? */
 	char	   *altconname;		/* constraint name, if desired name differs
 								 * from idxname and isconstraint, else NULL. */
 	bool		is_split_part;	/* Is this for SPLIT PARTITION command? */
-=======
-	bool		if_not_exists;	/* just do nothing if index already exists? */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 } IndexStmt;
 
 /* ----------------------
@@ -3333,11 +3250,8 @@ typedef enum VacuumOption
 	VACOPT_FREEZE = 1 << 3,		/* FREEZE option */
 	VACOPT_FULL = 1 << 4,		/* FULL (non-concurrent) vacuum */
 	VACOPT_NOWAIT = 1 << 5,		/* don't wait to get lock (autovacuum only) */
-<<<<<<< HEAD
-	VACOPT_ROOTONLY = 1 << 6	/* only ANALYZE root partition tables */
-=======
+	VACOPT_ROOTONLY = 1 << 6,	/* only ANALYZE root partition tables, gpdb specific */
 	VACOPT_SKIPTOAST = 1 << 6	/* don't process the TOAST table, if any */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 } VacuumOption;
 
 typedef enum AOVacuumPhase
@@ -3511,13 +3425,8 @@ typedef struct ReindexStmt
 								 * etc. */
 	RangeVar   *relation;		/* Table or index to reindex */
 	const char *name;			/* name of database to reindex */
-<<<<<<< HEAD
-	bool		do_system;		/* include system tables in database case */
-	bool		do_user;		/* include user tables in database case */
-	Oid			relid;			/* oid of TABLE, used by QE */
-=======
+	Oid			relid;			/* oid of TABLE, used by QE, gpdb specific */
 	int			options;		/* Reindex options flags */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 } ReindexStmt;
 
 /* ----------------------

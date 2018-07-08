@@ -4,13 +4,9 @@
  * External declarations pertaining to backend/utils/misc/guc.c and
  * backend/utils/misc/guc-file.l
  *
-<<<<<<< HEAD
  * Portions Copyright (c) 2007-2010, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
- * Copyright (c) 2000-2012, PostgreSQL Global Development Group
-=======
  * Copyright (c) 2000-2015, PostgreSQL Global Development Group
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Written by Peter Eisentraut <peter_e@gmx.net>.
  *
  * src/include/utils/guc.h
@@ -370,7 +366,6 @@ extern int	temp_file_limit;
 
 extern int	num_temp_buffers;
 
-<<<<<<< HEAD
 extern bool gp_cancel_query_print_log;
 extern int gp_cancel_query_delay_time;
 extern bool vmem_process_interrupt;
@@ -412,9 +407,8 @@ extern int Debug_dtm_action_segment;
 extern int Debug_dtm_action_nestinglevel;
 
 extern char *data_directory;
-=======
+
 extern char *cluster_name;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern char *ConfigFileName;
 extern char *HbaFileName;
 extern char *IdentFileName;
@@ -433,7 +427,6 @@ extern int	tcp_keepalives_idle;
 extern int	tcp_keepalives_interval;
 extern int	tcp_keepalives_count;
 
-<<<<<<< HEAD
 extern int	gp_connection_send_timeout;
 
 extern int  WalSendClientTimeout;
@@ -635,12 +628,10 @@ extern IndexCheckType gp_indexcheck_vacuum;
 /* Max number of chars needed to hold value of a storage option. */
 #define MAX_SOPT_VALUE_LEN 15
 
-=======
 #ifdef TRACE_SORT
 extern bool trace_sort;
 #endif
 
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /*
  * Functions exported by guc.c
  */

@@ -4,13 +4,9 @@
  *	  per-process shared memory data structures
  *
  *
-<<<<<<< HEAD
  * Portions Copyright (c) 2006-2008, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
-=======
  * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/storage/proc.h
@@ -162,7 +158,6 @@ struct PGPROC
 
 	struct XidCache subxids;	/* cache for subtransaction XIDs */
 
-<<<<<<< HEAD
 	/*
 	 * Info for Resource Scheduling, what portal (i.e statement) we might
 	 * be waiting on.
@@ -188,12 +183,8 @@ struct PGPROC
 							 * locked for drop. */
 	TMGXACT		gxact;
 
-	/* Per-backend LWLock.	Protects fields below. */
-	LWLockId	backendLock;	/* protects the fields below */
-=======
 	/* Per-backend LWLock.  Protects fields below. */
 	LWLock	   *backendLock;	/* protects the fields below */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/* Lock manager data, recording fast-path locks taken by this backend. */
 	uint64		fpLockBits;		/* lock modes held for each fast-path slot */
@@ -328,7 +319,7 @@ extern void LockErrorCleanup(void);
 extern void ProcWaitForSignal(void);
 extern void ProcSendSignal(int pid);
 
-<<<<<<< HEAD
+/* gpdb specific */
 extern bool enable_sig_alarm(int delayms, bool is_statement_timeout);
 extern bool disable_sig_alarm(bool is_statement_timeout);
 extern void handle_sig_alarm(SIGNAL_ARGS);
@@ -346,6 +337,4 @@ extern bool enable_standby_sig_alarm(TimestampTz now,
 extern bool disable_standby_sig_alarm(void);
 extern void handle_standby_sig_alarm(SIGNAL_ARGS);
 
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #endif   /* PROC_H */

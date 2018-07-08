@@ -175,15 +175,9 @@ extern HTSU_Result heap_update(Relation relation, ItemPointer otid,
 			CommandId cid, Snapshot crosscheck, bool wait,
 			HeapUpdateFailureData *hufd, LockTupleMode *lockmode);
 extern HTSU_Result heap_lock_tuple(Relation relation, HeapTuple tuple,
-<<<<<<< HEAD
-				Buffer *buffer, ItemPointer ctid,
-				TransactionId *update_xmax, CommandId cid,
-				LockTupleMode mode, LockTupleWaitType waittype);
-=======
 				CommandId cid, LockTupleMode mode, LockWaitPolicy wait_policy,
 				bool follow_update,
 				Buffer *buffer, HeapUpdateFailureData *hufd);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern void heap_inplace_update(Relation relation, HeapTuple tuple);
 extern bool heap_freeze_tuple(HeapTupleHeader tuple, TransactionId cutoff_xid,
 				  TransactionId cutoff_multi);
@@ -196,56 +190,14 @@ extern void simple_heap_delete(Relation relation, ItemPointer tid);
 extern void simple_heap_update(Relation relation, ItemPointer otid,
 				   HeapTuple tup);
 
-<<<<<<< HEAD
-extern void heap_markpos(HeapScanDesc scan);
-extern void heap_markposx(HeapScanDesc scan, HeapTuple tuple);
-extern void heap_restrpos(HeapScanDesc scan);
-
-extern void heap_sync(Relation relation);
-
-extern void heap_redo(XLogRecPtr beginLoc, XLogRecPtr lsn, XLogRecord *rptr);
-extern void heap_desc(StringInfo buf, XLogRecPtr beginLoc, XLogRecord *record);
-extern bool heap_getrelfilenode(
-	XLogRecord 		*record,
-	RelFileNode		*relFileNode);
-extern void heap2_redo(XLogRecPtr beginLoc, XLogRecPtr lsn, XLogRecord *rptr);
-extern void heap2_desc(StringInfo buf, XLogRecPtr beginLoc, XLogRecord *record);
-extern void heap_mask(char *pagedata, BlockNumber blkno);
-
-extern void log_heap_newpage(Relation rel, 
-							 Page page,
-							 BlockNumber bno);
-extern XLogRecPtr log_heap_move(Relation reln, Buffer oldbuf,
-			  ItemPointerData from,
-			  Buffer newbuf, HeapTuple newtup,
-			  bool all_visible_cleared, bool new_all_visible_cleared);
-extern XLogRecPtr log_heap_cleanup_info(RelFileNode rnode,
-					  TransactionId latestRemovedXid);
-extern XLogRecPtr log_heap_clean(Relation reln, Buffer buffer,
-			   OffsetNumber *redirected, int nredirected,
-			   OffsetNumber *nowdead, int ndead,
-			   OffsetNumber *nowunused, int nunused,
-			   TransactionId latestRemovedXid);
-extern XLogRecPtr log_heap_freeze(Relation reln, Buffer buffer,
-				TransactionId cutoff_xid,
-				OffsetNumber *offsets, int offcnt);
-
 extern XLogRecPtr log_newpage_rel(Relation rel, ForkNumber forkNum, BlockNumber blkno,
 								  Page page);
-
 extern XLogRecPtr log_newpage_relFileNode(RelFileNode *relFileNode,
 										  ForkNumber forkNum,
 										  BlockNumber blkno, Page page);
 
-extern XLogRecPtr log_heap_visible(RelFileNode rnode, BlockNumber block,
-				 Buffer vm_buffer, TransactionId cutoff_xid);
-extern XLogRecPtr log_newpage(RelFileNode *rnode, ForkNumber forkNum,
-			BlockNumber blk, Page page);
-
-=======
 extern void heap_sync(Relation relation);
 
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /* in heap/pruneheap.c */
 extern void heap_page_prune_opt(Relation relation, Buffer buffer);
 extern int heap_page_prune(Relation relation, Buffer buffer,

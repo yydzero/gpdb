@@ -71,6 +71,17 @@ typedef struct XLogRecord
 #define XLR_SPECIAL_REL_UPDATE	0x01
 
 /*
+ * Enforces consistency checks of replayed WAL at recovery. If enabled,
+ * each record will log a full-page write for each block modified by the
+ * record and will reuse it afterwards for consistency checks. The caller
+ * of XLogInsert can use this value if necessary, but if
+ * wal_consistency_checking is enabled for a rmgr this is set unconditionally.
+ *
+ * Added in gpdb by aa45952372c which backport from PG 10.
+ */
+#define XLR_CHECK_CONSISTENCY 0x02
+
+/*
  * Header info for block data appended to an XLOG record.
  *
  * 'data_length' is the length of the rmgr-specific payload data associated

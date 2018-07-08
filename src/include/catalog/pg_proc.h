@@ -73,9 +73,10 @@ CATALOG(pg_proc,1255) BKI_BOOTSTRAP BKI_ROWTYPE_OID(81) BKI_SCHEMA_MACRO
 	text		probin;			/* secondary procedure info (can be NULL) */
 	text		proconfig[1];	/* procedure-local GUC settings */
 	aclitem		proacl[1];		/* access permissions */
+#endif
+
 	char		prodataaccess;	/* data access indicator. GPDB specific */
 	char		proexeclocation; /* EXECUTE ON ANY or SEGMENTS. GPDB specific */
-#endif
 } FormData_pg_proc;
 
 /* GPDB added foreign key definitions for gpcheckcat. */
@@ -130,6 +131,7 @@ typedef FormData_pg_proc *Form_pg_proc;
 GPDB_COLUMN_DEFAULT(prodataaccess, n);
 #define Anum_pg_proc_proexeclocation	30
 GPDB_COLUMN_DEFAULT(proexeclocation, a);
+
 
 /*
  * TODO: It would be nice if we could default prodataaccess to 'c' for all
@@ -1998,7 +2000,6 @@ DATA(insert OID =  879 (  lpad		   PGNSP PGUID 14 1 0 0 0 f f f f t f i 2 0 25 "
 DESCR("left-pad string to length");
 GPDB_EXTRA_COL(prodataaccess = c);
 DATA(insert OID =  880 (  rpad		   PGNSP PGUID 14 1 0 0 0 f f f f t f i 2 0 25 "25 23" _null_ _null_ _null_ _null_ _null_ "select pg_catalog.rpad($1, $2, '' '')" _null_ _null_ _null_ ));
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 DESCR("right-pad string to length");
 DATA(insert OID =  881 (  ltrim		   PGNSP PGUID 12 1 0 0 0 f f f f t f i 1 0 25 "25" _null_ _null_ _null_ _null_ _null_ ltrim1 _null_ _null_ _null_ ));
 DESCR("trim spaces from left end of string");
@@ -2466,7 +2467,7 @@ DATA(insert OID = 1783 ( int2					PGNSP PGUID 12 1 0 0 0 f f f f t f i 1 0 21 "1
 DESCR("convert numeric to int2");
 
 /* Complex Number type */
-DATA(insert OID = 7057 ( complex_cmp			PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "7198 7198" _null_ _null_ _null_ _null_ complex_cmp _null_ _null_ _null_ ));
+DATA(insert OID = 7057 ( complex_cmp			PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "7198 7198" _null_ _null_ _null_ _null_ _null_ complex_cmp _null_ _null_ _null_ ));
 DESCR("compare two complex numbers");
 
 /* formatting */
@@ -2745,7 +2746,6 @@ DATA(insert OID = 1914 (  float8up		   PGNSP PGUID 12 1 0 0 0 f f f f t f i 1 0 
 DATA(insert OID = 1915 (  numeric_uplus    PGNSP PGUID 12 1 0 0 0 f f f f t f i 1 0 1700 "1700" _null_ _null_ _null_ _null_ _null_ numeric_uplus _null_ _null_ _null_ ));
 
 DATA(insert OID = 1922 (  has_table_privilege		   PGNSP PGUID 12 1 0 0 0 f f f f t f s 3 0 16 "19 25 25" _null_ _null_ _null_ _null_ _null_	has_table_privilege_name_name _null_ _null_ _null_ ));
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 DESCR("user privilege on relation by username, rel name");
 DATA(insert OID = 1923 (  has_table_privilege		   PGNSP PGUID 12 1 0 0 0 f f f f t f s 3 0 16 "19 26 25" _null_ _null_ _null_ _null_ _null_	has_table_privilege_name_id _null_ _null_ _null_ ));
 DESCR("user privilege on relation by username, rel oid");
@@ -5439,30 +5439,30 @@ DATA(insert OID = 3346 (  tsm_bernoulli_cost		PGNSP PGUID 12 1 0 0 0 f f f f t f
 DESCR("tsm_bernoulli_cost(internal)");
 
 /* GPDB: additional variants of percentile_cont, for timestamps */
-DATA(insert OID = 6119 ( percentile_cont		PGNSP PGUID 12 1 0 0 0 t f f f f f i 2 0 1114 "701 1114" _null_ _null_ _null_ _null_ aggregate_dummy _null_ _null_ _null_ n a ));
+DATA(insert OID = 6119 ( percentile_cont		PGNSP PGUID 12 1 0 0 0 t f f f f f i 2 0 1114 "701 1114" _null_ _null_ _null_ _null_ _null_ aggregate_dummy _null_ _null_ _null_ n a ));
 DESCR("continuous distribution percentile");
-DATA(insert OID = 6120 ( percentile_cont_timestamp_final PGNSP PGUID 12 1 0 0 0 f f f f f f i 2 0 1114 "2281 701" _null_ _null_ _null_ _null_ percentile_cont_timestamp_final _null_ _null_ _null_ n a ));
+DATA(insert OID = 6120 ( percentile_cont_timestamp_final PGNSP PGUID 12 1 0 0 0 f f f f f f i 2 0 1114 "2281 701" _null_ _null_ _null_ _null_ _null_ percentile_cont_timestamp_final _null_ _null_ _null_ n a ));
 DESCR("aggregate final function");
-DATA(insert OID = 6121 ( percentile_cont		PGNSP PGUID 12 1 0 0 0 t f f f f f i 2 0 1115 "1022 1114" _null_ _null_ _null_ _null_ aggregate_dummy _null_ _null_ _null_ n a ));
+DATA(insert OID = 6121 ( percentile_cont		PGNSP PGUID 12 1 0 0 0 t f f f f f i 2 0 1115 "1022 1114" _null_ _null_ _null_ _null_ _null_ aggregate_dummy _null_ _null_ _null_ n a ));
 DESCR("multiple continuous percentiles");
-DATA(insert OID = 6122 ( percentile_cont_timestamp_multi_final	PGNSP PGUID 12 1 0 0 0 f f f f f f i 2 0 1115 "2281 1022" _null_ _null_ _null_ _null_ percentile_cont_timestamp_multi_final _null_ _null_ _null_ n a ));
+DATA(insert OID = 6122 ( percentile_cont_timestamp_multi_final	PGNSP PGUID 12 1 0 0 0 f f f f f f i 2 0 1115 "2281 1022" _null_ _null_ _null_ _null_ _null_ percentile_cont_timestamp_multi_final _null_ _null_ _null_ n a ));
 DESCR("aggregate final function");
-DATA(insert OID = 6123 ( percentile_cont		PGNSP PGUID 12 1 0 0 0 t f f f f f i 2 0 1184 "701 1184" _null_ _null_ _null_ _null_ aggregate_dummy _null_ _null_ _null_ n a ));
+DATA(insert OID = 6123 ( percentile_cont		PGNSP PGUID 12 1 0 0 0 t f f f f f i 2 0 1184 "701 1184" _null_ _null_ _null_ _null_ _null_ aggregate_dummy _null_ _null_ _null_ n a ));
 DESCR("continuous distribution percentile");
-DATA(insert OID = 6124 ( percentile_cont_timestamptz_final PGNSP PGUID 12 1 0 0 0 f f f f f f i 2 0 1184 "2281 701" _null_ _null_ _null_ _null_ percentile_cont_timestamptz_final _null_ _null_ _null_ n a ));
+DATA(insert OID = 6124 ( percentile_cont_timestamptz_final PGNSP PGUID 12 1 0 0 0 f f f f f f i 2 0 1184 "2281 701" _null_ _null_ _null_ _null_ _null_ percentile_cont_timestamptz_final _null_ _null_ _null_ n a ));
 DESCR("aggregate final function");
-DATA(insert OID = 6125 ( percentile_cont		PGNSP PGUID 12 1 0 0 0 t f f f f f i 2 0 1185 "1022 1184" _null_ _null_ _null_ _null_ aggregate_dummy _null_ _null_ _null_ n a ));
+DATA(insert OID = 6125 ( percentile_cont		PGNSP PGUID 12 1 0 0 0 t f f f f f i 2 0 1185 "1022 1184" _null_ _null_ _null_ _null_ _null_ aggregate_dummy _null_ _null_ _null_ n a ));
 DESCR("multiple continuous percentiles");
-DATA(insert OID = 6126 ( percentile_cont_timestamptz_multi_final	PGNSP PGUID 12 1 0 0 0 f f f f f f i 2 0 1185 "2281 1022" _null_ _null_ _null_ _null_ percentile_cont_timestamptz_multi_final _null_ _null_ _null_ n a ));
+DATA(insert OID = 6126 ( percentile_cont_timestamptz_multi_final	PGNSP PGUID 12 1 0 0 0 f f f f f f i 2 0 1185 "2281 1022" _null_ _null_ _null_ _null_ _null_ percentile_cont_timestamptz_multi_final _null_ _null_ _null_ n a ));
 DESCR("aggregate final function");
 
-DATA(insert OID = 6127 ( median					PGNSP PGUID 12 1 0 0 0 t f f f f f i 2 0 701 "701 701" _null_ _null_ _null_ _null_ aggregate_dummy _null_ _null_ _null_ n a ));
+DATA(insert OID = 6127 ( median					PGNSP PGUID 12 1 0 0 0 t f f f f f i 2 0 701 "701 701" _null_ _null_ _null_ _null_ _null_ aggregate_dummy _null_ _null_ _null_ n a ));
 DESCR("median");
-DATA(insert OID = 6128 ( median					PGNSP PGUID 12 1 0 0 0 t f f f f f i 2 0 1186 "701 1186" _null_ _null_ _null_ _null_ aggregate_dummy _null_ _null_ _null_ n a ));
+DATA(insert OID = 6128 ( median					PGNSP PGUID 12 1 0 0 0 t f f f f f i 2 0 1186 "701 1186" _null_ _null_ _null_ _null_ _null_ aggregate_dummy _null_ _null_ _null_ n a ));
 DESCR("median");
-DATA(insert OID = 6129 ( median					PGNSP PGUID 12 1 0 0 0 t f f f f f i 2 0 1114 "701 1114" _null_ _null_ _null_ _null_ aggregate_dummy _null_ _null_ _null_ n a ));
+DATA(insert OID = 6129 ( median					PGNSP PGUID 12 1 0 0 0 t f f f f f i 2 0 1114 "701 1114" _null_ _null_ _null_ _null_ _null_ aggregate_dummy _null_ _null_ _null_ n a ));
 DESCR("median");
-DATA(insert OID = 6130 ( median					PGNSP PGUID 12 1 0 0 0 t f f f f f i 2 0 1184 "701 1184" _null_ _null_ _null_ _null_ aggregate_dummy _null_ _null_ _null_ n a ));
+DATA(insert OID = 6130 ( median					PGNSP PGUID 12 1 0 0 0 t f f f f f i 2 0 1184 "701 1184" _null_ _null_ _null_ _null_ _null_ aggregate_dummy _null_ _null_ _null_ n a ));
 DESCR("median");
 #define IS_MEDIAN_OID(x) ((x) == 6127 || (x) == 6128 || (x) == 6129 || (x) == 6130)
 

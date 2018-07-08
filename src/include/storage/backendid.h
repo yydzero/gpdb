@@ -25,6 +25,8 @@ typedef int BackendId;			/* unique currently active backend identifier */
 /*
  * TempRelBackendId is used in GPDB in place of a real backend ID in some
  * places where we deal with a temporary tables.
+ *
+ * MERGE_95_FIXME: rd_islocaltemp is added in 9.2, shall we remove this?
  */
 #define TempRelBackendId		(-2)
 
