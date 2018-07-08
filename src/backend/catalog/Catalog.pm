@@ -20,7 +20,7 @@
 # way, new rows can have all the columns, but there's no need to modify rows
 # inherited from upstream.
 #
-# The ProcesDataLine function modifies each DATA row, injecting the defaults
+# The ProcessDataLine function modifies each DATA row, injecting the defaults
 # and extra values.
 
 package Catalog;
@@ -53,120 +53,26 @@ sub Catalogs
 		'NameData'      => 'name',
 		'TransactionId' => 'xid');
 
-<<<<<<< HEAD
-    foreach my $input_file (@_)
-    {
-        my %coldefaults;
-        my %extra_values;
-        my %catalog;
-        $catalog{columns} = [];
-        $catalog{data} = [];
-=======
 	foreach my $input_file (@_)
 	{
+		my %coldefaults;
+		my %extra_values;
 		my %catalog;
 		$catalog{columns} = [];
 		$catalog{data}    = [];
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 		open(INPUT_FILE, '<', $input_file) || die "$input_file: $!";
 
-<<<<<<< HEAD
-        # Scan the input file.
-        while (<INPUT_FILE>)
-        {
-            $current_line = $_;
-
-            # Strip C-style comments.
-            s;/\*(.|\n)*\*/;;g;
-            if (m;/\*;)
-            {
-                # handle multi-line comments properly.
-                my $next_line = <INPUT_FILE>;
-                die "$input_file: ends within C-style comment\n"
-                  if !defined $next_line;
-                $_ .= $next_line;
-                redo;
-            }
-=======
 		# Scan the input file.
 		while (<INPUT_FILE>)
 		{
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+			$current_line = $_;
 
 			# Strip C-style comments.
 			s;/\*(.|\n)*\*/;;g;
 			if (m;/\*;)
 			{
 
-<<<<<<< HEAD
-            # Push the data into the appropriate data structure.
-            if (/^DATA\(insert(\s+OID\s+=\s+(\d+))?\s+\(\s*(.*)\s*\)\s*\)$/)
-            {
-                my $bki_values = $3;
-                $bki_values = ProcessDataLine(\%catalog, $bki_values, \%coldefaults, \%extra_values);
-                push @{ $catalog{data} }, {oid => $2, bki_values => $bki_values};
-            }
-            elsif (/^DESCR\(\"(.*)\"\)$/)
-            {
-                $most_recent = $catalog{data}->[-1];
-                # this tests if most recent line is not a DATA() statement
-                if (ref $most_recent ne 'HASH')
-                {
-                    die "DESCR() does not apply to any catalog ($input_file)";
-                }
-                if (!defined $most_recent->{oid})
-                {
-                    die "DESCR() does not apply to any oid ($input_file)";
-                }
-                elsif ($1 ne '')
-                {
-                    $most_recent->{descr} = $1;
-                }
-            }
-            elsif (/^SHDESCR\(\"(.*)\"\)$/)
-            {
-                $most_recent = $catalog{data}->[-1];
-                # this tests if most recent line is not a DATA() statement
-                if (ref $most_recent ne 'HASH')
-                {
-                    die "SHDESCR() does not apply to any catalog ($input_file)";
-                }
-                if (!defined $most_recent->{oid})
-                {
-                    die "SHDESCR() does not apply to any oid ($input_file)";
-                }
-                elsif ($1 ne '')
-                {
-                    $most_recent->{shdescr} = $1;
-                }
-            }
-            elsif (/^DECLARE_TOAST\(\s*(\w+),\s*(\d+),\s*(\d+)\)/)
-            {
-                $catname = 'toasting';
-                my ($toast_name, $toast_oid, $index_oid) = ($1, $2, $3);
-                push @{ $catalog{data} }, "declare toast $toast_oid $index_oid on $toast_name\n";
-            }
-            elsif (/^DECLARE_(UNIQUE_)?INDEX\(\s*(\w+),\s*(\d+),\s*(.+)\)/)
-            {
-                $catname = 'indexing';
-                my ($is_unique, $index_name, $index_oid, $using) = ($1, $2, $3, $4);
-                push @{ $catalog{data} },
-                  sprintf(
-                    "declare %sindex %s %s %s\n",
-                    $is_unique ? 'unique ' : '',
-                    $index_name, $index_oid, $using
-                  );
-            }
-            elsif (/^BUILD_INDICES/)
-            {
-                push @{ $catalog{data} }, "build indices\n";
-            }
-            elsif (/^CATALOG\(([^,]*),(\d+)\)/)
-            {
-                $catname = $1;
-                $catalog{relation_oid} = $2;
-=======
 				# handle multi-line comments properly.
 				my $next_line = <INPUT_FILE>;
 				die "$input_file: ends within C-style comment\n"
@@ -174,7 +80,6 @@ sub Catalogs
 				$_ .= $next_line;
 				redo;
 			}
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 			# Strip useless whitespace and trailing semicolons.
 			chomp;
@@ -182,76 +87,12 @@ sub Catalogs
 			s/;\s*$//;
 			s/\s+/ /g;
 
-<<<<<<< HEAD
-                $catalog{bootstrap}       = /BKI_BOOTSTRAP/            ? ' bootstrap'       : '';
-                $catalog{shared_relation} = /BKI_SHARED_RELATION/      ? ' shared_relation' : '';
-                $catalog{without_oids}    = /BKI_WITHOUT_OIDS/         ? ' without_oids'    : '';
-                $catalog{rowtype_oid}     = /BKI_ROWTYPE_OID\((\d+)\)/ ? " rowtype_oid $1"  : '';
-                $catalog{schema_macro}    = /BKI_SCHEMA_MACRO/         ? 'True'             : '';
-                $declaring_attributes = 1;
-            }
-            # GPDB_EXTRA_COL(<colname>, <default>)
-            elsif (m/GPDB_COLUMN_DEFAULT\s*\(\s*([[:word:]]+),\s*(.*)\)/)
-            {
-                my $colname = $1;
-                my $coldefault = $2;
-                my $found = 0;
-
-                foreach my $column ( @{ $catalog{columns} } )
-                {
-                    my ($attname, $atttype) = %$column;
-
-                    if ($attname eq $colname)
-                    {
-                        $found = 1;
-                    }
-                }
-                die "unknown column $colname on line: $current_line" if !$found;
-
-                $coldefaults{$colname} = $coldefault;
-            }
-            # GPDB_EXTRA_COL(colname = value)
-            elsif (m/^GPDB_EXTRA_COL\(\s*(\w+)\s*=\s*(.+)\s*\)/)
-            {
-                my $colname = $1;
-                my $val = $2;
-
-                $extra_values{$colname} = $val;
-            }
-            elsif ($declaring_attributes)
-            {
-                next if (/^{|^$/);
-                next if (/^#/);
-                if (/^}/)
-                {
-                    undef $declaring_attributes;
-                }
-                else
-                {
-                    my ($atttype, $attname) = split /\s+/, $_;
-                    die "parse error ($input_file)" unless $attname;
-                    if (exists $RENAME_ATTTYPE{$atttype})
-                    {
-                        $atttype = $RENAME_ATTTYPE{$atttype};
-                    }
-                    if ($attname =~ /(.*)\[.*\]/)        # array attribute
-                    {
-                        $attname = $1;
-                        $atttype .= '[]';                # variable-length only
-                    }
-                    push @{ $catalog{columns} }, {$attname => $atttype};
-                }
-            }
-        }
-        $catalogs{$catname} = \%catalog;
-        close INPUT_FILE;
-    }
-    return \%catalogs;
-=======
 			# Push the data into the appropriate data structure.
 			if (/^DATA\(insert(\s+OID\s+=\s+(\d+))?\s+\(\s*(.*)\s*\)\s*\)$/)
 			{
-				push @{ $catalog{data} }, { oid => $2, bki_values => $3 };
+				my $bki_values = $3;
+				$bki_values = ProcessDataLine(\%catalog, $bki_values, \%coldefaults, \%extra_values);
+				push @{ $catalog{data} }, { oid => $2, bki_values => $bki_values };
 			}
 			elsif (/^DESCR\(\"(.*)\"\)$/)
 			{
@@ -330,6 +171,34 @@ sub Catalogs
 				$catalog{schema_macro} = /BKI_SCHEMA_MACRO/ ? 'True' : '';
 				$declaring_attributes = 1;
 			}
+			# GPDB_COLUMN_DEFAULT(<colname>, <default>)
+			elsif (m/GPDB_COLUMN_DEFAULT\s*\(\s*([[:word:]]+),\s*(.*)\)/)
+			{
+				my $colname = $1;
+				my $coldefault = $2;
+				my $found = 0;
+
+				foreach my $row ( @{ $catalog{columns} } )
+				{
+					my $attname = $row->{'name'};
+
+					if ($attname eq $colname)
+					{
+						$found = 1;
+					}
+				}
+				die "unknown column $colname on line: $current_line" if !$found;
+
+				$coldefaults{$colname} = $coldefault;
+			}
+			# GPDB_EXTRA_COL(colname = value)
+			elsif (m/^GPDB_EXTRA_COL\(\s*(\w+)\s*=\s*(.+)\s*\)/)
+			{
+				my $colname = $1;
+				my $val = $2;
+
+				$extra_values{$colname} = $val;
+			}
 			elsif ($declaring_attributes)
 			{
 				next if (/^{|^$/);
@@ -380,7 +249,6 @@ sub Catalogs
 		close INPUT_FILE;
 	}
 	return \%catalogs;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 }
 
 # Rename temporary files to final names.
@@ -414,9 +282,10 @@ sub ProcessDataLine
     my $numdefaults = keys %$coldefaults;
 
     my $i = 1;
-    foreach my $column ( @{ $catalog->{columns} } )
+    foreach my $row ( @{ $catalog->{columns} } )
     {
-        my ($attname, $atttype) = %$column;
+		my $attname = $row->{'name'};
+
         $colnums{$attname} = $i;
 
         $i = $i + 1;

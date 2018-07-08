@@ -269,6 +269,7 @@ sub get_fntype
 	return $tdef;
 } # end get_fntype
 
+# return function defintion options, like 'LANGUAGE internal IMMUTABLE STRICT'
 sub get_fnoptlist
 {
 	my $funcdef = shift;
@@ -307,6 +308,7 @@ sub get_fnoptlist
 
 } # end get_fnoptlist
 
+# set major attributes of pg_proc tuple.
 sub make_opt
 {
 	my $fndef = shift;
@@ -445,27 +447,35 @@ sub make_opt
 		$tdef = {
 
 			proname		 => $proname,
-#			pronamespace => 11, # pg_catalog
-#			proowner	 => 10, # admin
 			pronamespace => "PGNSP", # pg_catalog
 			proowner	 => "PGUID", # admin
 			prolang		 => $prolang,
 			procost		 => $procost,
 			prorows		 => $prorows,
 			provariadic	 => 0,
+#			protransform
 			proisagg	 => 0,
+            proiswindow	 => 0,
 			prosecdef	 => $prosecdef,
 			proleakproof => $proleakproof,
 			proisstrict	 => $proisstrict,
 #			proretset
 			provolatile	 => $provolatile,
 #			pronargs
+#			pronargdefaults
 #			prorettype
-			proiswindow	 => 0,
 #			proargtypes
+
 #			proallargtypes
 #			proargmodes
 #			proargnames
+#			proargdefaults
+#			protrftypes
+#			prosrc
+#			probin
+#			proconfig
+#			proacl
+
 			prodataaccess	=> $prodataaccess,
 			proexeclocation	=> $proexeclocation
 		};
@@ -552,6 +562,7 @@ sub make_opt
 
 } # end make_opt
 
+# set pg_proc tuple attris: proretset, prorettype
 sub make_rettype
 {
 	my $fndef = shift;
@@ -578,8 +589,9 @@ sub make_rettype
 			if (defined($rtoid));
 	}
 	
-} # end make_rettype
+} # end
 
+# set pg_proc tuple attrs: proargnames,proallargtypes, proargmodes, etc.
 sub make_allargs
 {
 	my $fndef = shift;
@@ -834,6 +846,7 @@ sub get_fnwithhash
 	return \%withh;
 } # end get_fnwithhash
 
+# convert function to 'DATA(insert OID = 7082' line according to all needed attributes.
 sub printfndef
 {
 	my $fndef = shift;
@@ -893,6 +906,7 @@ sub printfndef
 		($tup->{proargmodes} ? '"' . $tup->{proargmodes} . '"' : "_null_") . " " .
 		($tup->{proargnames} ? '"' . $tup->{proargnames} . '"' : "_null_") . " " .
 		($tup->{proargdefault} ? $tup->{proargdefaults} : "_null_") . " " .
+		($tup->{protrftypes} ? $tup->{protrftypes} : "_null_") . " " .
 		(exists($fndef->{with}->{prosrc}) ? $fndef->{with}->{prosrc} :
 		 ($tup->{prosrc} ? $tup->{prosrc} : "_null_" )) . " " .
 		($tup->{probin} ? $tup->{probin} : "_null_") . " " .
@@ -983,6 +997,7 @@ sub doprocs()
 		undef $funcprefix;
 
 		# find "prefix", ie comments or #DEF's, preceding function definition.
+        # convert comments from '--' to c-style comments
 		if ($funcdef =~ m/\s*\-\-.*create func/ims)
 		{
 			my @ppp = ($funcdef =~ m/(^\s*\-\-.*\n)\s*create func/ims);
@@ -1083,7 +1098,7 @@ sub doprocs()
 		push @allfndef, $fndefh;
 	}
 
-
+#   Now allfndef contains all information defined for funcs in pg_proc.sql.
 #	print Data::Dumper->Dump(\@allfndef);
 
 	for my $fndef (@allfndef)
@@ -1106,6 +1121,7 @@ sub doprocs()
 		}
 	}
 
+#   Now allfndef contains all info needed for 'DATA(insert OID = 7082 ( interval_bound ...'
 #	print Data::Dumper->Dump(\@allfndef);
 
     my $verzion = "unknown";

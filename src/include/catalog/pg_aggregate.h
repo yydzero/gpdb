@@ -311,12 +311,12 @@ DATA(insert ( 3538	n 0 string_agg_transfn	-	-	-	string_agg_finalfn	-				-				-		
 DATA(insert ( 3545	n 0 bytea_string_agg_transfn	-	-	-	bytea_string_agg_finalfn	-				-				-		f f 0	2281	0	0		0	_null_ _null_ ));
 
 /* json */
-DATA(insert ( 3175	n 0 json_agg_transfn	json_agg_finalfn			-				-				-				f f 0	2281	0	0		0	_null_ _null_ ));
-DATA(insert ( 3197	n 0 json_object_agg_transfn json_object_agg_finalfn -				-				-				f f 0	2281	0	0		0	_null_ _null_ ));
+DATA(insert ( 3175	n 0 json_agg_transfn	-	-	-	json_agg_finalfn			-				-				-				f f 0	2281	0	0		0	_null_ _null_ ));
+DATA(insert ( 3197	n 0 json_object_agg_transfn -	-	-	json_object_agg_finalfn -				-				-				f f 0	2281	0	0		0	_null_ _null_ ));
 
 /* jsonb */
-DATA(insert ( 3267	n 0 jsonb_agg_transfn	jsonb_agg_finalfn			-				-				-				f f 0	2281	0	0		0	_null_ _null_ ));
-DATA(insert ( 3270	n 0 jsonb_object_agg_transfn jsonb_object_agg_finalfn -				-				-				f f 0	2281	0	0		0	_null_ _null_ ));
+DATA(insert ( 3267	n 0 jsonb_agg_transfn	-	-	-	jsonb_agg_finalfn			-				-				-				f f 0	2281	0	0		0	_null_ _null_ ));
+DATA(insert ( 3270	n 0 jsonb_object_agg_transfn -	-	-	jsonb_object_agg_finalfn -				-				-				f f 0	2281	0	0		0	_null_ _null_ ));
 
 /* ordered-set and hypothetical-set aggregates */
 DATA(insert ( 3972	o 1 ordered_set_transition			-	-	-	percentile_disc_final					-		-		-		t f 0	2281	0	0		0	_null_ _null_ ));
@@ -332,39 +332,35 @@ DATA(insert ( 3990	h 1 ordered_set_transition_multi	-	-	-	cume_dist_final							
 DATA(insert ( 3992	h 1 ordered_set_transition_multi	-	-	-	dense_rank_final						-		-		-		t f 0	2281	0	0		0	_null_ _null_ ));
 
 // disable all gpdb added aggregates so far
-#if 0
 
 /* TODO: gpdb added */
 // DATA(insert ( 3333	n 0 gpxloglocsmaller - gpxloglocsmaller		- -			f 3327	3310	_null_));
 
 /* MPP Aggregate -- array_sum -- special for prospective customer. */
-DATA(insert ( 6013	n 0 array_add     - array_add	  - -					f 0	1007	"{}"));
-
-/* sum(array[]) */
-DATA(insert ( 3216  n 0 int2_matrix_accum     - int8_matrix_accum     - -   f 0   1016    _null_));
-DATA(insert ( 3217  n 0 int4_matrix_accum     - int8_matrix_accum     - -   f 0   1016    _null_));
-DATA(insert ( 3218  n 0 int8_matrix_accum     - int8_matrix_accum     - -   f 0   1016    _null_));
-DATA(insert ( 3219  n 0 float8_matrix_accum   - float8_matrix_accum   - -   f 0   1022    _null_));
-
-/* pivot_sum(...) */
-DATA(insert ( 3226  n 0 int4_pivot_accum      - int8_matrix_accum     - -   f 0   1007    _null_));
-DATA(insert ( 3228  n 0 int8_pivot_accum      - int8_matrix_accum     - -   f 0   1016    _null_));
-DATA(insert ( 3230  n 0 float8_pivot_accum    - float8_matrix_accum   - -   f 0   1022    _null_));
-
-/* GPDB: additional variants of percentile_cont, for timestamps */
-DATA(insert ( 6119	o 1 ordered_set_transition	- - -		percentile_cont_timestamp_final			f 0	2281	_null_ ));
-DATA(insert ( 6121	o 1 ordered_set_transition	- - -		percentile_cont_timestamp_multi_final	f 0	2281	_null_ ));
-DATA(insert ( 6123	o 1 ordered_set_transition	- - -		percentile_cont_timestamptz_final		f 0	2281	_null_ ));
-DATA(insert ( 6125	o 1 ordered_set_transition	- - -		percentile_cont_timestamptz_multi_final	f 0	2281	_null_ ));
-
-/* median */
-DATA(insert ( 6127	o 1 ordered_set_transition	- - -		percentile_cont_float8_final			f 0	2281	_null_ ));
-DATA(insert ( 6128	o 1 ordered_set_transition	- - -		percentile_cont_interval_final			f 0	2281	_null_ ));
-DATA(insert ( 6129	o 1 ordered_set_transition	- - -		percentile_cont_timestamp_final			f 0	2281	_null_ ));
-DATA(insert ( 6130	o 1 ordered_set_transition	- - -		percentile_cont_timestamptz_final		f 0	2281	_null_ ));
-
-#endif
-
+//DATA(insert ( 6013	n 0 array_add     - array_add	  - -					f 0	1007	"{}"));
+//
+///* sum(array[]) */
+//DATA(insert ( 3216  n 0 int2_matrix_accum     - int8_matrix_accum     - -   f 0   1016    _null_));
+//DATA(insert ( 3217  n 0 int4_matrix_accum     - int8_matrix_accum     - -   f 0   1016    _null_));
+//DATA(insert ( 3218  n 0 int8_matrix_accum     - int8_matrix_accum     - -   f 0   1016    _null_));
+//DATA(insert ( 3219  n 0 float8_matrix_accum   - float8_matrix_accum   - -   f 0   1022    _null_));
+//
+///* pivot_sum(...) */
+//DATA(insert ( 3226  n 0 int4_pivot_accum      - int8_matrix_accum     - -   f 0   1007    _null_));
+//DATA(insert ( 3228  n 0 int8_pivot_accum      - int8_matrix_accum     - -   f 0   1016    _null_));
+//DATA(insert ( 3230  n 0 float8_pivot_accum    - float8_matrix_accum   - -   f 0   1022    _null_));
+//
+///* GPDB: additional variants of percentile_cont, for timestamps */
+//DATA(insert ( 6119	o 1 ordered_set_transition	- - -		percentile_cont_timestamp_final			f 0	2281	_null_ ));
+//DATA(insert ( 6121	o 1 ordered_set_transition	- - -		percentile_cont_timestamp_multi_final	f 0	2281	_null_ ));
+//DATA(insert ( 6123	o 1 ordered_set_transition	- - -		percentile_cont_timestamptz_final		f 0	2281	_null_ ));
+//DATA(insert ( 6125	o 1 ordered_set_transition	- - -		percentile_cont_timestamptz_multi_final	f 0	2281	_null_ ));
+//
+///* median */
+//DATA(insert ( 6127	o 1 ordered_set_transition	- - -		percentile_cont_float8_final			f 0	2281	_null_ ));
+//DATA(insert ( 6128	o 1 ordered_set_transition	- - -		percentile_cont_interval_final			f 0	2281	_null_ ));
+//DATA(insert ( 6129	o 1 ordered_set_transition	- - -		percentile_cont_timestamp_final			f 0	2281	_null_ ));
+//DATA(insert ( 6130	o 1 ordered_set_transition	- - -		percentile_cont_timestamptz_final		f 0	2281	_null_ ));
 
 
 /*
