@@ -763,7 +763,7 @@ static Node *makeIsNotDistinctFromNode(Node *expr, int position);
 
 	QUEUE
 
-	RANDOMLY READABLE READS REJECT_P REPLICATED RESOURCE
+	RANDOMLY RANK READABLE READS REJECT_P REPLICATED RESOURCE
     ROOTPARTITION
 
 	SCATTER SEGMENT SEGMENTS SPLIT SQL SUBPARTITION
@@ -3273,31 +3273,15 @@ alter_table_partition_id_spec:
 			 * until it has shifted the whole thing. Then we check in the
 			 * code that func_name was RANK, and that the expr_list was a
 			 * NumericOnly.
+			 *
+			 * MERGE_95_FIXME: make rank as reserved keyword.
  			 */
-           | FOR '(' func_name '(' func_arg_list ')' ')'
+			| FOR '(' RANK '(' NumericOnly ')' ')'
 				{
 					Node		   *arg;
 					Value		   *val;
 					Node		   *fname;
 					AlterPartitionId *n;
-
-                    /* allow RANK only */
-					if (list_length($3) != 1)
-                        parser_yyerror("syntax error");
-					fname = linitial($3);
-					if (!(strcmp(strVal(linitial($3)), "rank") == 0))
-                        parser_yyerror("syntax error");
-
-					/* expr_list must be a single numeric constant */
-					if (list_length($5) != 1)
-						parser_yyerror("syntax error");
-
-					arg = linitial($5);
-					if (!IsA(arg, A_Const))
-						parser_yyerror("syntax error");
-					val = &((A_Const *) arg)->val;
-					if (!IsA(val, Integer) && !IsA(val, Float))
-						parser_yyerror("syntax error");
 
 					n = makeNode(AlterPartitionId);
 					n->idtype = AT_AP_IDRank;
@@ -17027,6 +17011,7 @@ reserved_keyword:
 			| PARTITION
 			| PLACING
 			| PRIMARY
+			| RANK
 			| REFERENCES
 			| RETURNING
 			| SCATTER  /* gp */
