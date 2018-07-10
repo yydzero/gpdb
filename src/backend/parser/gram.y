@@ -6,13 +6,9 @@
  * gram.y
  *	  POSTGRESQL BISON rules/actions
  *
-<<<<<<< HEAD
  * Portions Copyright (c) 2006-2010, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
-=======
  * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -313,12 +309,9 @@ static Node *makeIsNotDistinctFromNode(Node *expr, int position);
 %type <list>	ext_on_clause_list format_opt format_opt_list format_def_list
 				ext_options ext_options_opt ext_options_list
 				ext_opt_encoding_list
-				OptTableSpaceOptions
-				tblspace_options tblspace_options_list
 %type <defelt>	ext_on_clause_item format_opt_item format_def_item
 				ext_options_item
 				ext_opt_encoding_item
-				tblspace_options_item
 
 %type <ival>	opt_lock lock_type cast_context
 %type <ival>	vacuum_option_list vacuum_option_elem
@@ -406,7 +399,7 @@ static Node *makeIsNotDistinctFromNode(Node *expr, int position);
 				target_list opt_target_list insert_column_list set_target_list
 				set_clause_list set_clause multiple_set_clause
 				ctext_expr_list ctext_row def_list indirection opt_indirection
-				reloption_list group_clause group_elem_list group_elem TriggerFuncArgs select_limit
+				reloption_list group_clause TriggerFuncArgs select_limit
 				opt_select_limit opclass_item_list opclass_drop_list
 				opclass_purpose opt_opfamily transaction_mode_list_or_empty
 				OptTableFuncElementList TableFuncElementList opt_type_modifiers
@@ -416,17 +409,14 @@ static Node *makeIsNotDistinctFromNode(Node *expr, int position);
 				scatter_clause
 				create_generic_options alter_generic_options
 				relation_expr_list dostmt_opt_list
-<<<<<<< HEAD
 				columnListUnique
 
 %type <node>    table_value_select_clause
-=======
 				transform_element_list transform_type_list
 
 %type <list>	group_by_list
 %type <node>	group_by_item empty_grouping_set rollup_clause cube_clause
 %type <node>	grouping_sets_clause
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 %type <list>	opt_fdw_options fdw_options
 %type <defelt>	fdw_option
@@ -467,11 +457,7 @@ static Node *makeIsNotDistinctFromNode(Node *expr, int position);
 %type <boolean> opt_dxl
 %type <defelt>	opt_binary opt_oids copy_delimiter
 
-<<<<<<< HEAD
 %type <boolean> copy_from opt_program skip_external_partition
-=======
-%type <boolean> copy_from opt_program
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 %type <ival>	opt_column event cursor_options opt_hold opt_set_data
 %type <objtype>	drop_type comment_type security_label_type
@@ -506,13 +492,8 @@ static Node *makeIsNotDistinctFromNode(Node *expr, int position);
 %type <list>	ExclusionConstraintList ExclusionConstraintElem
 %type <list>	func_arg_list
 %type <node>	func_arg_expr
-<<<<<<< HEAD
-%type <list>	row type_list array_expr_list
-%type <node>	case_expr case_arg when_clause when_operand case_default
-=======
 %type <list>	row explicit_row implicit_row type_list array_expr_list
-%type <node>	case_expr case_arg when_clause case_default
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+%type <node>	case_expr case_arg when_clause when_operand case_default
 %type <list>	when_clause_list
 %type <node>	decode_expr search_result decode_default
 %type <list>	search_result_list
@@ -561,20 +542,14 @@ static Node *makeIsNotDistinctFromNode(Node *expr, int position);
 
 %type <ival>	Iconst SignedIconst
 %type <str>		Sconst comment_text notify_payload
-<<<<<<< HEAD
-%type <str>		RoleId opt_granted_by opt_boolean_or_string ColId_or_Sconst
+%type <str>		RoleId opt_boolean_or_string
 %type <str>		QueueId
 %type <list>	var_list
 %type <str>		ColId ColLabel ColLabelNoAs var_name type_function_name param_name
 %type <keyword> PartitionIdentKeyword	
 %type <str>		PartitionColId
-=======
-%type <str>		RoleId opt_boolean_or_string
-%type <list>	var_list
-%type <str>		ColId ColLabel var_name type_function_name param_name
 %type <str>		NonReservedWord NonReservedWord_or_Sconst
 %type <str>		createdb_opt_name
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 %type <node>	var_value zone_value
 %type <node>	auth_ident RoleSpec opt_granted_by
 
@@ -592,7 +567,6 @@ static Node *makeIsNotDistinctFromNode(Node *expr, int position);
 
 %type <list>	constraints_set_list
 %type <boolean> constraints_set_mode
-<<<<<<< HEAD
 %type <str>		OptTableSpace OptConsTableSpace OptTableSpaceOwner
 %type <node>    DistributedBy OptDistributedBy 
 %type <ival>	TabPartitionByType OptTabPartitionRangeInclusive
@@ -621,11 +595,6 @@ static Node *makeIsNotDistinctFromNode(Node *expr, int position);
 %type <node>	column_reference_storage_directive
 %type <list>	opt_storage_encoding OptTabPartitionColumnEncList
 				TabPartitionColumnEncList
-=======
-%type <str>		OptTableSpace OptConsTableSpace
-%type <node>	OptTableSpaceOwner
-%type <ival>	opt_check_option
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 %type <str>		opt_provider security_label
 
@@ -638,13 +607,8 @@ static Node *makeIsNotDistinctFromNode(Node *expr, int position);
 
 %type <node>	func_application func_expr_common_subexpr
 %type <node>	func_expr func_expr_windowless
-<<<<<<< HEAD
-%type <node> 	common_table_expr
-%type <with> 	with_clause opt_with_clause
-=======
 %type <node>	common_table_expr
 %type <with>	with_clause opt_with_clause
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 %type <list>	cte_list
 
 %type <list>	within_group_clause
@@ -653,12 +617,8 @@ static Node *makeIsNotDistinctFromNode(Node *expr, int position);
 %type <windef>	window_definition over_clause window_specification
 				opt_frame_clause frame_extent frame_bound
 %type <str>		opt_existing_window_name
-<<<<<<< HEAD
-%type <ival>	window_frame_exclusion
-
-=======
 %type <boolean> opt_if_not_exists
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+%type <ival>	window_frame_exclusion
 
 /*
  * Non-keyword token types.  These are hard-wired into the "flex" lexer.
@@ -692,15 +652,9 @@ static Node *makeIsNotDistinctFromNode(Node *expr, int position);
 	CACHE CALLED CASCADE CASCADED CASE CAST CATALOG_P CHAIN CHAR_P
 	CHARACTER CHARACTERISTICS CHECK CHECKPOINT CLASS CLOSE
 	CLUSTER COALESCE COLLATE COLLATION COLUMN COMMENT COMMENTS COMMIT
-<<<<<<< HEAD
-	COMMITTED CONCURRENCY CONCURRENTLY CONFIGURATION CONNECTION CONSTRAINT CONSTRAINTS
-	CONTENT_P CONTINUE_P CONVERSION_P COPY COST CREATE
-	CROSS CSV CURRENT_P
-=======
-	COMMITTED CONCURRENTLY CONFIGURATION CONFLICT CONNECTION CONSTRAINT
+	COMMITTED CONCURRENCY CONCURRENTLY CONFIGURATION CONFLICT CONNECTION CONSTRAINT
 	CONSTRAINTS CONTENT_P CONTINUE_P CONVERSION_P COPY COST CREATE
 	CROSS CSV CUBE CURRENT_P
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	CURRENT_CATALOG CURRENT_DATE CURRENT_ROLE CURRENT_SCHEMA
 	CURRENT_TIME CURRENT_TIMESTAMP CURRENT_USER CURSOR CYCLE
 
@@ -732,23 +686,15 @@ static Node *makeIsNotDistinctFromNode(Node *expr, int position);
 	LEADING LEAKPROOF LEAST LEFT LEVEL LIKE LIMIT LISTEN LOAD LOCAL
 	LOCALTIME LOCALTIMESTAMP LOCATION LOCK_P LOCKED LOGGED
 
-<<<<<<< HEAD
-	MAPPING MATCH MAXVALUE MEMORY_LIMIT MEMORY_SHARED_QUOTA MEMORY_SPILL_RATIO
+	MAPPING MATCH MATERIALIZED MAXVALUE MEMORY_LIMIT MEMORY_SHARED_QUOTA MEMORY_SPILL_RATIO
 	MINUTE_P MINVALUE MODE MONTH_P MOVE
-=======
-	MAPPING MATCH MATERIALIZED MAXVALUE MINUTE_P MINVALUE MODE MONTH_P MOVE
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	NAME_P NAMES NATIONAL NATURAL NCHAR NEXT NO NONE
 	NOT NOTHING NOTIFY NOTNULL NOWAIT NULL_P NULLIF
 	NULLS_P NUMERIC
 
 	OBJECT_P OF OFF OFFSET OIDS ON ONLY OPERATOR OPTION OPTIONS OR
-<<<<<<< HEAD
-	ORDER OUT_P OUTER_P OVERLAPS OVERLAY OWNED OWNER
-=======
 	ORDER ORDINALITY OUT_P OUTER_P OVER OVERLAPS OVERLAY OWNED OWNER
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	PARSER PARTIAL PARTITION PASSING PASSWORD PLACING PLANS POLICY POSITION
 	PRECEDING PRECISION PRESERVE PREPARE PREPARED PRIMARY
@@ -777,11 +723,7 @@ static Node *makeIsNotDistinctFromNode(Node *expr, int position);
 	VACUUM VALID VALIDATE VALIDATOR VALUE_P VALUES VARCHAR VARIADIC VARYING
 	VERBOSE VERSION_P VIEW VIEWS VOLATILE
 
-<<<<<<< HEAD
-	WHEN WHERE WHITESPACE_P WITH WITHIN WITHOUT WORK WRAPPER WRITE
-=======
 	WHEN WHERE WHITESPACE_P WINDOW WITH WITHIN WITHOUT WORK WRAPPER WRITE
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	XML_P XMLATTRIBUTES XMLCONCAT XMLELEMENT XMLEXISTS XMLFOREST XMLPARSE
 	XMLPI XMLROOT XMLSERIALIZE
@@ -795,15 +737,15 @@ static Node *makeIsNotDistinctFromNode(Node *expr, int position);
 %token <keyword>
 	ACTIVE
 
-	CONTAINS CPU_RATE_LIMIT CREATEEXTTABLE CUBE
+	CONTAINS CPU_RATE_LIMIT CREATEEXTTABLE
 
 	DECODE DENY DISTRIBUTED DXL
 
 	ERRORS EVERY EXCHANGE
 
-	FIELDS FILL FILTER FORMAT
+	FIELDS FILL FORMAT
 
-	GROUP_ID GROUPING
+	GROUP_ID
 
 	HASH HOST
 
@@ -815,22 +757,22 @@ static Node *makeIsNotDistinctFromNode(Node *expr, int position);
 
 	NEWLINE NOCREATEEXTTABLE NOOVERCOMMIT
 
-	ORDERED OTHERS OVER OVERCOMMIT
+	ORDERED OTHERS OVERCOMMIT
 
 	PARTITIONS PERCENT PROTOCOL
 
 	QUEUE
 
 	RANDOMLY READABLE READS REJECT_P REPLICATED RESOURCE
-	ROLLUP ROOTPARTITION
+    ROOTPARTITION
 
-	SCATTER SEGMENT SEGMENTS SETS SPLIT SQL SUBPARTITION
+	SCATTER SEGMENT SEGMENTS SPLIT SQL SUBPARTITION
 
 	THRESHOLD TIES
 
 	VALIDATION
 
-	WEB WINDOW WRITABLE
+	WEB WRITABLE
 
 /*
  * The grammar thinks these are keywords, but they are not in the kwlist.h
@@ -884,7 +826,6 @@ static Node *makeIsNotDistinctFromNode(Node *expr, int position);
  * blame any funny behavior of UNBOUNDED on the SQL standard, though.
  */
 %nonassoc	UNBOUNDED		/* ideally should have same precedence as IDENT */
-<<<<<<< HEAD
 %nonassoc	IDENT NULL_P PARTITION RANGE ROWS PRECEDING FOLLOWING
 
 /*
@@ -1196,9 +1137,6 @@ static Node *makeIsNotDistinctFromNode(Node *expr, int position);
 			
 
 
-=======
-%nonassoc	IDENT NULL_P PARTITION RANGE ROWS PRECEDING FOLLOWING CUBE ROLLUP
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 %left		Op OPERATOR		/* multi-character ops and user-defined operators */
 %left		'+' '-'
 %left		'*' '/' '%'
@@ -1266,24 +1204,18 @@ stmt :
 			| AlterGroupStmt
 			| AlterObjectSchemaStmt
 			| AlterOwnerStmt
-<<<<<<< HEAD
 			| AlterQueueStmt
 			| AlterResourceGroupStmt
-=======
 			| AlterPolicyStmt
 			| AlterSeqStmt
 			| AlterSystemStmt
 			| AlterTableStmt
 			| AlterTblSpcStmt
 			| AlterCompositeTypeStmt
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			| AlterRoleSetStmt
 			| AlterRoleStmt
-			| AlterSeqStmt
 			| AlterTSConfigurationStmt
 			| AlterTSDictionaryStmt
-			| AlterTableStmt
-			| AlterCompositeTypeStmt
 			| AlterTypeStmt
 			| AlterUserMappingStmt
 			| AlterUserSetStmt
@@ -2594,14 +2526,14 @@ AlterTableStmt:
 					n->missing_ok = true;
 					$$ = (Node *)n;
 				}
-<<<<<<< HEAD
 		|	ALTER EXTERNAL TABLE relation_expr alter_table_cmds
 				{
 					AlterTableStmt *n = makeNode(AlterTableStmt);
 					n->relation = $4;
 					n->cmds = $5;
 					n->relkind = OBJECT_EXTTABLE;
-=======
+					$$ = (Node *)n;
+				}
 		|	ALTER TABLE ALL IN_P TABLESPACE name SET TABLESPACE name opt_nowait
 				{
 					AlterTableMoveAllStmt *n =
@@ -2622,7 +2554,6 @@ AlterTableStmt:
 					n->roles = $9;
 					n->new_tablespacename = $12;
 					n->nowait = $13;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 					$$ = (Node *)n;
 				}
 		|	ALTER INDEX qualified_name alter_table_cmds
@@ -3920,9 +3851,6 @@ ClosePortalStmt:
  *				where 'file' can be one of:
  *				{ PROGRAM 'command' | STDIN | STDOUT | 'filename' }
  *
- *				where 'file' can be one of:
- *				{ PROGRAM 'command' | STDIN | STDOUT | 'filename' }
- *
  *				In the preferred syntax the options are comma-separated
  *				and use generic identifiers instead of keywords.  The pre-9.0
  *				syntax had a hard-wired, space-separated set of options.
@@ -3937,10 +3865,7 @@ ClosePortalStmt:
 
 CopyStmt:	COPY opt_binary qualified_name opt_column_list opt_oids
 			copy_from opt_program copy_file_name copy_delimiter opt_with copy_options
-<<<<<<< HEAD
 			OptSingleRowErrorHandling skip_external_partition
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 				{
 					CopyStmt *n = makeNode(CopyStmt);
 					n->relation = $3;
@@ -3949,22 +3874,18 @@ CopyStmt:	COPY opt_binary qualified_name opt_column_list opt_oids
 					n->is_from = $6;
 					n->is_program = $7;
 					n->filename = $8;
-<<<<<<< HEAD
 					n->sreh = $12;
 					n->partitions = NULL;
 					n->ao_segnos = NIL;
-=======
+					n->skip_ext_partition = $13;
 
 					if (n->is_program && n->filename == NULL)
 						ereport(ERROR,
 								(errcode(ERRCODE_SYNTAX_ERROR),
 								 errmsg("STDIN/STDOUT not allowed with PROGRAM"),
 								 parser_errposition(@8)));
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 					n->options = NIL;
-					n->skip_ext_partition = $13;
-
 					/* Concatenate user-supplied flags */
 					if ($2)
 						n->options = lappend(n->options, $2);
@@ -3974,10 +3895,6 @@ CopyStmt:	COPY opt_binary qualified_name opt_column_list opt_oids
 						n->options = lappend(n->options, $9);
 					if ($11)
 						n->options = list_concat(n->options, $11);
-<<<<<<< HEAD
-
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 					$$ = (Node *)n;
 				}
 			| COPY select_with_parens TO opt_program copy_file_name opt_with copy_options
@@ -3990,18 +3907,15 @@ CopyStmt:	COPY opt_binary qualified_name opt_column_list opt_oids
 					n->is_program = $4;
 					n->filename = $5;
 					n->options = $7;
-<<<<<<< HEAD
 					n->partitions = NULL;
 					n->ao_segnos = NIL;
 					n->skip_ext_partition = false;
-=======
 
 					if (n->is_program && n->filename == NULL)
 						ereport(ERROR,
 								(errcode(ERRCODE_SYNTAX_ERROR),
 								 errmsg("STDIN/STDOUT not allowed with PROGRAM"),
 								 parser_errposition(@5)));
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 					$$ = (Node *)n;
 				}
@@ -4017,13 +3931,11 @@ opt_program:
 			| /* EMPTY */							{ $$ = FALSE; }
 		;
 
-<<<<<<< HEAD
 skip_external_partition:
 			IGNORE_P EXTERNAL PARTITIONS			{ $$ = TRUE; }
 			| /*EMPTY*/								{ $$ = FALSE; }
 		;
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+
 /*
  * copy_file_name NULL indicates stdio is used. Whether stdin or stdout is
  * used depends on the direction. (It really doesn't make sense to copy from
@@ -5656,6 +5568,7 @@ format_def_list:
 			{
 				$$ = lappend($1, $3);
 			}
+			;
 
 format_def_item:
     		ColLabel '=' def_arg
@@ -5666,6 +5579,7 @@ format_def_item:
 			{
 				$$ = makeDefElem($1, (Node *) $4);
 			}
+			;
 
 
 format_opt_item:
@@ -6151,11 +6065,7 @@ opt_procedural:
  *
  *****************************************************************************/
 
-<<<<<<< HEAD
-CreateTableSpaceStmt: CREATE TABLESPACE name OptTableSpaceOwner LOCATION Sconst OptTableSpaceOptions
-=======
 CreateTableSpaceStmt: CREATE TABLESPACE name OptTableSpaceOwner LOCATION Sconst opt_reloptions
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 				{
 					CreateTableSpaceStmt *n = makeNode(CreateTableSpaceStmt);
 					n->tablespacename = $3;
@@ -6166,40 +6076,7 @@ CreateTableSpaceStmt: CREATE TABLESPACE name OptTableSpaceOwner LOCATION Sconst 
 				}
 		;
 
-<<<<<<< HEAD
-OptTableSpaceOptions:
-			OPTIONS tblspace_options			{ $$ = $2; }
-			| /* EMPTY */						{ $$ = NIL; }
-			;
-
-tblspace_options:
-			'(' tblspace_options_list ')'		{ $$ = $2; }
-			| '(' ')'							{ $$ = NIL; }
-			;
-
-
-tblspace_options_list:
-			tblspace_options_item
-			{
-				$$ = list_make1($1);
-			}
-			| tblspace_options_list ',' tblspace_options_item
-			{
-				$$ = lappend($1, $3);
-			}
-			;
-
-tblspace_options_item:
-			ColLabel Sconst
-			{
-				$$ = makeDefElem($1, (Node *) makeString($2));
-			}
-			;
-
-OptTableSpaceOwner: OWNER name			{ $$ = $2; }
-=======
 OptTableSpaceOwner: OWNER RoleSpec		{ $$ = $2; }
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			| /*EMPTY */				{ $$ = NULL; }
 		;
 
@@ -6267,19 +6144,11 @@ create_extension_opt_item:
 				{
 					$$ = makeDefElem("schema", (Node *)makeString($2));
 				}
-<<<<<<< HEAD
-			| VERSION_P Sconst
-				{
-					$$ = makeDefElem("new_version", (Node *)makeString($2));
-				}
-			| FROM Sconst
-=======
 			| VERSION_P NonReservedWord_or_Sconst
 				{
 					$$ = makeDefElem("new_version", (Node *)makeString($2));
 				}
 			| FROM NonReservedWord_or_Sconst
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 				{
 					$$ = makeDefElem("old_version", (Node *)makeString($2));
 				}
@@ -6308,11 +6177,7 @@ alter_extension_opt_list:
 		;
 
 alter_extension_opt_item:
-<<<<<<< HEAD
-			TO Sconst
-=======
 			TO NonReservedWord_or_Sconst
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 				{
 					$$ = makeDefElem("new_version", (Node *)makeString($2));
 				}
@@ -7632,7 +7497,6 @@ def_arg:	func_type						{ $$ = (Node *)$1; }
 			| NumericOnly					{ $$ = (Node *)$1; }
 			| Sconst						{ $$ = (Node *)makeString($1); }
 
-<<<<<<< HEAD
 			/* 
 			 * For compresstype=none in ENCODING clauses. Allows us to avoid
 			 * promoting that to a reserved word or adding the column reserved
@@ -7641,8 +7505,6 @@ def_arg:	func_type						{ $$ = (Node *)$1; }
 			| NONE							{ $$ = (Node *)makeString(pstrdup("none")); }
 		;
 
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 old_aggr_definition: '(' old_aggr_list ')'			{ $$ = $2; }
 		;
 
@@ -7990,9 +7852,6 @@ DropStmt:	DROP drop_type IF_P EXISTS any_name_list opt_drop_behavior
 					n->concurrent = false;
 					$$ = (Node *)n;
 				}
-<<<<<<< HEAD
-			/*GPDB_92_MERGE_FIXME: remove syntax for DROP INDEX CONCURRENTLY*/	
-=======
 			| DROP TYPE_P type_name_list opt_drop_behavior
 				{
 					DropStmt *n = makeNode(DropStmt);
@@ -8055,7 +7914,6 @@ DropStmt:	DROP drop_type IF_P EXISTS any_name_list opt_drop_behavior
 					n->concurrent = true;
 					$$ = (Node *)n;
 				}
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		;
 
 
@@ -8338,15 +8196,12 @@ comment_type:
 			| FOREIGN TABLE						{ $$ = OBJECT_FOREIGN_TABLE; }
 			| SERVER							{ $$ = OBJECT_FOREIGN_SERVER; }
 			| FOREIGN DATA_P WRAPPER			{ $$ = OBJECT_FDW; }
-<<<<<<< HEAD
 			| RESOURCE QUEUE                    { $$ = OBJECT_RESQUEUE; }
-=======
 			| EVENT TRIGGER						{ $$ = OBJECT_EVENT_TRIGGER; }
 			| TEXT_P SEARCH CONFIGURATION		{ $$ = OBJECT_TSCONFIGURATION; }
 			| TEXT_P SEARCH DICTIONARY			{ $$ = OBJECT_TSDICTIONARY; }
 			| TEXT_P SEARCH PARSER				{ $$ = OBJECT_TSPARSER; }
 			| TEXT_P SEARCH TEMPLATE			{ $$ = OBJECT_TSTEMPLATE; }
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		;
 
 comment_text:
@@ -9087,7 +8942,6 @@ IndexStmt:	CREATE opt_unique INDEX opt_concurrently opt_index_name
 					n->excludeOpNames = NIL;
 					n->idxcomment = NULL;
 					n->indexOid = InvalidOid;
-<<<<<<< HEAD
 
                     if (n->concurrent && !gp_create_index_concurrently)
 					{
@@ -9099,7 +8953,6 @@ IndexStmt:	CREATE opt_unique INDEX opt_concurrently opt_index_name
 
 					}
 
-=======
 					n->oldNode = InvalidOid;
 					n->primary = false;
 					n->isconstraint = false;
@@ -9133,7 +8986,6 @@ IndexStmt:	CREATE opt_unique INDEX opt_concurrently opt_index_name
 					n->initdeferred = false;
 					n->transformed = false;
 					n->if_not_exists = true;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 					$$ = (Node *)n;
 				}
 		;
@@ -10002,7 +9854,6 @@ reindex_option_elem:
 			VERBOSE	{ $$ = REINDEXOPT_VERBOSE; }
 		;
 
-<<<<<<< HEAD
 /*
  * ALTER TYPE ... SET DEFAULT ENCODING
  *
@@ -10014,7 +9865,10 @@ AlterTypeStmt: ALTER TYPE_P any_name SET DEFAULT ENCODING definition
 
 					n->typeName = $3;
 					n->encoding = $7;
-=======
+					$$ = (Node *)n;
+				}
+		;
+
 /*****************************************************************************
  *
  * ALTER TABLESPACE
@@ -10038,7 +9892,6 @@ AlterTblSpcStmt:
 					n->tablespacename = $3;
 					n->options = $5;
 					n->isReset = TRUE;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 					$$ = (Node *)n;
 				}
 		;
@@ -10882,7 +10735,6 @@ AlterOwnerStmt: ALTER AGGREGATE func_name aggr_args OWNER TO RoleSpec
 					n->newowner = $6;
 					$$ = (Node *)n;
 				}
-<<<<<<< HEAD
 			| ALTER PROTOCOL name OWNER TO RoleId
 				{
 					AlterOwnerStmt *n = makeNode(AlterOwnerStmt);
@@ -10891,10 +10743,7 @@ AlterOwnerStmt: ALTER AGGREGATE func_name aggr_args OWNER TO RoleSpec
 					n->newowner = $6;
 					$$ = (Node *)n;
 				}
-			| ALTER TEXT_P SEARCH DICTIONARY any_name OWNER TO RoleId
-=======
 			| ALTER TEXT_P SEARCH DICTIONARY any_name OWNER TO RoleSpec
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 				{
 					AlterOwnerStmt *n = makeNode(AlterOwnerStmt);
 					n->objectType = OBJECT_TSDICTIONARY;
@@ -11820,13 +11669,10 @@ AnalyzeStmt:
 					n->options = VACOPT_ANALYZE;
 					if ($2)
 						n->options |= VACOPT_VERBOSE;
-<<<<<<< HEAD
 					if ($3)
 						n->options |= VACOPT_ROOTONLY;
 					n->freeze_min_age = -1;
 					n->freeze_table_age = -1;
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 					n->relation = NULL;
 					n->va_cols = NIL;
 					$$ = (Node *)n;
@@ -12972,43 +12818,6 @@ first_or_next: FIRST_P								{ $$ = 0; }
  * GroupingSet node of some type.
  */
 group_clause:
-<<<<<<< HEAD
-			GROUP_P BY group_elem_list				{ $$ = $3; }
-			| /*EMPTY*/								{ $$ = NIL; }
-		;
-
-group_elem_list:
-            group_elem                                { $$ = $1; }
-            | group_elem_list ',' group_elem            { $$ = list_concat($1, $3); }
-        ;
-
-group_elem:
-			a_expr                                  { $$ = list_make1($1); }
-			| ROLLUP '(' expr_list ')'
-                {
-					GroupingClause *n = makeNode(GroupingClause);
-					n->groupType = GROUPINGTYPE_ROLLUP;
-					n->groupsets = $3;
-					$$ = list_make1 ((Node*)n);
-				}
-            | CUBE '(' expr_list ')'
-                {
-					GroupingClause *n = makeNode(GroupingClause);
-					n->groupType = GROUPINGTYPE_CUBE;
-					n->groupsets = $3;
-					$$ = list_make1 ((Node*)n);
-				}
-            | GROUPING SETS '(' group_elem_list ')'
-                {
-					GroupingClause *n = makeNode(GroupingClause);
-					n->groupType = GROUPINGTYPE_GROUPING_SETS;
-					n->groupsets = $4;
-					$$ = list_make1 ((Node*)n);
-				}
-            | '(' ')'
-                { $$ = list_make1(NIL); }
-        ;
-=======
 			GROUP_P BY group_by_list				{ $$ = $3; }
 			| /*EMPTY*/								{ $$ = NIL; }
 		;
@@ -13059,7 +12868,6 @@ grouping_sets_clause:
 					$$ = (Node *) makeGroupingSet(GROUPING_SET_SETS, $4, @1);
 				}
 		;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 having_clause:
 			HAVING a_expr							{ $$ = $2; }
@@ -13477,9 +13285,6 @@ relation_expr_opt_alias: relation_expr					%prec UMINUS
 		;
 
 
-<<<<<<< HEAD
-func_table: func_expr_windowless					{ $$ = $1; }
-=======
 relation_expr_tablesample: relation_expr opt_alias_clause tablesample_clause
 				{
 					RangeTableSample *n = (RangeTableSample *) $3;
@@ -13554,7 +13359,6 @@ opt_col_def_list: AS '(' TableFuncElementList ')'	{ $$ = $3; }
 
 opt_ordinality: WITH_LA ORDINALITY					{ $$ = true; }
 			| /*EMPTY*/								{ $$ = false; }
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		;
 
 
@@ -14680,13 +14484,6 @@ c_expr:		columnref								{ $$ = $1; }
 					SubLink *n = makeNode(SubLink);
 					A_Indirection *a = makeNode(A_Indirection);
 					n->subLinkType = EXPR_SUBLINK;
-<<<<<<< HEAD
-					n->testexpr = NULL;
-					n->operName = NIL;
-					n->subselect = $1;
-					a->arg = (Node *)n;
-					a->indirection = $2;
-=======
 					n->subLinkId = 0;
 					n->testexpr = NULL;
 					n->operName = NIL;
@@ -14694,7 +14491,6 @@ c_expr:		columnref								{ $$ = $1; }
 					n->location = @1;
 					a->arg = (Node *)n;
 					a->indirection = check_indirection($2, yyscanner);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 					$$ = (Node *)a;
 				}
 			| EXISTS select_with_parens
@@ -14727,7 +14523,6 @@ c_expr:		columnref								{ $$ = $1; }
 					n->location = @1;
 					$$ = (Node *)n;
 				}
-<<<<<<< HEAD
             | TABLE '(' table_value_select_clause ')'
 				{
 					TableValueExpr *n = makeNode(TableValueExpr);
@@ -14735,10 +14530,7 @@ c_expr:		columnref								{ $$ = $1; }
 					n->location = @1;
 					$$ = (Node *)n;
 				}
-			| row
-=======
 			| explicit_row
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 				{
 					RowExpr *r = makeNode(RowExpr);
 					r->args = $1;
@@ -14767,7 +14559,6 @@ c_expr:		columnref								{ $$ = $1; }
 			  }
 		;
 
-<<<<<<< HEAD
 scatter_clause:
 		/* EMPTY */						{ $$ = NIL; }
 		| SCATTER RANDOMLY				{ $$ = list_make1(NULL); }
@@ -14785,77 +14576,6 @@ table_value_select_clause:
 
 func_application: func_name '(' ')'
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = $1;
-					n->args = NIL;
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->agg_filter = NULL;
-					n->location = @1;
-					n->over = NULL;
-					$$ = (Node *)n;
-				}
-			| func_name '(' func_arg_list ')'
-				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = $1;
-					n->args = $3;
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->agg_filter = NULL;
-					n->location = @1;
-					n->over = NULL;
-					$$ = (Node *)n;
-				}
-			| func_name '(' VARIADIC func_arg_expr ')'
-				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = $1;
-					n->args = list_make1($4);
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = TRUE;
-					n->agg_filter = NULL;
-					n->location = @1;
-					n->over = NULL;
-					$$ = (Node *)n;
-				}
-			| func_name '(' func_arg_list ',' VARIADIC func_arg_expr ')'
-				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = $1;
-					n->args = lappend($3, $6);
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = TRUE;
-					n->agg_filter = NULL;
-					n->location = @1;
-					n->over = NULL;
-					$$ = (Node *)n;
-				}
-			| func_name '(' func_arg_list sort_clause ')'
-				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = $1;
-					n->args = $3;
-                    n->agg_order = $4;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->agg_filter = NULL;
-					n->location = @1;
-					n->over = NULL;
-					$$ = (Node *)n;
-				}
-			| func_name '(' ALL expr_list opt_sort_clause')'
-=======
-func_application: func_name '(' ')'
-				{
 					$$ = (Node *) makeFuncCall($1, NIL, @1);
 				}
 			| func_name '(' func_arg_list opt_sort_clause ')'
@@ -14865,7 +14585,6 @@ func_application: func_name '(' ')'
 					$$ = (Node *)n;
 				}
 			| func_name '(' VARIADIC func_arg_expr opt_sort_clause ')'
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 				{
 					FuncCall *n = makeFuncCall($1, list_make1($4), @1);
 					n->func_variadic = TRUE;
@@ -14883,40 +14602,18 @@ func_application: func_name '(' ')'
 				{
 					FuncCall *n = makeFuncCall($1, $4, @1);
 					n->agg_order = $5;
-<<<<<<< HEAD
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->agg_filter = NULL;
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+
 					/* Ideally we'd mark the FuncCall node to indicate
 					 * "must be an aggregate", but there's no provision
 					 * for that in FuncCall at the moment.
 					 */
-<<<<<<< HEAD
-					n->func_variadic = FALSE;
-					n->location = @1;
-					n->over = NULL;
-					$$ = (Node *)n;
-				}
-			| func_name '(' DISTINCT func_arg_list opt_sort_clause')'
-=======
 					$$ = (Node *)n;
 				}
 			| func_name '(' DISTINCT func_arg_list opt_sort_clause ')'
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 				{
 					FuncCall *n = makeFuncCall($1, $4, @1);
 					n->agg_order = $5;
 					n->agg_distinct = TRUE;
-<<<<<<< HEAD
-					n->agg_filter = NULL;
-					n->func_variadic = FALSE;
-					n->location = @1;
-					n->over = NULL;
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 					$$ = (Node *)n;
 				}
 			| func_name '(' '*' ')'
@@ -14933,83 +14630,9 @@ func_application: func_name '(' ')'
 					 */
 					FuncCall *n = makeFuncCall($1, NIL, @1);
 					n->agg_star = TRUE;
-<<<<<<< HEAD
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->agg_filter = NULL;
-					n->location = @1;
-					n->over = NULL;
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 					$$ = (Node *)n;
 				}
 		;
-
-<<<<<<< HEAD
-/*
- * func_expr is split out from c_expr just so that we have a classification
- * for "everything that is a function call or looks like one".  This isn't
- * very important, but it saves us having to document which variants are
- * legal in the backwards-compatible functional-index syntax for CREATE INDEX.
- * (Note that many of the special SQL functions wouldn't actually make any
- * sense as functional index entries, but we ignore that consideration here.)
- */
-func_expr:	func_application within_group_clause filter_clause over_clause
-				{
-					FuncCall  *n = (FuncCall *) $1;
-					/*
-					 * The order clause for WITHIN GROUP and the one for
-					 * plain-aggregate ORDER BY share a field, so we have to
-					 * check here that at most one is present.  We also check
-					 * for DISTINCT and VARIADIC here to give a better error
-					 * location.  Other consistency checks are deferred to
-					 * parse analysis.
-					 */
-					if ($2 != NIL)
-					{
-						if (n->agg_order != NIL)
-							ereport(ERROR,
-									(errcode(ERRCODE_SYNTAX_ERROR),
-									 errmsg("cannot use multiple ORDER BY clauses with WITHIN GROUP"),
-									 parser_errposition(@2)));
-						if (n->agg_distinct)
-							ereport(ERROR,
-									(errcode(ERRCODE_SYNTAX_ERROR),
-									 errmsg("cannot use DISTINCT with WITHIN GROUP"),
-									 parser_errposition(@2)));
-						if (n->func_variadic)
-							ereport(ERROR,
-									(errcode(ERRCODE_SYNTAX_ERROR),
-									 errmsg("cannot use VARIADIC with WITHIN GROUP"),
-									 parser_errposition(@2)));
-						n->agg_order = $2;
-						n->agg_within_group = TRUE;
-					}
-					n->agg_filter = $3;
-					n->over = $4;
-					$$ = (Node *) n;
-				}
-			| func_expr_common_subexpr
-				{ $$ = $1; }
-		;
-
-/*
- * As func_expr but does not accept WINDOW functions directly
- * (but they can still be contained in arguments for functions etc).
- * Use this when window expressions are not allowed, where needed to
- * disambiguate the grammar (e.g. in CREATE INDEX).
- */
-func_expr_windowless:
-			func_application						{ $$ = $1; }
-			| func_expr_common_subexpr				{ $$ = $1; }
-		;
-
-/*
- * Special expressions that are considered to be functions.
- */
-func_expr_common_subexpr:
-			COLLATION FOR '(' a_expr ')'
-=======
 
 /*
  * func_expr and its cousin func_expr_windowless are split out from c_expr just
@@ -15021,7 +14644,6 @@ func_expr_common_subexpr:
  * sense as functional index entries, but we ignore that consideration here.)
  */
 func_expr: func_application within_group_clause filter_clause over_clause
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 				{
 					FuncCall *n = (FuncCall *) $1;
 					/*
@@ -15309,13 +14931,13 @@ func_expr_common_subexpr:
 					v->location = @1;
 					$$ = (Node *)v;
 				}
+/* MERGE_95_FIXME: comment out as gram.y reduce/reduce conflict with c_expr, as c_expr as same rule
             | GROUPING '(' expr_list ')'
                 {
 					GroupingFunc *f = makeNode(GroupingFunc);
 					f->args = $3;
 					$$ = (Node*)f;
-				}
-
+				}  */
 			| GROUP_ID '(' ')'
 				{
 					GroupId *gid = makeNode(GroupId);
@@ -16480,11 +16102,7 @@ AexprConst: Iconst
 
 Iconst:		ICONST									{ $$ = $1; };
 Sconst:		SCONST									{ $$ = $1; };
-<<<<<<< HEAD
-RoleId:		ColId									{ $$ = $1; };
 QueueId:	ColId									{ $$ = $1; };
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 SignedIconst: Iconst								{ $$ = $1; }
 			| '+' Iconst							{ $$ = + $2; }
@@ -16704,13 +16322,10 @@ unreserved_keyword:
 			| ENUM_P
 			| ERRORS
 			| ESCAPE
-<<<<<<< HEAD
+			| EVENT
 			| EVERY
 			| EXCHANGE
-=======
-			| EVENT
 			| EXCLUDE
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			| EXCLUDING
 			| EXCLUSIVE
 			| EXECUTE
@@ -16718,12 +16333,9 @@ unreserved_keyword:
 			| EXTENSION
 			| EXTERNAL
 			| FAMILY
-<<<<<<< HEAD
 			| FIELDS
 			| FILL
-=======
 			| FILTER
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			| FIRST_P
 			| FORCE
 			| FORMAT
@@ -16807,15 +16419,11 @@ unreserved_keyword:
 			| OPERATOR
 			| OPTION
 			| OPTIONS
-<<<<<<< HEAD
 			| ORDERED
+			| ORDINALITY
 			| OTHERS
 			| OVER
 			| OVERCOMMIT
-=======
-			| ORDINALITY
-			| OVER
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			| OWNED
 			| OWNER
 			| PARSER
@@ -16825,11 +16433,8 @@ unreserved_keyword:
 			| PASSWORD
 			| PERCENT
 			| PLANS
-<<<<<<< HEAD
-=======
 			| POLICY
 			| PRECEDING
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			| PREPARE
 			| PREPARED
 			| PRESERVE
@@ -16838,11 +16443,8 @@ unreserved_keyword:
 			| PROCEDURAL
 			| PROCEDURE
 			| PROGRAM
-<<<<<<< HEAD
 			| PROTOCOL
 			| QUEUE
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			| QUOTE
 			| RANDOMLY /* gp */
 			| RANGE
@@ -16871,11 +16473,8 @@ unreserved_keyword:
 			| REVOKE
 			| ROLE
 			| ROLLBACK
-<<<<<<< HEAD
-			| ROOTPARTITION
-=======
 			| ROLLUP
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+			| ROOTPARTITION
 			| ROWS
 			| RULE
 			| SAVEPOINT
@@ -16898,12 +16497,8 @@ unreserved_keyword:
 			| SIMPLE
 			| SKIP
 			| SNAPSHOT
-<<<<<<< HEAD
 			| SPLIT
-			| SQL
-=======
 			| SQL_P
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			| STABLE
 			| STANDALONE_P
 			| START
@@ -17179,7 +16774,6 @@ PartitionIdentKeyword: ABORT_P
 			| SHOW
 			| SIMPLE
 			| SPLIT
-			| SQL
 			| STABLE
 			| START
 			| STATEMENT
@@ -17283,7 +16877,6 @@ col_name_keyword:
 			| CHAR_P
 			| CHARACTER
 			| COALESCE
-			| CUBE
 			| DEC
 			| DECIMAL_P
 			| EXISTS
@@ -17291,10 +16884,7 @@ col_name_keyword:
 			| FLOAT_P
 			| GREATEST
 			| GROUPING
-<<<<<<< HEAD
 			| GROUP_ID
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			| INOUT
 			| INT_P
 			| INTEGER
@@ -17311,10 +16901,8 @@ col_name_keyword:
 			| POSITION
 			| PRECISION
 			| REAL
-			| ROLLUP
 			| ROW
 			| SETOF
-			| SETS
 			| SMALLINT
 			| SUBSTRING
 			| TIME
@@ -17411,10 +16999,8 @@ reserved_keyword:
 			| ELSE
 			| END_P
 			| EXCEPT
-			| EXCLUDE 
 			| FALSE_P
 			| FETCH
-			| FILTER
 			| FOLLOWING
 			| FOR
 			| FOREIGN
@@ -17440,7 +17026,6 @@ reserved_keyword:
 			| ORDER
 			| PARTITION
 			| PLACING
-			| PRECEDING
 			| PRIMARY
 			| REFERENCES
 			| RETURNING
