@@ -75,14 +75,6 @@
 	((att)->attstorage != 'p')
 
 
-/* Does att's datatype allow packing into the 1-byte-header varlena format? */
-#define ATT_IS_PACKABLE(att) \
-	((att)->attlen == -1 && (att)->attstorage != 'p')
-/* Use this if it's already known varlena */
-#define VARLENA_ATT_IS_PACKABLE(att) \
-	((att)->attstorage != 'p')
-
-
 /* ----------------------------------------------------------------
  *						misc support routines
  * ----------------------------------------------------------------
@@ -158,7 +150,7 @@ heap_compute_data_size(TupleDesc tupleDesc,
  * @param isnull will only be used if <code>bit</code> is non-NULL
  * @param bit should be non-NULL (refer to td->t_bits) if isnull is set and contains non-null values
  */
-Size
+void
 heap_fill_tuple(TupleDesc tupleDesc,
 				Datum *values, bool *isnull,
 				char *data, Size data_size,
@@ -294,8 +286,6 @@ heap_fill_tuple(TupleDesc tupleDesc,
 	}
 
 	Assert((data - start) == data_size);
-
-	return data - start;
 }
 
 /* ----------------------------------------------------------------
@@ -579,7 +569,7 @@ nocachegetattr(HeapTuple tuple,
  * ----------------
  */
 Datum
-heap_getsysattr(HeapTuple tup, int attnum, bool *isnull)
+heap_getsysattr(HeapTuple tup, int attnum, TupleDesc tupleDesc, bool *isnull)
 {
 	Datum		result;
 
@@ -746,7 +736,6 @@ heaptuple_form_to(TupleDesc tupleDescriptor, Datum *values, bool *isnull, HeapTu
 {
 	HeapTuple	tuple;			/* return tuple */
 	HeapTupleHeader td;			/* tuple data */
-	Size		actual_len;
 	Size		len,
 				data_len;
 	int			hoff;
@@ -830,15 +819,14 @@ heaptuple_form_to(TupleDesc tupleDescriptor, Datum *values, bool *isnull, HeapTu
 	if (tupleDescriptor->tdhasoid)		/* else leave infomask = 0 */
 		td->t_infomask = HEAP_HASOID;
 
-	actual_len = heap_fill_tuple(tupleDescriptor,
-								 values,
-								 isnull,
-								 (char *) td + hoff,
-								 data_len,
-								 &td->t_infomask,
-								 (hasnull ? td->t_bits : NULL));
+	heap_fill_tuple(tupleDescriptor,
+					values,
+					isnull,
+					(char *) td + hoff,
+					data_len,
+					&td->t_infomask,
+					(hasnull ? td->t_bits : NULL));
 
-	Assert(data_len == actual_len);
 	Assert(!is_memtuple((GenericTuple) tuple));
 
 	return tuple;
