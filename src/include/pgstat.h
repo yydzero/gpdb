@@ -57,11 +57,8 @@ typedef enum StatMsgType
 	PGSTAT_MTYPE_AUTOVAC_START,
 	PGSTAT_MTYPE_VACUUM,
 	PGSTAT_MTYPE_ANALYZE,
-<<<<<<< HEAD
 	PGSTAT_MTYPE_QUEUESTAT, /* GPDB */
-=======
 	PGSTAT_MTYPE_ARCHIVER,
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	PGSTAT_MTYPE_BGWRITER,
 	PGSTAT_MTYPE_FUNCSTAT,
 	PGSTAT_MTYPE_FUNCPURGE,
@@ -380,7 +377,6 @@ typedef struct PgStat_MsgAnalyze
 
 
 /* ----------
-<<<<<<< HEAD
  * PgStat_MsgQueuestat			Sent by the backend to report resource queue
  *								activity statistics.
  * ----------  GPDB 
@@ -395,7 +391,7 @@ typedef struct PgStat_MsgQueuestat
 	PgStat_Counter	m_elapsed_wait;
 } PgStat_MsgQueuestat;
 
-=======
+/*
  * PgStat_MsgArchiver			Sent by the archiver to update statistics.
  * ----------
  */
@@ -406,7 +402,6 @@ typedef struct PgStat_MsgArchiver
 	char		m_xlog[MAX_XFN_CHARS + 1];
 	TimestampTz m_timestamp;
 } PgStat_MsgArchiver;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* ----------
  * PgStat_MsgBgWriter			Sent by the bgwriter to update statistics.
@@ -555,11 +550,8 @@ typedef union PgStat_Msg
 	PgStat_MsgAutovacStart msg_autovacuum;
 	PgStat_MsgVacuum msg_vacuum;
 	PgStat_MsgAnalyze msg_analyze;
-<<<<<<< HEAD
 	PgStat_MsgQueuestat msg_queuestat;  /* GPDB */
-=======
 	PgStat_MsgArchiver msg_archiver;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	PgStat_MsgBgWriter msg_bgwriter;
 	PgStat_MsgFuncstat msg_funcstat;
 	PgStat_MsgFuncpurge msg_funcpurge;
@@ -836,17 +828,12 @@ typedef struct PgBackendStatus
 	SockAddr	st_clientaddr;
 	char	   *st_clienthostname;		/* MUST be null-terminated */
 
-<<<<<<< HEAD
-	/* Is backend currently waiting on something (and what)? */
-	char		st_waiting;
-=======
 	/* Information about SSL connection */
 	bool		st_ssl;
 	PgBackendSSLStatus *st_sslstatus;
 
 	/* Is backend currently waiting on an lmgr lock? */
 	bool		st_waiting;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/* current state */
 	BackendState st_state;

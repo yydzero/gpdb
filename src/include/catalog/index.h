@@ -25,7 +25,7 @@ struct EState;                  /* #include "nodes/execnodes.h" */
 
 /* Typedef for callback function for IndexBuildScan */
 typedef void (*IndexBuildCallback) (Relation index,
-									ItemPointer tupleId,
+									HeapTuple htup,
 									Datum *values,
 									bool *isnull,
 									bool tupleIsAlive,
@@ -103,7 +103,7 @@ extern void index_build(Relation heapRelation,
 			bool isprimary,
 			bool isreindex);
 
-/* gpdb added? */
+/* gpdb added to support heap/ao/aoco */
 extern double IndexBuildScan(Relation parentRelation,
 					Relation indexRelation,
 					IndexInfo *indexInfo,
