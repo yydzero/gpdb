@@ -236,12 +236,11 @@ extern void PortalDefineQuery(Portal portal,
 extern Node *PortalListGetPrimaryStmt(List *stmts);
 extern void PortalCreateHoldStore(Portal portal);
 extern void PortalHashTableDeleteAll(void);
-<<<<<<< HEAD
+extern bool ThereAreNoReadyPortals(void);
+
+/* gpdb specific */
 extern void AtExitCleanup_ResPortals(void);
 extern void TotalResPortalIncrements(int pid, Oid queueid,
 									 Cost *totalIncrements, int *num);
-=======
-extern bool ThereAreNoReadyPortals(void);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #endif   /* PORTAL_H */

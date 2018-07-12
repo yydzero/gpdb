@@ -188,18 +188,6 @@ typedef GISTScanOpaqueData *GISTScanOpaque;
  */
 typedef struct gistxlogPageUpdate
 {
-<<<<<<< HEAD
-	RelFileNode 	node;
-	BlockNumber 	blkno;
-
-	/*
-	 * If this operation completes a page split, by inserting a downlink for
-	 * the split page, leftchild points to the left half of the split.
-	 */
-	BlockNumber leftchild;
-
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	/* number of deleted offsets */
 	uint16		ntodelete;
 	uint16		ntoinsert;
@@ -234,15 +222,6 @@ typedef struct gistxlogPage
 	int			num;			/* number of index tuples following */
 } gistxlogPage;
 
-<<<<<<< HEAD
-typedef struct gistxlogPageDelete
-{
-	RelFileNode 	node;
-	BlockNumber 	blkno;
-} gistxlogPageDelete;
-
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 /* SplitedPageLayout - gistSplit function result */
 typedef struct SplitedPageLayout
 {
@@ -468,14 +447,9 @@ extern SplitedPageLayout *gistSplit(Relation r, Page page, IndexTuple *itup,
 		  int len, GISTSTATE *giststate);
 
 /* gistxlog.c */
-<<<<<<< HEAD
-extern void gist_redo(XLogRecPtr beginLoc, XLogRecPtr lsn, XLogRecord *record);
-extern void gist_desc(StringInfo buf, XLogRecPtr beginLoc, XLogRecord *record);
-=======
 extern void gist_redo(XLogReaderState *record);
 extern void gist_desc(StringInfo buf, XLogReaderState *record);
 extern const char *gist_identify(uint8 info);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern void gist_xlog_startup(void);
 extern void gist_xlog_cleanup(void);
 extern void gist_mask(char *pagedata, BlockNumber blkno);

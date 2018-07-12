@@ -5,13 +5,9 @@
  *
  * See src/backend/utils/misc/README for design notes.
  *
-<<<<<<< HEAD
  * Portions Copyright (c) 2006-2008, Greenplum inc
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
-=======
  * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  *
  *	  src/include/utils/guc_tables.h
  *
@@ -206,8 +202,6 @@ struct config_generic
 
 /* bit values in flags field are defined in guc.h */
 
-#define GUC_NOT_WHILE_SEC_REST	0x8000	/* can't set if security restricted */
-
 #define GUC_GPDB_ADDOPT        0x10000  /* Send by cdbgang */
 
 #define GUC_DISALLOW_USER_SET  0x20000 /* Do not allow this GUC to be set by the user */
@@ -322,7 +316,8 @@ extern const char *config_enum_lookup_by_value(struct config_enum * record, int 
 extern bool config_enum_lookup_by_name(struct config_enum * record,
 						   const char *value, int *retval);
 
-<<<<<<< HEAD
+/* GPDB added functions */
+
 extern bool parse_int(const char *value, int *result, int flags, const char **hintmsg);
 
 /* guc_gp.c needs this from guc.c */
@@ -335,6 +330,4 @@ extern struct config_real ConfigureNamesReal_gp[];
 extern struct config_string ConfigureNamesString_gp[];
 extern struct config_enum ConfigureNamesEnum_gp[];
 
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #endif   /* GUC_TABLES_H */

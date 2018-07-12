@@ -18,15 +18,11 @@
 #include "access/printtup.h"
 #include "libpq/libpq.h"
 #include "libpq/pqformat.h"
+#include "mb/pg_wchar.h"
 #include "tcop/pquery.h"
 #include "utils/lsyscache.h"
-<<<<<<< HEAD
-#include "mb/pg_wchar.h"
-=======
 #include "utils/memdebug.h"
 #include "utils/memutils.h"
-
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 static void printtup_startup(DestReceiver *self, int operation,
 				 TupleDesc typeinfo);
@@ -336,17 +332,10 @@ printtup(TupleTableSlot *slot, DestReceiver *self)
 	for (i = 0; i < natts; ++i)
 	{
 		PrinttupAttrInfo *thisState = myState->myinfo + i;
-<<<<<<< HEAD
 		bool 		orignull;
-		Datum		origattr = slot_getattr(slot, i+1, &orignull);
-		Datum 		attr;
+		Datum		attr = slot_getattr(slot, i+1, &orignull);
 		
-		if (orignull) 
-=======
-		Datum		attr = slot->tts_values[i];
-
-		if (slot->tts_isnull[i])
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+		if (orignull)
 		{
 			/* -1 is the same in both byte orders.  This is the same as pg_sendint */
 			int32 n32 = -1;
@@ -371,7 +360,6 @@ printtup(TupleTableSlot *slot, DestReceiver *self)
 			char str[256];
 			int32 n32;
 
-<<<<<<< HEAD
 			switch (typeinfo->attrs[i]->atttypid)
 			{
 			case INT2OID: /* int2 */
@@ -500,17 +488,12 @@ printtup(TupleTableSlot *slot, DestReceiver *self)
 					pfree(outputstr);
 				}
 			}
-=======
-			outputstr = OutputFunctionCall(&thisState->finfo, attr);
-			pq_sendcountedtext(&buf, outputstr, strlen(outputstr), false);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		}
 		else
 		{
 			/* Binary output */
 			int32 n32;
 
-<<<<<<< HEAD
 			switch (typeinfo->attrs[i]->atttypid)
 			{
 			case INT2OID: /* int2 */
@@ -600,12 +583,6 @@ printtup(TupleTableSlot *slot, DestReceiver *self)
 					pfree(outputbytes);
 				}
 			}
-=======
-			outputbytes = SendFunctionCall(&thisState->finfo, attr);
-			pq_sendint(&buf, VARSIZE(outputbytes) - VARHDRSZ, 4);
-			pq_sendbytes(&buf, VARDATA(outputbytes),
-						 VARSIZE(outputbytes) - VARHDRSZ);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		}
 	}
 
@@ -676,13 +653,8 @@ printtup_20(TupleTableSlot *slot, DestReceiver *self)
 	for (i = 0; i < natts; ++i)
 	{
 		PrinttupAttrInfo *thisState = myState->myinfo + i;
-<<<<<<< HEAD
 		bool orignull;
-		Datum	origattr = slot_getattr(slot, i+1, &orignull); 
-		Datum attr;
-=======
-		Datum		attr = slot->tts_values[i];
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+		Datum attr = slot_getattr(slot, i+1, &orignull);
 		char	   *outputstr;
 
 		if (orignull)
@@ -866,13 +838,8 @@ printtup_internal_20(TupleTableSlot *slot, DestReceiver *self)
 	for (i = 0; i < natts; ++i)
 	{
 		PrinttupAttrInfo *thisState = myState->myinfo + i;
-<<<<<<< HEAD
 		bool orignull;
-		Datum	origattr = slot_getattr(slot, i+1, &orignull); 
-		Datum 	attr;
-=======
-		Datum		attr = slot->tts_values[i];
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+		Datum	attr = slot_getattr(slot, i+1, &orignull);
 		bytea	   *outputbytes;
 
 		if (orignull)
