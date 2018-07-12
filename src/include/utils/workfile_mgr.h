@@ -126,8 +126,6 @@ typedef struct QueryspaceDesc
 	int32 workfilesCreated;
 } QueryspaceDesc;
 
-typedef struct PlanState PlanState;
-
 /* Workfile Set operations */
 workfile_set *workfile_mgr_create_set(enum ExecWorkFileType type, bool can_be_reused,
 		PlanState *ps);

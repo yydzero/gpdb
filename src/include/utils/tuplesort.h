@@ -90,7 +90,6 @@
 #include "access/itup.h"
 #include "executor/tuptable.h"
 #include "fmgr.h"
-#include "nodes/execnodes.h"
 #include "utils/relcache.h"
 
 #include "utils/tuplesort_gp.h"
@@ -107,7 +106,7 @@ typedef struct Tuplesortstate Tuplesortstate;
  * specify the sort key information differently.  There are two APIs for
  * sorting HeapTuples and two more for sorting IndexTuples.  Yet another
  * API supports sorting bare Datums.
- *
+ *tuplesort_mk.h
  * The "heap" API actually stores/sorts MinimalTuples, which means it doesn't
  * preserve the system columns (tuple identity and transaction visibility
  * info).  The sort keys are specified by column numbers within the tuples
@@ -128,7 +127,7 @@ typedef struct Tuplesortstate Tuplesortstate;
  * actually sorted by their hash codes not the raw data.
  */
 
-extern Tuplesortstate *tuplesort_begin_heap(ScanState *ss, TupleDesc tupDesc,
+extern Tuplesortstate *tuplesort_begin_heap(TupleDesc tupDesc,
 					 int nkeys, AttrNumber *attNums,
 					 Oid *sortOperators, Oid *sortCollations,
 					 bool *nullsFirstFlags,
@@ -144,7 +143,7 @@ extern Tuplesortstate *tuplesort_begin_index_hash(Relation heapRel,
 						   Relation indexRel,
 						   uint32 hash_mask,
 						   int workMem, bool randomAccess);
-extern Tuplesortstate *tuplesort_begin_datum(ScanState *ss, Oid datumType,
+extern Tuplesortstate *tuplesort_begin_datum(Oid datumType,
 					  Oid sortOperator, Oid sortCollation,
 					  bool nullsFirstFlag,
 					  int workMem, bool randomAccess);
@@ -154,6 +153,7 @@ extern void tuplesort_set_bound(Tuplesortstate *state, int64 bound);
 extern void tuplesort_puttupleslot(Tuplesortstate *state,
 					   TupleTableSlot *slot);
 extern void tuplesort_putheaptuple(Tuplesortstate *state, HeapTuple tup);
+extern void tuplesort_putindextuple(Tuplesortstate *state, IndexTuple tup);
 extern void tuplesort_putindextuplevalues(Tuplesortstate *state,
 							  Relation rel, ItemPointer self,
 							  Datum *values, bool *isnull);
@@ -272,7 +272,7 @@ struct switcheroo_Tuplesortstate
 typedef struct switcheroo_Tuplesortstate switcheroo_Tuplesortstate;
 
 static inline switcheroo_Tuplesortstate *
-switcheroo_tuplesort_begin_heap(ScanState *ss, TupleDesc tupDesc,
+switcheroo_tuplesort_begin_heap(TupleDesc tupDesc,
 					 int nkeys, AttrNumber *attNums,
 					 Oid *sortOperators, Oid *sortCollations,
 					 bool *nullsFirstFlags,
@@ -283,7 +283,7 @@ switcheroo_tuplesort_begin_heap(ScanState *ss, TupleDesc tupDesc,
 	if (gp_enable_mk_sort)
 	{
 		state = (switcheroo_Tuplesortstate *)
-			tuplesort_begin_heap_mk(ss, tupDesc, nkeys, attNums,
+			tuplesort_begin_heap_mk(tupDesc, nkeys, attNums,
 									sortOperators, sortCollations,
 									nullsFirstFlags,
 									workMem, randomAccess);
@@ -291,7 +291,7 @@ switcheroo_tuplesort_begin_heap(ScanState *ss, TupleDesc tupDesc,
 	else
 	{
 		state = (switcheroo_Tuplesortstate *)
-			tuplesort_begin_heap_pg(ss, tupDesc, nkeys, attNums,
+			tuplesort_begin_heap_pg(tupDesc, nkeys, attNums,
 									sortOperators,sortCollations,
 									nullsFirstFlags,
 									workMem, randomAccess);
@@ -330,7 +330,7 @@ switcheroo_tuplesort_begin_cluster(TupleDesc tupDesc,
 }
 
 static inline switcheroo_Tuplesortstate *
-switcheroo_tuplesort_begin_index_btree(Relation indexRel,
+switcheroo_tuplesort_begin_index_btree(Relation heapRel, Relation indexRel,
 							bool enforceUnique,
 							int workMem, bool randomAccess)
 {
@@ -344,13 +344,13 @@ switcheroo_tuplesort_begin_index_btree(Relation indexRel,
 	else
 	{
 		state = (switcheroo_Tuplesortstate *)
-			tuplesort_begin_index_btree_pg(indexRel, enforceUnique, workMem, randomAccess);
+			tuplesort_begin_index_btree_pg(heapRel, indexRel, enforceUnique, workMem, randomAccess);
 	}
 	state->is_mk_tuplesortstate = gp_enable_mk_sort;
 	return state;
 }
 static inline switcheroo_Tuplesortstate *
-switcheroo_tuplesort_begin_index_hash(Relation indexRel,
+switcheroo_tuplesort_begin_index_hash(Relation heapRel, Relation indexRel,
 							uint32 hash_mask,
 							int workMem, bool randomAccess)
 {
@@ -358,14 +358,13 @@ switcheroo_tuplesort_begin_index_hash(Relation indexRel,
 
 	/* There is no MK variant of this */
 	state = (switcheroo_Tuplesortstate *)
-		tuplesort_begin_index_hash_pg(indexRel, hash_mask, workMem, randomAccess);
+		tuplesort_begin_index_hash_pg(heapRel, indexRel, hash_mask, workMem, randomAccess);
 	state->is_mk_tuplesortstate = false;
 	return state;
 }
 
 static inline switcheroo_Tuplesortstate *
-switcheroo_tuplesort_begin_datum(ScanState *ss,
-								 Oid datumType, Oid sortOperator, Oid sortCollation,
+switcheroo_tuplesort_begin_datum(Oid datumType, Oid sortOperator, Oid sortCollation,
 								 bool nullsFirstFlag,
 								 int workMem, bool randomAccess)
 {
@@ -374,13 +373,13 @@ switcheroo_tuplesort_begin_datum(ScanState *ss,
 	if (gp_enable_mk_sort)
 	{
 		state = (switcheroo_Tuplesortstate *)
-			tuplesort_begin_datum_mk(ss, datumType, sortOperator, sortCollation,
+			tuplesort_begin_datum_mk(datumType, sortOperator, sortCollation,
 									 nullsFirstFlag, workMem, randomAccess);
 	}
 	else
 	{
 		state = (switcheroo_Tuplesortstate *)
-			tuplesort_begin_datum_pg(ss, datumType, sortOperator, sortCollation,
+			tuplesort_begin_datum_pg(datumType, sortOperator, sortCollation,
 									 nullsFirstFlag, workMem, randomAccess);
 	}
 	state->is_mk_tuplesortstate = gp_enable_mk_sort;
@@ -526,7 +525,6 @@ switcheroo_tuplesort_restorepos(switcheroo_Tuplesortstate *state)
 
 static inline switcheroo_Tuplesortstate *
 switcheroo_tuplesort_begin_heap_file_readerwriter(
-		ScanState * ss,
 		const char* rwfile_prefix, bool isWriter,
 		TupleDesc tupDesc,
 		int nkeys, AttrNumber *attNums,
@@ -540,7 +538,7 @@ switcheroo_tuplesort_begin_heap_file_readerwriter(
 	if (gp_enable_mk_sort)
 	{
 		state = (switcheroo_Tuplesortstate *)
-			tuplesort_begin_heap_file_readerwriter_mk(ss, rwfile_prefix, isWriter,
+			tuplesort_begin_heap_file_readerwriter_mk(rwfile_prefix, isWriter,
 													  tupDesc, nkeys, attNums,
 													  sortOperators, sortCollations,
 													  nullsFirstFlags,
@@ -549,7 +547,7 @@ switcheroo_tuplesort_begin_heap_file_readerwriter(
 	else
 	{
 		state = (switcheroo_Tuplesortstate *)
-			tuplesort_begin_heap_file_readerwriter_pg(ss, rwfile_prefix, isWriter,
+			tuplesort_begin_heap_file_readerwriter_pg(rwfile_prefix, isWriter,
 													  tupDesc, nkeys, attNums,
 													  sortOperators, sortCollations,
 													  nullsFirstFlags,

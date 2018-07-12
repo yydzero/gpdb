@@ -25,8 +25,6 @@
 #define TUPLESORT_GP_H
 
 #include "utils/tuplesort.h"
-#include "nodes/execnodes.h"
-#include "utils/workfile_mgr.h"
 #include "gpmon/gpmon.h"
 
 /*
@@ -46,7 +44,6 @@ struct Tuplesortstate;
 
 
 extern struct Tuplesortstate *tuplesort_begin_heap_file_readerwriter(
-		ScanState * ss,
 		const char* rwfile_prefix, bool isWriter,
 		TupleDesc tupDesc, 
 		int nkeys, AttrNumber *attNums,

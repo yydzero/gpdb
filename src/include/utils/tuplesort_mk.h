@@ -16,8 +16,6 @@
 #ifndef TUPLESORT_MK_H
 #define TUPLESORT_MK_H
 
-#include "nodes/execnodes.h"
-#include "utils/workfile_mgr.h"
 #include "gpmon/gpmon.h"
 
 
@@ -25,8 +23,7 @@ typedef struct TuplesortPos_mk TuplesortPos_mk;
 typedef struct Tuplesortstate_mk Tuplesortstate_mk;
 
 
-extern Tuplesortstate_mk *tuplesort_begin_heap_mk(ScanState * ss,
-					 TupleDesc tupDesc,
+extern Tuplesortstate_mk *tuplesort_begin_heap_mk(TupleDesc tupDesc,
 					 int nkeys, AttrNumber *attNums,
 					 Oid *sortOperators, Oid *sortCollations,
 					 bool *nullsFirstFlags,
@@ -40,14 +37,12 @@ extern Tuplesortstate_mk *tuplesort_begin_index_mk(Relation indexRel,
 					  bool enforceUnique,
 					  int workMem, bool randomAccess);
 
-extern Tuplesortstate_mk *tuplesort_begin_datum_mk(ScanState * ss,
-					  Oid datumType,
+extern Tuplesortstate_mk *tuplesort_begin_datum_mk(Oid datumType,
 					  Oid sortOperator, Oid sortCollation,
 					  bool nullsFirstFlag,
 					  int workMem, bool randomAccess);
 
 extern Tuplesortstate_mk *tuplesort_begin_heap_file_readerwriter_mk(
-		ScanState * ss,
 		const char* rwfile_prefix, bool isWriter,
 		TupleDesc tupDesc,
 		int nkeys, AttrNumber *attNums,

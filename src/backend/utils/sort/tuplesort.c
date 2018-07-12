@@ -781,11 +781,8 @@ tuplesort_begin_heap(ScanState *ss, TupleDesc tupDesc,
 	state->readtup = readtup_heap;
 
 	state->tupDesc = tupDesc;	/* assume we need not copy tupDesc */
-<<<<<<< HEAD
 	state->mt_bind = create_memtuple_binding(tupDesc);
-=======
 	state->abbrevNext = 10;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/* Prepare SortSupport data for each column */
 	state->sortKeys = (SortSupport) palloc0(nkeys * sizeof(SortSupportData));
