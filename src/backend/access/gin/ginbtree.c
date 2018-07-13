@@ -460,25 +460,8 @@ ginPlaceToPage(GinBtree btree, GinBtreeStack *stack,
 
 			GinPageGetOpaque(childpage)->flags &= ~GIN_INCOMPLETE_SPLIT;
 
-<<<<<<< HEAD
-			if (RelationNeedsWAL(btree->index))
-			{
-				XLogRecPtr	recptr;
-
-				recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_INSERT, rdata);
-				PageSetLSN(page, recptr);
-			}
-
-			LockBuffer(stack->buffer, GIN_UNLOCK);
-			END_CRIT_SECTION();
-
-			freeGinBtreeStack(stack);
-
-			return;
-=======
 			data.leftChildBlkno = BufferGetBlockNumber(childbuf);
 			data.rightChildBlkno = GinPageGetOpaque(childpage)->rightlink;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		}
 		else
 			data.leftChildBlkno = data.rightChildBlkno = InvalidBlockNumber;
@@ -579,91 +562,6 @@ ginPlaceToPage(GinBtree btree, GinBtreeStack *stack,
 			 */
 			if (stack->parent == NULL)
 			{
-<<<<<<< HEAD
-				/*
-				 * split root, so we need to allocate new left page and place
-				 * pointer on root to left and right page
-				 */
-				Buffer		lbuffer = GinNewBuffer(btree->index);
-
-				((ginxlogSplit *) (rdata->data))->isRootSplit = TRUE;
-				((ginxlogSplit *) (rdata->data))->rrlink = InvalidBlockNumber;
-
-				page = BufferGetPage(stack->buffer);
-				lpage = BufferGetPage(lbuffer);
-				rpage = BufferGetPage(rbuffer);
-
-				GinPageGetOpaque(rpage)->rightlink = InvalidBlockNumber;
-				GinPageGetOpaque(newlpage)->rightlink = BufferGetBlockNumber(rbuffer);
-				((ginxlogSplit *) (rdata->data))->lblkno = BufferGetBlockNumber(lbuffer);
-
-				START_CRIT_SECTION();
-
-				GinInitBuffer(stack->buffer, GinPageGetOpaque(newlpage)->flags & ~GIN_LEAF);
-				PageRestoreTempPage(newlpage, lpage);
-				btree->fillRoot(btree, stack->buffer, lbuffer, rbuffer);
-
-				MarkBufferDirty(rbuffer);
-				MarkBufferDirty(lbuffer);
-				MarkBufferDirty(stack->buffer);
-
-				if (RelationNeedsWAL(btree->index))
-				{
-					XLogRecPtr	recptr;
-
-					recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_SPLIT, rdata);
-					PageSetLSN(page, recptr);
-					PageSetLSN(lpage, recptr);
-					PageSetLSN(rpage, recptr);
-				}
-
-				UnlockReleaseBuffer(rbuffer);
-				UnlockReleaseBuffer(lbuffer);
-				LockBuffer(stack->buffer, GIN_UNLOCK);
-				END_CRIT_SECTION();
-
-				freeGinBtreeStack(stack);
-
-				/* During index build, count the newly-added root page */
-				if (buildStats)
-				{
-					if (btree->isData)
-						buildStats->nDataPages++;
-					else
-						buildStats->nEntryPages++;
-				}
-
-				return;
-			}
-			else
-			{
-				/* split non-root page */
-				((ginxlogSplit *) (rdata->data))->isRootSplit = FALSE;
-				((ginxlogSplit *) (rdata->data))->rrlink = savedRightLink;
-
-				lpage = BufferGetPage(stack->buffer);
-				rpage = BufferGetPage(rbuffer);
-
-				GinPageGetOpaque(rpage)->rightlink = savedRightLink;
-				GinPageGetOpaque(newlpage)->rightlink = BufferGetBlockNumber(rbuffer);
-
-				START_CRIT_SECTION();
-				PageRestoreTempPage(newlpage, lpage);
-
-				MarkBufferDirty(rbuffer);
-				MarkBufferDirty(stack->buffer);
-
-				if (RelationNeedsWAL(btree->index))
-				{
-					XLogRecPtr	recptr;
-
-					recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_SPLIT, rdata);
-					PageSetLSN(lpage, recptr);
-					PageSetLSN(rpage, recptr);
-				}
-				UnlockReleaseBuffer(rbuffer);
-				END_CRIT_SECTION();
-=======
 				XLogRegisterBuffer(0, lbuffer, REGBUF_FORCE_IMAGE | REGBUF_STANDARD);
 				XLogRegisterBuffer(1, rbuffer, REGBUF_FORCE_IMAGE | REGBUF_STANDARD);
 				XLogRegisterBuffer(2, stack->buffer, REGBUF_FORCE_IMAGE | REGBUF_STANDARD);
@@ -672,7 +570,6 @@ ginPlaceToPage(GinBtree btree, GinBtreeStack *stack,
 			{
 				XLogRegisterBuffer(0, stack->buffer, REGBUF_FORCE_IMAGE | REGBUF_STANDARD);
 				XLogRegisterBuffer(1, rbuffer, REGBUF_FORCE_IMAGE | REGBUF_STANDARD);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			}
 			if (BufferIsValid(childbuf))
 				XLogRegisterBuffer(3, childbuf, 0);

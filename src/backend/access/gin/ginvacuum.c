@@ -268,15 +268,7 @@ ginDeletePage(GinVacuumState *gvs, BlockNumber deleteBlkno, BlockNumber leftBlkn
 		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_DELETE_PAGE);
 		PageSetLSN(page, recptr);
 		PageSetLSN(parentPage, recptr);
-<<<<<<< HEAD
-		if (leftBlkno != InvalidBlockNumber)
-		{
-			page = BufferGetPage(lBuffer);
-			PageSetLSN(page, recptr);
-		}
-=======
 		PageSetLSN(BufferGetPage(lBuffer), recptr);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	}
 
 	if (!isParentRoot)

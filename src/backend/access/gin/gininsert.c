@@ -35,68 +35,6 @@ typedef struct
 	BuildAccumulator accum;
 } GinBuildState;
 
-<<<<<<< HEAD
-/*
- * Creates new posting tree with one page, containing the given TIDs.
- * Returns the page number (which will be the root of this posting tree).
- *
- * items[] must be in sorted order with no duplicates.
- */
-static BlockNumber
-createPostingTree(Relation index, ItemPointerData *items, uint32 nitems)
-{
-	BlockNumber blkno;
-	Buffer		buffer = GinNewBuffer(index);
-	Page		page;
-
-	/* Assert that the items[] array will fit on one page */
-	Assert(nitems <= GinMaxLeafDataItems);
-
-	START_CRIT_SECTION();
-
-	GinInitBuffer(buffer, GIN_DATA | GIN_LEAF);
-	page = BufferGetPage(buffer);
-	blkno = BufferGetBlockNumber(buffer);
-
-	memcpy(GinDataPageGetData(page), items, sizeof(ItemPointerData) * nitems);
-	GinPageGetOpaque(page)->maxoff = nitems;
-
-	MarkBufferDirty(buffer);
-
-	if (RelationNeedsWAL(index))
-	{
-		XLogRecPtr	recptr;
-		XLogRecData rdata[2];
-		ginxlogCreatePostingTree data;
-
-		data.node = index->rd_node;
-		data.blkno = blkno;
-		data.nitem = nitems;
-
-		rdata[0].buffer = InvalidBuffer;
-		rdata[0].data = (char *) &data;
-		rdata[0].len = sizeof(ginxlogCreatePostingTree);
-		rdata[0].next = &rdata[1];
-
-		rdata[1].buffer = InvalidBuffer;
-		rdata[1].data = (char *) items;
-		rdata[1].len = sizeof(ItemPointerData) * nitems;
-		rdata[1].next = NULL;
-
-		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_CREATE_PTREE, rdata);
-		PageSetLSN(page, recptr);
-	}
-
-	UnlockReleaseBuffer(buffer);
-
-	END_CRIT_SECTION();
-
-	return blkno;
-}
-
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
-
 /*
  * Adds array of item pointers to tuple's posting list, or
  * creates posting tree and tuple pointing to tree in case
@@ -327,7 +265,7 @@ ginHeapTupleBulkInsert(GinBuildState *buildstate, OffsetNumber attnum,
 }
 
 static void
-ginBuildCallback(Relation index, ItemPointer tupleId, Datum *values,
+ginBuildCallback(Relation index, HeapTuple htup, Datum *values,
 				 bool *isnull, bool tupleIsAlive __attribute__((unused)), void *state)
 {
 	GinBuildState *buildstate = (GinBuildState *) state;
@@ -339,7 +277,7 @@ ginBuildCallback(Relation index, ItemPointer tupleId, Datum *values,
 	for (i = 0; i < buildstate->ginstate.origTupdesc->natts; i++)
 		ginHeapTupleBulkInsert(buildstate, (OffsetNumber) (i + 1),
 							   values[i], isnull[i],
-							   tupleId);
+							   &htup->t_self);
 
 	/* If we've maxed out our available memory, dump everything to the index */
 	if (buildstate->accum.allocatedMemory >= maintenance_work_mem * 1024L)
@@ -518,18 +456,7 @@ ginbuildempty(PG_FUNCTION_ARGS)
 	log_newpage_buffer(MetaBuffer, false);
 	GinInitBuffer(RootBuffer, GIN_LEAF);
 	MarkBufferDirty(RootBuffer);
-<<<<<<< HEAD
-
-	/* XLOG the new pages */
-	log_newpage_rel(index, INIT_FORKNUM,
-				BufferGetBlockNumber(MetaBuffer),
-				BufferGetPage(MetaBuffer));
-	log_newpage_rel(index, INIT_FORKNUM,
-				BufferGetBlockNumber(RootBuffer),
-				BufferGetPage(RootBuffer));
-=======
 	log_newpage_buffer(RootBuffer, false);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	END_CRIT_SECTION();
 
 	/* Unlock and release the buffers. */

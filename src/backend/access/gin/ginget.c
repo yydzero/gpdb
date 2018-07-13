@@ -317,13 +317,7 @@ restartScanEntry:
 	ginPrepareEntryScan(&btreeEntry, entry->attnum,
 						entry->queryKey, entry->queryCategory,
 						ginstate);
-<<<<<<< HEAD
-	btreeEntry.searchMode = TRUE;
-
-	stackEntry = ginFindLeafPage(&btreeEntry, NULL);
-=======
 	stackEntry = ginFindLeafPage(&btreeEntry, true);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	page = BufferGetPage(stackEntry->buffer);
 	needUnlock = TRUE;
 
@@ -661,16 +655,7 @@ entryLoadMoreItems(GinState *ginstate, GinScanEntry entry, ItemPointerData advan
 			 * We've processed all the entries on this page. If it was the
 			 * last page in the tree, we're done.
 			 */
-<<<<<<< HEAD
-
-			blkno = GinPageGetOpaque(page)->rightlink;
-
-			LockBuffer(entry->buffer, GIN_UNLOCK);
-
-			if (blkno == InvalidBlockNumber)
-=======
 			if (GinPageRightMost(page))
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			{
 				UnlockReleaseBuffer(entry->buffer);
 				entry->buffer = InvalidBuffer;
@@ -1793,24 +1778,11 @@ Datum
 gingetbitmap(PG_FUNCTION_ARGS)
 {
 	IndexScanDesc scan = (IndexScanDesc) PG_GETARG_POINTER(0);
-<<<<<<< HEAD
-	Node 	   *n = (Node *) PG_GETARG_POINTER(1);
-	TIDBitmap  *tbm;
-=======
 	TIDBitmap  *tbm = (TIDBitmap *) PG_GETARG_POINTER(1);
 	GinScanOpaque so = (GinScanOpaque) scan->opaque;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	int64		ntids;
 	ItemPointerData iptr;
 	bool		recheck;
-
-	if (n == NULL)
-		/* XXX should we use less than work_mem for this? */
-		tbm = tbm_create(work_mem * 1024L);
-	else if (!IsA(n, TIDBitmap))
-		elog(ERROR, "non hash bitmap");
-	else
-		tbm = (TIDBitmap *)n;
 
 	/*
 	 * Set up the scan keys, and check for unsatisfiable query.

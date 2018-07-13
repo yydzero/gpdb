@@ -133,7 +133,6 @@ typedef struct VacAttrStats
 } VacAttrStats;
 
 /*
-<<<<<<< HEAD
  * VPgClassStats is used to hold the stats information that are stored in
  * pg_class. It is sent from QE to QD in a special libpq message , when a
  * QE runs VACUUM on a table.
@@ -144,7 +143,8 @@ typedef struct VPgClassStats
 	BlockNumber rel_pages;
 	double		rel_tuples;
 } VPgClassStats;
-=======
+
+/*
  * Parameters customizing behavior of VACUUM and ANALYZE.
  */
 typedef struct VacuumParams
@@ -160,7 +160,6 @@ typedef struct VacuumParams
 										 * at which  verbose logs are
 										 * activated, -1 to use default */
 } VacuumParams;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* GUC parameters */
 extern PGDLLIMPORT int default_statistics_target;		/* PGDLLIMPORT for
@@ -190,18 +189,12 @@ extern void vac_update_relstats(Relation relation,
 					BlockNumber num_all_visible_pages,
 					bool hasindex,
 					TransactionId frozenxid,
-<<<<<<< HEAD
-					bool isvacuum);
-extern void vacuum_set_xid_limits(int freeze_min_age, int freeze_table_age,
-					  bool sharedRel,
-=======
 					MultiXactId minmulti,
 					bool in_outer_xact);
 extern void vacuum_set_xid_limits(Relation rel,
 					  int freeze_min_age, int freeze_table_age,
 					  int multixact_freeze_min_age,
 					  int multixact_freeze_table_age,
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 					  TransactionId *oldestXmin,
 					  TransactionId *freezeLimit,
 					  TransactionId *xidFullScanLimit,
@@ -213,19 +206,8 @@ extern void vacuum_delay_point(void);
 extern bool vacuumStatement_IsTemporary(Relation onerel);
 
 /* in commands/vacuumlazy.c */
-<<<<<<< HEAD
-extern void lazy_vacuum_rel(Relation onerel, VacuumStmt *vacstmt,
-				BufferAccessStrategy bstrategy);
-extern void vacuum_appendonly_rel(Relation aorel, VacuumStmt *vacstmt);
-extern void vacuum_appendonly_fill_stats(Relation aorel, Snapshot snapshot,
-										 BlockNumber *rel_pages, double *rel_tuples,
-										 bool *relhasindex);
-extern int vacuum_appendonly_indexes(Relation aoRelation, VacuumStmt *vacstmt);
-extern void vacuum_aocs_rel(Relation aorel, void *vacrelstats, bool isVacFull);
-=======
 extern void lazy_vacuum_rel(Relation onerel, int options,
 				VacuumParams *params, BufferAccessStrategy bstrategy);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 /* in commands/analyze.c */
 extern void analyze_rel(Oid relid, RangeVar *relation, int options,
@@ -240,5 +222,14 @@ extern bool std_typanalyze(VacAttrStats *stats);
 extern double anl_random_fract(void);
 extern double anl_init_selection_state(int n);
 extern double anl_get_next_S(double t, int n, double *stateptr);
+
+/* gpdb added functions */
+
+extern void vacuum_appendonly_rel(Relation aorel, VacuumStmt *vacstmt);
+extern void vacuum_appendonly_fill_stats(Relation aorel, Snapshot snapshot,
+										 BlockNumber *rel_pages, double *rel_tuples,
+										 bool *relhasindex);
+extern int vacuum_appendonly_indexes(Relation aoRelation, VacuumStmt *vacstmt);
+extern void vacuum_aocs_rel(Relation aorel, void *vacrelstats, bool isVacFull);
 
 #endif   /* VACUUM_H */
