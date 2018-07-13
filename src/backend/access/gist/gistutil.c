@@ -379,11 +379,6 @@ gistchoose(Relation r, Page p, IndexTuple it,	/* it has compressed entry */
 
 	Assert(!GistPageIsLeaf(p));
 
-<<<<<<< HEAD
-	Assert(!GistPageIsLeaf(p));
-
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	gistDeCompressAtt(giststate, r,
 					  it, NULL, (OffsetNumber) 0,
 					  identry, isnull);
@@ -404,8 +399,6 @@ gistchoose(Relation r, Page p, IndexTuple it,	/* it has compressed entry */
 	best_penalty[0] = -1;
 
 	/*
-<<<<<<< HEAD
-=======
 	 * If we find a tuple that's exactly as good as the currently best one, we
 	 * could use either one.  When inserting a lot of tuples with the same or
 	 * similar keys, it's preferable to descend down the same path when
@@ -431,7 +424,6 @@ gistchoose(Relation r, Page p, IndexTuple it,	/* it has compressed entry */
 	keep_current_best = -1;
 
 	/*
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	 * Loop over tuples on page.
 	 */
 	maxoff = PageGetMaxOffsetNumber(p);
@@ -465,11 +457,7 @@ gistchoose(Relation r, Page p, IndexTuple it,	/* it has compressed entry */
 			{
 				/*
 				 * New best penalty for column.  Tentatively select this tuple
-<<<<<<< HEAD
-				 * as the target, and record the best penalty.	Then reset the
-=======
 				 * as the target, and record the best penalty.  Then reset the
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 				 * next column's penalty to "unknown" (and indirectly, the
 				 * same for all the ones to its right).  This will force us to
 				 * adopt this tuple's penalty values as the best for all the
@@ -480,22 +468,15 @@ gistchoose(Relation r, Page p, IndexTuple it,	/* it has compressed entry */
 
 				if (j < r->rd_att->natts - 1)
 					best_penalty[j + 1] = -1;
-<<<<<<< HEAD
-=======
 
 				/* we have new best, so reset keep-it decision */
 				keep_current_best = -1;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			}
 			else if (best_penalty[j] == usize)
 			{
 				/*
 				 * The current tuple is exactly as good for this column as the
-<<<<<<< HEAD
-				 * best tuple seen so far.	The next iteration of this loop
-=======
 				 * best tuple seen so far.  The next iteration of this loop
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 				 * will compare the next column.
 				 */
 			}
@@ -512,14 +493,6 @@ gistchoose(Relation r, Page p, IndexTuple it,	/* it has compressed entry */
 		}
 
 		/*
-<<<<<<< HEAD
-		 * If we find a tuple with zero penalty for all columns, there's no
-		 * need to examine remaining tuples; just break out of the loop and
-		 * return it.
-		 */
-		if (zero_penalty)
-			break;
-=======
 		 * If we looped past the last column, and did not update "result",
 		 * then this tuple is exactly as good as the prior best tuple.
 		 */
@@ -555,7 +528,6 @@ gistchoose(Relation r, Page p, IndexTuple it,	/* it has compressed entry */
 			if (keep_current_best == 1)
 				break;
 		}
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	}
 
 	return result;

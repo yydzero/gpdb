@@ -16,14 +16,10 @@
 
 #include "access/gist_private.h"
 #include "access/relscan.h"
-<<<<<<< HEAD
 #include "executor/execdebug.h"
-#include "miscadmin.h"    /* work_mem */
 #include "nodes/tidbitmap.h"
-=======
 #include "catalog/pg_type.h"
 #include "miscadmin.h"
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include "pgstat.h"
 #include "lib/pairingheap.h"
 #include "utils/builtins.h"
@@ -399,16 +395,12 @@ gistScanPage(IndexScanDesc scan, GISTSearchItem *pageItem, double *myDistances,
 			{
 				/* Creating index-page GISTSearchItem */
 				item->blkno = ItemPointerGetBlockNumber(&it->t_tid);
-<<<<<<< HEAD
-				/* lsn of current page is lsn of parent page for child */
-=======
 
 				/*
 				 * LSN of current page is lsn of parent page for child. We
 				 * only have a shared lock, so we need to get the LSN
 				 * atomically.
 				 */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 				item->data.parentlsn = BufferGetLSNAtomic(buffer);
 			}
 
