@@ -67,7 +67,7 @@ typedef struct
 
 
 static void btbuildCallback(Relation index,
-				ItemPointer tupleId,
+				HeapTuple htup,
 				Datum *values,
 				bool *isnull,
 				bool tupleIsAlive,
@@ -167,21 +167,13 @@ btbuild(PG_FUNCTION_ARGS)
  */
 static void
 btbuildCallback(Relation index,
-				ItemPointer tupleId,
+				HeapTuple htup,
 				Datum *values,
 				bool *isnull,
 				bool tupleIsAlive,
 				void *state)
 {
 	BTBuildState *buildstate = (BTBuildState *) state;
-<<<<<<< HEAD
-	IndexTuple	itup;
-
-	/* form an index tuple and point it at the heap tuple */
-	itup = index_form_tuple(RelationGetDescr(index), values, isnull);
-	itup->t_tid = *tupleId;
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/*
 	 * insert the index tuple into the appropriate spool file for subsequent
@@ -217,13 +209,8 @@ btbuildempty(PG_FUNCTION_ARGS)
 	smgrwrite(index->rd_smgr, INIT_FORKNUM, BTREE_METAPAGE,
 			  (char *) metapage, true);
 	if (XLogIsNeeded())
-<<<<<<< HEAD
-		log_newpage_rel(index, INIT_FORKNUM,
-					BTREE_METAPAGE, metapage);
-=======
 		log_newpage(&index->rd_smgr->smgr_rnode.node, INIT_FORKNUM,
 					BTREE_METAPAGE, metapage, false);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/*
 	 * An immediate sync is required even if we xlog'd the page, because the
@@ -318,7 +305,7 @@ _bt_validate_vacuum(Relation irel, Relation hrel, TransactionId oldest_xmin)
 						 RelationGetRelationName(irel),
 						 RelationGetRelationName(hrel));
 				}
-				switch (HeapTupleSatisfiesVacuum(hrel, htup.t_data, oldest_xmin, hbuf))
+				switch (HeapTupleSatisfiesVacuum(&htup, oldest_xmin, hbuf))
 				{
 					case HEAPTUPLE_RECENTLY_DEAD:
 					case HEAPTUPLE_LIVE:
@@ -361,8 +348,8 @@ _bt_validate_vacuum(Relation irel, Relation hrel, TransactionId oldest_xmin)
 				}
 				if (RelationGetNamespace(irel) == PG_AOSEGMENT_NAMESPACE)
 				{
-					int4 isegno = index_getattr(itup, 1, RelationGetDescr(irel), &isnull);
-					int4 hsegno = heap_getattr(&htup, 1, RelationGetDescr(hrel), &isnull);
+					int32 isegno = index_getattr(itup, 1, RelationGetDescr(irel), &isnull);
+					int32 hsegno = heap_getattr(&htup, 1, RelationGetDescr(hrel), &isnull);
 					if (isegno != hsegno)
 					{
 						elog(ERROR,
@@ -1324,11 +1311,7 @@ restart:
 				opaque->btpo_cycleid == vstate->cycleid)
 			{
 				opaque->btpo_cycleid = 0;
-<<<<<<< HEAD
-				MarkBufferDirtyHint(buf);
-=======
 				MarkBufferDirtyHint(buf, true);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			}
 		}
 

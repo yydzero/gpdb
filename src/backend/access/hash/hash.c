@@ -36,7 +36,7 @@ typedef struct
 } HashBuildState;
 
 static void hashbuildCallback(Relation index,
-				  ItemPointer tupleId,
+				  HeapTuple htup,
 				  Datum *values,
 				  bool *isnull,
 				  bool tupleIsAlive,
@@ -133,7 +133,7 @@ hashbuildempty(PG_FUNCTION_ARGS)
  */
 static void
 hashbuildCallback(Relation index,
-				  ItemPointer tupleId,
+				  HeapTuple htup,
 				  Datum *values,
 				  bool *isnull,
 				  bool tupleIsAlive __attribute__((unused)),
@@ -142,13 +142,6 @@ hashbuildCallback(Relation index,
 	HashBuildState *buildstate = (HashBuildState *) state;
 	IndexTuple	itup;
 
-<<<<<<< HEAD
-	/* form an index tuple and point it at the heap tuple */
-	itup = _hash_form_tuple(index, values, isnull);
-	itup->t_tid = *tupleId;
-
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	/* Hash indexes don't index nulls, see notes in hashinsert */
 	if (isnull[0])
 		return;
@@ -288,11 +281,7 @@ hashgettuple(PG_FUNCTION_ARGS)
 			/*
 			 * Since this can be redone later if needed, mark as a hint.
 			 */
-<<<<<<< HEAD
-			MarkBufferDirtyHint(so->hashso_curbuf);
-=======
 			MarkBufferDirtyHint(buf, true);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		}
 
 		/*

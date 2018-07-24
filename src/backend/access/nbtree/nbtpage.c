@@ -1830,11 +1830,6 @@ _bt_unlink_halfdead_page(Relation rel, Buffer leafbuf, bool *rightsib_empty)
 		{
 			PageSetLSN(metapg, recptr);
 		}
-<<<<<<< HEAD
-		page = BufferGetPage(pbuf);
-		PageSetLSN(page, recptr);
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		page = BufferGetPage(rbuf);
 		PageSetLSN(page, recptr);
 		page = BufferGetPage(buf);
@@ -1843,14 +1838,11 @@ _bt_unlink_halfdead_page(Relation rel, Buffer leafbuf, bool *rightsib_empty)
 		{
 			page = BufferGetPage(lbuf);
 			PageSetLSN(page, recptr);
-<<<<<<< HEAD
-=======
 		}
 		if (target != leafblkno)
 		{
 			page = BufferGetPage(leafbuf);
 			PageSetLSN(page, recptr);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		}
 	}
 

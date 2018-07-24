@@ -522,17 +522,8 @@ index_fetch_heap(IndexScanDesc scan)
 		/*
 		 * Prune page, but only if we weren't already on this page
 		 */
-<<<<<<< HEAD
-		if (prev_buf != scan->xs_cbuf &&
-			TransactionIdIsValid(RecentGlobalXmin))
-		{
-			heap_page_prune_opt(scan->heapRelation, scan->xs_cbuf,
-								RecentGlobalXmin);
-		}
-=======
 		if (prev_buf != scan->xs_cbuf)
 			heap_page_prune_opt(scan->heapRelation, scan->xs_cbuf);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	}
 
 	/* Obtain share-lock on the buffer so we can examine visibility */
@@ -636,6 +627,8 @@ index_getnext(IndexScanDesc scan, ScanDirection direction)
  *		returned; a TIDBitmap otherwise. Note that an index am's getmulti
  *		function can assume that the bitmap that it's given as argument is of
  *		the same type as what the function constructs itself.
+ *
+ *  MERGE_95_FIXME: int64 index_getbitmap(IndexScanDesc scan, TIDBitmap *bitmap)
  * ----------------
  */
 Node *

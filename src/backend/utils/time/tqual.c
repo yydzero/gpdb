@@ -217,10 +217,10 @@ SetHintBits(HeapTupleHeader tuple, Buffer buffer, Relation rel,
  * implement inline functions.
  */
 void
-HeapTupleSetHintBits(HeapTupleHeader tuple, Buffer buffer, Relation rel,
+HeapTupleSetHintBits(HeapTupleHeader tuple, Buffer buffer,
 					 uint16 infomask, TransactionId xid)
 {
-	SetHintBits(tuple, buffer, rel, infomask, xid);
+	SetHintBits(tuple, buffer, infomask, xid);
 }
 
 /*

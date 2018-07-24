@@ -190,12 +190,6 @@ extern void simple_heap_delete(Relation relation, ItemPointer tid);
 extern void simple_heap_update(Relation relation, ItemPointer otid,
 				   HeapTuple tup);
 
-extern XLogRecPtr log_newpage_rel(Relation rel, ForkNumber forkNum, BlockNumber blkno,
-								  Page page);
-extern XLogRecPtr log_newpage_relFileNode(RelFileNode *relFileNode,
-										  ForkNumber forkNum,
-										  BlockNumber blkno, Page page);
-
 extern void heap_sync(Relation relation);
 
 /* in heap/pruneheap.c */
@@ -214,5 +208,7 @@ extern void ss_report_location(Relation rel, BlockNumber location);
 extern BlockNumber ss_get_location(Relation rel, BlockNumber relnblocks);
 extern void SyncScanShmemInit(void);
 extern Size SyncScanShmemSize(void);
+
+extern void heap_mask(char *pagedata, BlockNumber blkno);
 
 #endif   /* HEAPAM_H */

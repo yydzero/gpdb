@@ -86,12 +86,9 @@
  */
 struct BTSpool
 {
-<<<<<<< HEAD
+	/* changed from Tuplesortstate to void * for mk sort support */
 	void *sortstate;	/* state data for tuplesort.c */
-=======
-	Tuplesortstate *sortstate;	/* state data for tuplesort.c */
 	Relation	heap;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	Relation	index;
 	bool		isunique;
 };
@@ -283,11 +280,7 @@ _bt_blwritepage(BTWriteState *wstate, Page page, BlockNumber blkno)
 	if (wstate->btws_use_wal)
 	{
 		/* We use the heap NEWPAGE record type for this */
-<<<<<<< HEAD
-		log_newpage_rel(wstate->index, MAIN_FORKNUM, blkno, page);
-=======
 		log_newpage(&wstate->index->rd_node, MAIN_FORKNUM, blkno, page, true);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	}
 
 	/*
@@ -301,10 +294,6 @@ _bt_blwritepage(BTWriteState *wstate, Page page, BlockNumber blkno)
 	{
 		if (!wstate->btws_zeropage)
 			wstate->btws_zeropage = (Page) palloc0(BLCKSZ);
-<<<<<<< HEAD
-
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		/* don't set checksum for all-zero page */
 		smgrextend(wstate->index->rd_smgr, MAIN_FORKNUM,
 				   wstate->btws_pages_written++,

@@ -18,16 +18,14 @@
 #include "access/heapam.h"
 #include "access/nbtree.h"
 #include "access/transam.h"
-<<<<<<< HEAD
-#include "cdb/cdbappendonlyam.h"
-#include "cdb/cdbaocsam.h"
-=======
 #include "access/xloginsert.h"
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include "miscadmin.h"
 #include "storage/lmgr.h"
 #include "storage/predicate.h"
 #include "utils/tqual.h"
+
+#include "cdb/cdbappendonlyam.h"
+#include "cdb/cdbaocsam.h"
 
 
 typedef struct
@@ -176,14 +174,6 @@ top:
 		{
 			/* Have to wait for the other guy ... */
 			_bt_relbuf(rel, buf);
-<<<<<<< HEAD
-			/*
-			 * We have to unlock it to resume interrupts.  In case we wait for
-			 * the lock in XactLockTableWait and a cancellation is requested,
-			 * we should be able to respond it.
-			 */
-			XactLockTableWait(xwait);
-=======
 
 			/*
 			 * If it's a speculative insertion, wait for it to finish (ie. to
@@ -195,7 +185,6 @@ top:
 			else
 				XactLockTableWait(xwait, rel, &itup->t_tid, XLTW_InsertIndex);
 
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			/* start over... */
 			_bt_freestack(stack);
 			goto top;
@@ -400,14 +389,8 @@ _bt_check_unique(Relation rel, IndexTuple itup, Relation heapRel,
 				curitup = (IndexTuple) PageGetItem(page, curitemid);
 
 				/*
-<<<<<<< HEAD
 				 * If the parent relation is an AO/CO table, we have to find out
 				 * if this tuple is actually in the table.
-=======
-				 * If we are doing a recheck, we expect to find the tuple we
-				 * are rechecking.  It's not a duplicate, but we have to keep
-				 * scanning.
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 				 */
 				if (RelationIsAppendOptimized(heapRel))
 				{
@@ -415,81 +398,7 @@ _bt_check_unique(Relation rel, IndexTuple itup, Relation heapRel,
 						_bt_ao_check_unique(rel, heapRel, &curitup->t_tid);
 
 					if (TransactionIdIsValid(xwait))
-<<<<<<< HEAD
 						return xwait;
-=======
-					{
-						if (nbuf != InvalidBuffer)
-							_bt_relbuf(rel, nbuf);
-						/* Tell _bt_doinsert to wait... */
-						*speculativeToken = SnapshotDirty.speculativeToken;
-						return xwait;
-					}
-
-					/*
-					 * Otherwise we have a definite conflict.  But before
-					 * complaining, look to see if the tuple we want to insert
-					 * is itself now committed dead --- if so, don't complain.
-					 * This is a waste of time in normal scenarios but we must
-					 * do it to support CREATE INDEX CONCURRENTLY.
-					 *
-					 * We must follow HOT-chains here because during
-					 * concurrent index build, we insert the root TID though
-					 * the actual tuple may be somewhere in the HOT-chain.
-					 * While following the chain we might not stop at the
-					 * exact tuple which triggered the insert, but that's OK
-					 * because if we find a live tuple anywhere in this chain,
-					 * we have a unique key conflict.  The other live tuple is
-					 * not part of this chain because it had a different index
-					 * entry.
-					 */
-					htid = itup->t_tid;
-					if (heap_hot_search(&htid, heapRel, SnapshotSelf, NULL))
-					{
-						/* Normal case --- it's still live */
-					}
-					else
-					{
-						/*
-						 * It's been deleted, so no error, and no need to
-						 * continue searching
-						 */
-						break;
-					}
-
-					/*
-					 * This is a definite conflict.  Break the tuple down into
-					 * datums and report the error.  But first, make sure we
-					 * release the buffer locks we're holding ---
-					 * BuildIndexValueDescription could make catalog accesses,
-					 * which in the worst case might touch this same index and
-					 * cause deadlocks.
-					 */
-					if (nbuf != InvalidBuffer)
-						_bt_relbuf(rel, nbuf);
-					_bt_relbuf(rel, buf);
-
-					{
-						Datum		values[INDEX_MAX_KEYS];
-						bool		isnull[INDEX_MAX_KEYS];
-						char	   *key_desc;
-
-						index_deform_tuple(itup, RelationGetDescr(rel),
-										   values, isnull);
-
-						key_desc = BuildIndexValueDescription(rel, values,
-															  isnull);
-
-						ereport(ERROR,
-								(errcode(ERRCODE_UNIQUE_VIOLATION),
-								 errmsg("duplicate key value violates unique constraint \"%s\"",
-										RelationGetRelationName(rel)),
-							   key_desc ? errdetail("Key %s already exists.",
-													key_desc) : 0,
-								 errtableconstraint(heapRel,
-											 RelationGetRelationName(rel))));
-					}
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 				}
 				else
 				{
@@ -500,7 +409,6 @@ _bt_check_unique(Relation rel, IndexTuple itup, Relation heapRel,
 					 * are rechecking.  It's not a duplicate, but we have to keep
 					 * scanning.
 					 */
-<<<<<<< HEAD
 					if (checkUnique == UNIQUE_CHECK_EXISTING &&
 						ItemPointerCompare(&htid, &itup->t_tid) == 0)
 					{
@@ -613,25 +521,16 @@ _bt_check_unique(Relation rel, IndexTuple itup, Relation heapRel,
 						 */
 						ItemIdMarkDead(curitemid);
 						opaque->btpo_flags |= BTP_HAS_GARBAGE;
-						/* be sure to mark the proper buffer dirty... */
-						if (nbuf != InvalidBuffer)
-							MarkBufferDirtyHint(nbuf);
-						else
-							MarkBufferDirtyHint(buf);
-					}
-=======
-					ItemIdMarkDead(curitemid);
-					opaque->btpo_flags |= BTP_HAS_GARBAGE;
 
-					/*
-					 * Mark buffer with a dirty hint, since state is not
-					 * crucial. Be sure to mark the proper buffer dirty.
-					 */
-					if (nbuf != InvalidBuffer)
-						MarkBufferDirtyHint(nbuf, true);
-					else
-						MarkBufferDirtyHint(buf, true);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+						/*
+						 * Mark buffer with a dirty hint, since state is not
+						 * crucial. Be sure to mark the proper buffer dirty.
+						 */
+						if (nbuf != InvalidBuffer)
+							MarkBufferDirtyHint(nbuf, true);
+						else
+							MarkBufferDirtyHint(buf, true);
+					}
 				}
 			}
 		}
@@ -1101,13 +1000,10 @@ _bt_insertonpg(Relation rel,
 			if (BufferIsValid(metabuf))
 			{
 				PageSetLSN(metapg, recptr);
-<<<<<<< HEAD
-=======
 			}
 			if (BufferIsValid(cbuf))
 			{
 				PageSetLSN(BufferGetPage(cbuf), recptr);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			}
 
 			PageSetLSN(page, recptr);
@@ -1525,13 +1421,10 @@ _bt_split(Relation rel, Buffer buf, Buffer cbuf, OffsetNumber firstright,
 		if (!P_RIGHTMOST(ropaque))
 		{
 			PageSetLSN(spage, recptr);
-<<<<<<< HEAD
-=======
 		}
 		if (!isleaf)
 		{
 			PageSetLSN(BufferGetPage(cbuf), recptr);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		}
 	}
 

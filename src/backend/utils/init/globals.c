@@ -135,15 +135,10 @@ int			maintenance_work_mem = 65536;
  * MaxBackends is computed by PostmasterMain after modules have had a chance to
  * register background workers.
  */
-<<<<<<< HEAD
 int			NBuffers = 4096;
-int			MaxBackends = 200;
-=======
-int			NBuffers = 1000;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 int			MaxConnections = 90;
 int			max_worker_processes = 8;
-int			MaxBackends = 0;
+int			MaxBackends = 200;
 
 int			gp_workfile_max_entries = 8192; /* Number of unique entries we can hold in the workfile directory */
 

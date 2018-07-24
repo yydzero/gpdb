@@ -171,14 +171,10 @@ char *
 BuildIndexValueDescription(Relation indexRelation,
 						   Datum *values, bool *isnull)
 {
-<<<<<<< HEAD
-=======
 	StringInfoData buf;
 	Form_pg_index idxrec;
 	HeapTuple	ht_idx;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	int			natts = indexRelation->rd_rel->relnatts;
-	StringInfoData buf;
 	int			i;
 	int			keyno;
 	Oid			indexrelid = RelationGetRelid(indexRelation);
@@ -475,12 +471,7 @@ systable_recheck_tuple(SysScanDesc sysscan, HeapTuple tup)
 		Assert(BufferIsValid(scan->xs_cbuf));
 		/* must hold a buffer lock to call HeapTupleSatisfiesVisibility */
 		LockBuffer(scan->xs_cbuf, BUFFER_LOCK_SHARE);
-<<<<<<< HEAD
-		result = HeapTupleSatisfiesVisibility(NULL, tup, scan->xs_snapshot,
-											  scan->xs_cbuf);
-=======
 		result = HeapTupleSatisfiesVisibility(tup, freshsnap, scan->xs_cbuf);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		LockBuffer(scan->xs_cbuf, BUFFER_LOCK_UNLOCK);
 	}
 	else
@@ -492,12 +483,7 @@ systable_recheck_tuple(SysScanDesc sysscan, HeapTuple tup)
 		Assert(BufferIsValid(scan->rs_cbuf));
 		/* must hold a buffer lock to call HeapTupleSatisfiesVisibility */
 		LockBuffer(scan->rs_cbuf, BUFFER_LOCK_SHARE);
-<<<<<<< HEAD
-		result = HeapTupleSatisfiesVisibility(NULL, tup, scan->rs_snapshot,
-											  scan->rs_cbuf);
-=======
 		result = HeapTupleSatisfiesVisibility(tup, freshsnap, scan->rs_cbuf);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		LockBuffer(scan->rs_cbuf, BUFFER_LOCK_UNLOCK);
 	}
 	return result;

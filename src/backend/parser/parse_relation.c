@@ -1127,9 +1127,6 @@ chooseScalarFunctionAlias(Node *funcexpr, char *funcname,
 
 /*
  * Open a table during parse analysis
- *
- * This is essentially the same as CdbOpenRelationRv, except that it caters
- * to some parser-specific error reporting needs.
  */
 Relation
 parserOpenTable(ParseState *pstate, const RangeVar *relation,

@@ -87,7 +87,7 @@ extern HTSV_Result HeapTupleSatisfiesVacuum(HeapTuple htup,
 extern bool HeapTupleIsSurelyDead(HeapTuple htup,
 					  TransactionId OldestXmin);
 
-extern void HeapTupleSetHintBits(HeapTupleHeader tuple, Buffer buffer, Relation rel,
+extern void HeapTupleSetHintBits(HeapTupleHeader tuple, Buffer buffer,
 					 uint16 infomask, TransactionId xid);
 extern bool HeapTupleHeaderIsOnlyLocked(HeapTupleHeader tuple);
 

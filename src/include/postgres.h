@@ -165,7 +165,6 @@ typedef struct
 } varattrib_1b;
 
 /* TOAST pointers are a subset of varattrib_1b with an identifying tag byte */
-/* Old comment (still valid?): NOT Like Postgres! ...In GPDB, We waste a few bytes of padding, and don't always set the va_len_1be to anything */
 typedef struct
 {
 	uint8		va_header;		/* Always 0x80 or 0x01 */
@@ -242,8 +241,6 @@ typedef struct
 	(ntohl(((varattrib_4b *) (PTR))->va_4byte.va_header) & 0x3FFFFFFF)
 #define VARSIZE_1B(PTR) \
 	(((varattrib_1b *) (PTR))->va_header & 0x7F)
-/* FIXME: old comments, In GPDB, VARSIZE_1B_E() is always the size of a toast pointer plus the 4 byte header */
-/* Reinitdb? */
 #define VARTAG_1B_E(PTR) \
 	(((varattrib_1b_e *) (PTR))->va_tag)
 

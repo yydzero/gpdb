@@ -332,16 +332,11 @@ end_heap_rewrite(RewriteState state)
 	if (state->rs_buffer_valid)
 	{
 		if (state->rs_use_wal)
-			log_newpage_rel(state->rs_new_rel,
+			log_newpage(&state->rs_new_rel->rd_node,
 						MAIN_FORKNUM,
 						state->rs_blockno,
-<<<<<<< HEAD
-						state->rs_buffer);
-
-=======
 						state->rs_buffer,
 						true);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		RelationOpenSmgr(state->rs_new_rel);
 
 		PageSetChecksumInplace(state->rs_buffer, state->rs_blockno);
@@ -687,7 +682,7 @@ raw_heap_insert(RewriteState state, HeapTuple tup)
 
 			/* XLOG stuff */
 			if (state->rs_use_wal)
-				log_newpage_rel(state->rs_new_rel,
+				log_newpage(&state->rs_new_rel->rd_node,
 							MAIN_FORKNUM,
 							state->rs_blockno,
 							page,

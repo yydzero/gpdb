@@ -1841,11 +1841,7 @@ _bt_killitems(IndexScanDesc scan)
 	if (killedsomething)
 	{
 		opaque->btpo_flags |= BTP_HAS_GARBAGE;
-<<<<<<< HEAD
-		MarkBufferDirtyHint(so->currPos.buf);
-=======
 		MarkBufferDirtyHint(so->currPos.buf, true);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	}
 
 	LockBuffer(so->currPos.buf, BUFFER_LOCK_UNLOCK);

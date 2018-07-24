@@ -66,8 +66,6 @@ typedef struct toast_compress_header
 #define TOAST_COMPRESS_SET_RAWSIZE(ptr, len) \
 	(((toast_compress_header *) (ptr))->rawsize = (len))
 
-#define SET_VARSIZE_C(PTR)			(((varattrib_1b *) (PTR))->va_header |= 0x40)
-
 static void toast_delete_datum(Relation rel, Datum value);
 static Datum toast_save_datum(Relation rel, Datum value,
 				 struct varlena * oldexternal, bool isFrozen, int options);
@@ -83,26 +81,6 @@ static int toast_open_indexes(Relation toastrel,
 				   int *num_indexes);
 static void toast_close_indexes(Relation *toastidxs, int num_indexes,
 					LOCKMODE lock);
-
-
-/*
- * GPDB: Check to be sure that a toast table's index is valid before making use
- * of it in a query.
- *
- * GPDB_94_MERGE_FIXME: This function exists only because we don't yet have
- * upstream commit 2ef085d0e. Once that's merged, we can get rid of this.
- */
-static void
-check_toast_indisvalid(Relation toastrel, Relation toastidx)
-{
-	Assert(RelationIsValid(toastidx));
-	Assert(RelationIsValid(toastrel));
-	Assert(PointerIsValid(toastidx->rd_index));
-
-	if (!IndexIsValid(toastidx->rd_index))
-		elog(ERROR, "no valid index found for toast relation with Oid %d",
-			 RelationGetRelid(toastrel));
-}
 
 
 /* ----------
@@ -177,9 +155,10 @@ heap_tuple_fetch_attr(struct varlena * attr)
 	return result;
 }
 
-
 /*
  * If this function is changed then update varattrib_untoast_ptr_len as well
+ *
+ * Return raw data size
  */
 int
 varattrib_untoast_len(Datum d)
@@ -209,17 +188,16 @@ varattrib_untoast_len(Datum d)
 
 		if (VARATT_IS_COMPRESSED(attr))
 		{
-			PGLZ_Header *tmp = (PGLZ_Header *) attr;
-			len = PGLZ_RAW_SIZE(tmp);
+			len = TOAST_COMPRESS_RAWSIZE(attr);
 		}
 		else if (VARATT_IS_SHORT(attr))
 		{
-			len = VARSIZE_SHORT(attr) - VARHDRSZ_SHORT;
+			len = VARSIZE_SHORT(attr) - VARHDRSZ_SHORT;		// 1 byte varlena
 		}
 	}
 
 	if(len == -1)
-		len = VARSIZE(attr) - VARHDRSZ;
+		len = VARSIZE(attr) - VARHDRSZ;	// 4 bytes varlena
 
 	if (toFree)
 		pfree(toFree);
@@ -259,10 +237,7 @@ varattrib_untoast_ptr_len(Datum d, char **datastart, int *len, void **tofree)
 
 		if (VARATT_IS_COMPRESSED(attr))
 		{
-			PGLZ_Header *tmp = (PGLZ_Header *) attr;
-			attr = (struct varlena *) palloc(PGLZ_RAW_SIZE(tmp) + VARHDRSZ);
-			SET_VARSIZE(attr, PGLZ_RAW_SIZE(tmp) + VARHDRSZ);
-			pglz_decompress(tmp, VARDATA(attr));
+			attr = toast_decompress_datum(attr);
 
 			/* If tofree is set, that is, we get it from toast_fetch_datum.  
 			 * We need to free it here 
@@ -601,15 +576,9 @@ toast_delete(Relation rel, GenericTuple oldtup, MemTupleBinding *pbind)
 	Datum		toast_values[MaxHeapAttributeNumber];
 	bool		toast_isnull[MaxHeapAttributeNumber];
 	bool 		ismemtuple = is_memtuple(oldtup);
-	
-	AssertImply(ismemtuple, pbind);
-	AssertImply(!ismemtuple, !pbind);
 
-	/*
-	 * We should only ever be called for tuples of plain relations ---
-	 * recursing on a toast rel is bad news.
-	 */
-	Assert(rel->rd_rel->relkind == RELKIND_RELATION);
+	Assert(ismemtuple && pbind != NULL);
+	Assert(!ismemtuple && pbind == NULL);
 
 	/*
 	 * We should only ever be called for tuples of plain relations or
@@ -658,6 +627,17 @@ toast_delete(Relation rel, GenericTuple oldtup, MemTupleBinding *pbind)
 	}
 }
 
+static int
+compute_dest_tuplen(TupleDesc tupdesc, MemTupleBinding *pbind, bool hasnull, Datum *d, bool *isnull)
+{
+	if(pbind)
+	{
+		uint32 nullsave_dummy;
+		return (int) compute_memtuple_size(pbind, d, isnull, hasnull, &nullsave_dummy);
+	}
+
+	return heap_compute_data_size(tupdesc, d, isnull);
+}
 
 /* ----------
  * toast_insert_or_update -
@@ -677,19 +657,6 @@ toast_delete(Relation rel, GenericTuple oldtup, MemTupleBinding *pbind)
  * from the pre-8.1 API of this routine.
  * ----------
  */
-static int
-compute_dest_tuplen(TupleDesc tupdesc, MemTupleBinding *pbind, bool hasnull, Datum *d, bool *isnull)
-{
-	if(pbind) 
-	{
-		uint32 nullsave_dummy;
-		return (int) compute_memtuple_size(pbind, d, isnull, hasnull, &nullsave_dummy);
-	}
-
-	return heap_compute_data_size(tupdesc, d, isnull);
-}
-
-
 static GenericTuple
 toast_insert_or_update_generic(Relation rel, GenericTuple newtup, GenericTuple oldtup,
 					   MemTupleBinding *pbind, int toast_tuple_target,
@@ -721,9 +688,9 @@ toast_insert_or_update_generic(Relation rel, GenericTuple newtup, GenericTuple o
 
 	bool 		ismemtuple = is_memtuple(newtup);
 
-	AssertImply(ismemtuple, pbind);
-	AssertImply(!ismemtuple, !pbind);
-	AssertImply(ismemtuple && oldtup, is_memtuple(oldtup));
+	Assert(ismemtuple && pbind != NULL);
+	Assert(!ismemtuple && pbind == NULL);
+	Assert(ismemtuple && oldtup && is_memtuple(oldtup));
 	Assert(toast_tuple_target > 0);
 
 	/*
@@ -897,11 +864,10 @@ toast_insert_or_update_generic(Relation rel, GenericTuple newtup, GenericTuple o
 	 * ----------
 	 */
 
-<<<<<<< HEAD
 	if (!ismemtuple)
 	{
 		/* compute header overhead --- this should match heap_form_tuple() */
-		hoff = offsetof(HeapTupleHeaderData, t_bits);
+		hoff = SizeofHeapTupleHeader;
 		if (has_nulls)
 			hoff += BITMAPLEN(numAttrs);
 		if (((HeapTuple) newtup)->t_data->t_infomask & HEAP_HASOID)
@@ -915,17 +881,6 @@ toast_insert_or_update_generic(Relation rel, GenericTuple newtup, GenericTuple o
 		maxDataLen = toast_tuple_target;
 		hoff = -1; /* keep compiler quiet about using 'hoff' uninitialized */
 	}
-=======
-	/* compute header overhead --- this should match heap_form_tuple() */
-	hoff = SizeofHeapTupleHeader;
-	if (has_nulls)
-		hoff += BITMAPLEN(numAttrs);
-	if (newtup->t_data->t_infomask & HEAP_HASOID)
-		hoff += sizeof(Oid);
-	hoff = MAXALIGN(hoff);
-	/* now convert to a limit on the tuple data size */
-	maxDataLen = TOAST_TUPLE_TARGET - hoff;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/*
 	 * Look for attributes with attstorage 'x' to compress.  Also find large
@@ -1190,12 +1145,6 @@ toast_insert_or_update_generic(Relation rel, GenericTuple newtup, GenericTuple o
 		need_free = true;
 	}
 
-	/* XXX Maybe we should check here for any compressed inline attributes that
-	 * didn't save enough to warrant keeping. In particular attributes whose
-	 * rawsize is < 128 bytes and didn't save at least 3 bytes... or even maybe
-	 * more given alignment issues 
-	 */
-
 	/*
 	 * In the case we toasted any values, we need to build a new heap tuple
 	 * with the changed values.
@@ -1209,7 +1158,6 @@ toast_insert_or_update_generic(Relation rel, GenericTuple newtup, GenericTuple o
 			{
 				Oid			oid;
 
-<<<<<<< HEAD
 				oid = MemTupleGetOid((MemTuple) newtup, pbind);
 				MemTupleSetOid((MemTuple) result_gtuple, pbind, oid);
 			}
@@ -1222,27 +1170,6 @@ toast_insert_or_update_generic(Relation rel, GenericTuple newtup, GenericTuple o
 			int32		new_data_len;
 			int32		new_tuple_len;
 			HeapTuple	result_tuple;
-=======
-		/*
-		 * Calculate the new size of the tuple.
-		 *
-		 * Note: we used to assume here that the old tuple's t_hoff must equal
-		 * the new_header_len value, but that was incorrect.  The old tuple
-		 * might have a smaller-than-current natts, if there's been an ALTER
-		 * TABLE ADD COLUMN since it was stored; and that would lead to a
-		 * different conclusion about the size of the null bitmap, or even
-		 * whether there needs to be one at all.
-		 */
-		new_header_len = SizeofHeapTupleHeader;
-		if (has_nulls)
-			new_header_len += BITMAPLEN(numAttrs);
-		if (olddata->t_infomask & HEAP_HASOID)
-			new_header_len += sizeof(Oid);
-		new_header_len = MAXALIGN(new_header_len);
-		new_data_len = heap_compute_data_size(tupleDesc,
-											  toast_values, toast_isnull);
-		new_tuple_len = new_header_len + new_data_len;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 			/*
 			 * Calculate the new size of the tuple.
@@ -1254,7 +1181,7 @@ toast_insert_or_update_generic(Relation rel, GenericTuple newtup, GenericTuple o
 			 * different conclusion about the size of the null bitmap, or even
 			 * whether there needs to be one at all.
 			 */
-			new_header_len = offsetof(HeapTupleHeaderData, t_bits);
+			new_header_len = SizeofHeapTupleHeader;
 			if (has_nulls)
 				new_header_len += BITMAPLEN(numAttrs);
 			if (olddata->t_infomask & HEAP_HASOID)
@@ -1264,7 +1191,6 @@ toast_insert_or_update_generic(Relation rel, GenericTuple newtup, GenericTuple o
 												  toast_values, toast_isnull);
 			new_tuple_len = new_header_len + new_data_len;
 
-<<<<<<< HEAD
 			/*
 			 * Allocate and zero the space needed, and fill HeapTupleData fields.
 			 */
@@ -1273,21 +1199,11 @@ toast_insert_or_update_generic(Relation rel, GenericTuple newtup, GenericTuple o
 			result_tuple->t_self = ((HeapTuple) newtup)->t_self;
 			new_data = (HeapTupleHeader) ((char *) result_tuple + HEAPTUPLESIZE);
 			result_tuple->t_data = new_data;
-=======
-		/*
-		 * Copy the existing tuple header, but adjust natts and t_hoff.
-		 */
-		memcpy(new_data, olddata, SizeofHeapTupleHeader);
-		HeapTupleHeaderSetNatts(new_data, numAttrs);
-		new_data->t_hoff = new_header_len;
-		if (olddata->t_infomask & HEAP_HASOID)
-			HeapTupleHeaderSetOid(new_data, HeapTupleHeaderGetOid(olddata));
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 			/*
 			 * Copy the existing tuple header, but adjust natts and t_hoff.
 			 */
-			memcpy(new_data, olddata, offsetof(HeapTupleHeaderData, t_bits));
+			memcpy(new_data, olddata, SizeofHeapTupleHeader);
 			HeapTupleHeaderSetNatts(new_data, numAttrs);
 			new_data->t_hoff = new_header_len;
 			if (olddata->t_infomask & HEAP_HASOID)
@@ -1486,12 +1402,8 @@ toast_flatten_tuple_to_datum(HeapTupleHeader tup,
 	/* Build a temporary HeapTuple control structure */
 	tmptup.t_len = tup_len;
 	ItemPointerSetInvalid(&(tmptup.t_self));
-<<<<<<< HEAD
-	tmptup.t_data = olddata;
-=======
-	tmptup.t_tableOid = InvalidOid;
+	// tmptup.t_tableOid = InvalidOid;	// removed in gpdb.
 	tmptup.t_data = tup;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/*
 	 * Break down the tuple into fields.
@@ -1729,8 +1641,6 @@ toast_save_datum(Relation rel, Datum value,
 									RowExclusiveLock,
 									&toastidxs,
 									&num_indexes);
-
-	check_toast_indisvalid(toastrel, toastidx);
 
 	/*
 	 * Get the data pointer and length, and compute va_rawsize and va_extsize.
@@ -2004,8 +1914,6 @@ toast_delete_datum(Relation rel __attribute__((unused)), Datum value)
 									&toastidxs,
 									&num_indexes);
 
-	check_toast_indisvalid(toastrel, toastidx);
-
 	/*
 	 * Setup a scan key to find chunks with matching va_valueid
 	 */
@@ -2164,8 +2072,6 @@ toast_fetch_datum(struct varlena * attr)
 									AccessShareLock,
 									&toastidxs,
 									&num_indexes);
-
-	check_toast_indisvalid(toastrel, toastidx);
 
 	/*
 	 * Setup a scan key to fetch from the index by va_valueid
@@ -2368,8 +2274,6 @@ toast_fetch_datum_slice(struct varlena * attr, int32 sliceoffset, int32 length)
 									AccessShareLock,
 									&toastidxs,
 									&num_indexes);
-
-	check_toast_indisvalid(toastrel, toastidx);
 
 	/*
 	 * Setup a scan key to fetch from the index. This is either two keys or

@@ -76,26 +76,7 @@ heap_page_prune_opt(Relation relation, Buffer buffer)
 {
 	Page		page = BufferGetPage(buffer);
 	Size		minfree;
-<<<<<<< HEAD
-
-	/*
-	 * In GPDB we may call into here without having a local snapshot and thus
-	 * no valid OldestXmin transaction id. Exit early if so.
-	 */
-	if (!TransactionIdIsValid(OldestXmin))
-		return;
-
-	/*
-	 * Let's see if we really need pruning.
-	 *
-	 * Forget it if page is not hinted to contain something prunable that's
-	 * older than OldestXmin.
-	 */
-	if (!PageIsPrunable(page, OldestXmin))
-		return;
-=======
 	TransactionId OldestXmin;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/*
 	 * We can't write WAL in recovery mode, so there's no point trying to
@@ -119,6 +100,14 @@ heap_page_prune_opt(Relation relation, Buffer buffer)
 		OldestXmin = RecentGlobalDataXmin;
 
 	Assert(TransactionIdIsValid(OldestXmin));
+
+	/*
+	 * In GPDB we may call into here without having a local snapshot and thus
+	 * no valid OldestXmin transaction id. Exit early if so.
+	 * MERGE_95_FIXME: this is added in 83 merge, still valid?
+	 */
+	if (!TransactionIdIsValid(OldestXmin))
+		return;
 
 	/*
 	 * Let's see if we really need pruning.
@@ -299,11 +288,7 @@ heap_page_prune(Relation relation, Buffer buffer, TransactionId OldestXmin,
 		{
 			((PageHeader) page)->pd_prune_xid = prstate.new_prune_xid;
 			PageClearFull(page);
-<<<<<<< HEAD
-			MarkBufferDirtyHint(buffer);
-=======
 			MarkBufferDirtyHint(buffer, true);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		}
 	}
 
@@ -382,7 +367,7 @@ heap_prune_chain(Relation relation, Buffer buffer, OffsetNumber rootoffnum,
 				i;
 	HeapTupleData tup;
 
-	tup.t_tableOid = RelationGetRelid(relation);
+	// tup.t_tableOid = RelationGetRelid(relation);	// removed in GPDB.
 
 	rootlp = PageGetItemId(dp, rootoffnum);
 
@@ -417,11 +402,7 @@ heap_prune_chain(Relation relation, Buffer buffer, OffsetNumber rootoffnum,
 			 * either here or while following a chain below.  Whichever path
 			 * gets there first will mark the tuple unused.
 			 */
-<<<<<<< HEAD
-			if (HeapTupleSatisfiesVacuum(relation, htup, OldestXmin, buffer)
-=======
 			if (HeapTupleSatisfiesVacuum(&tup, OldestXmin, buffer)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 				== HEAPTUPLE_DEAD && !HeapTupleHeaderIsHotUpdated(htup))
 			{
 				heap_prune_record_unused(prstate, rootoffnum);
@@ -505,11 +486,7 @@ heap_prune_chain(Relation relation, Buffer buffer, OffsetNumber rootoffnum,
 		 */
 		tupdead = recent_dead = false;
 
-<<<<<<< HEAD
-		switch (HeapTupleSatisfiesVacuum(relation, htup, OldestXmin, buffer))
-=======
 		switch (HeapTupleSatisfiesVacuum(&tup, OldestXmin, buffer))
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		{
 			case HEAPTUPLE_DEAD:
 				tupdead = true;
