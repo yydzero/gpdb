@@ -16,10 +16,7 @@
 
 #include "access/spgist_private.h"
 #include "access/transam.h"
-<<<<<<< HEAD
-=======
 #include "access/xlog.h"
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 #include "access/xlogutils.h"
 #include "storage/standby.h"
 #include "utils/memutils.h"
@@ -80,16 +77,8 @@ spgRedoCreateIndex(XLogReaderState *record)
 	Buffer		buffer;
 	Page		page;
 
-<<<<<<< HEAD
-	/* Backup blocks are not used in create_index records */
-	Assert(!(record->xl_info & XLR_BKP_BLOCK_MASK));
-
-	buffer = XLogReadBuffer(*node, SPGIST_METAPAGE_BLKNO, true);
-	Assert(BufferIsValid(buffer));
-=======
 	buffer = XLogInitBufferForRedo(record, 0);
 	Assert(BufferGetBlockNumber(buffer) == SPGIST_METAPAGE_BLKNO);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	page = (Page) BufferGetPage(buffer);
 	SpGistInitMetapage(page);
 	PageSetLSN(page, lsn);
@@ -135,13 +124,7 @@ spgRedoAddLeaf(XLogReaderState *record)
 	 * simultaneously; but in WAL replay it should be safe to update the leaf
 	 * page before updating the parent.
 	 */
-<<<<<<< HEAD
-	if (record->xl_info & XLR_BKP_BLOCK(0))
-		(void) RestoreBackupBlock(lsn, record, 0, false, false);
-	else
-=======
 	if (xldata->newPage)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	{
 		buffer = XLogInitBufferForRedo(record, 0);
 		SpGistInitBuffer(buffer,
@@ -180,19 +163,8 @@ spgRedoAddLeaf(XLogReaderState *record)
 			if (PageAddItem(page,
 							(Item) leafTuple, leafTupleHdr.size,
 					 xldata->offnumLeaf, false, false) != xldata->offnumLeaf)
-<<<<<<< HEAD
-						elog(ERROR, "failed to add item of size %u to SPGiST index page",
-							 leafTuple->size);
-				}
-
-				PageSetLSN(page, lsn);
-				MarkBufferDirty(buffer);
-			}
-			UnlockReleaseBuffer(buffer);
-=======
 				elog(ERROR, "failed to add item of size %u to SPGiST index page",
 					 leafTupleHdr.size);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		}
 
 		PageSetLSN(page, lsn);
@@ -202,13 +174,7 @@ spgRedoAddLeaf(XLogReaderState *record)
 		UnlockReleaseBuffer(buffer);
 
 	/* update parent downlink if necessary */
-<<<<<<< HEAD
-	if (record->xl_info & XLR_BKP_BLOCK(1))
-		(void) RestoreBackupBlock(lsn, record, 1, false, false);
-	else if (xldata->blknoParent != InvalidBlockNumber)
-=======
 	if (xldata->offnumParent != InvalidOffsetNumber)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	{
 		if (XLogReadBufferForRedo(record, 1, &buffer) == BLK_NEEDS_REDO)
 		{
@@ -225,15 +191,8 @@ spgRedoAddLeaf(XLogReaderState *record)
 			spgUpdateNodeLink(tuple, xldata->nodeI,
 							  blknoLeaf, xldata->offnumLeaf);
 
-<<<<<<< HEAD
-				PageSetLSN(page, lsn);
-				MarkBufferDirty(buffer);
-			}
-			UnlockReleaseBuffer(buffer);
-=======
 			PageSetLSN(page, lsn);
 			MarkBufferDirty(buffer);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		}
 		if (BufferIsValid(buffer))
 			UnlockReleaseBuffer(buffer);
@@ -276,13 +235,7 @@ spgRedoMoveLeafs(XLogReaderState *record)
 	 */
 
 	/* Insert tuples on the dest page (do first, so redirect is valid) */
-<<<<<<< HEAD
-	if (record->xl_info & XLR_BKP_BLOCK(1))
-		(void) RestoreBackupBlock(lsn, record, 1, false, false);
-	else
-=======
 	if (xldata->newPage)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	{
 		buffer = XLogInitBufferForRedo(record, 1);
 		SpGistInitBuffer(buffer,
@@ -303,12 +256,6 @@ spgRedoMoveLeafs(XLogReaderState *record)
 			char	   *leafTuple;
 			SpGistLeafTupleData leafTupleHdr;
 
-<<<<<<< HEAD
-				PageSetLSN(page, lsn);
-				MarkBufferDirty(buffer);
-			}
-			UnlockReleaseBuffer(buffer);
-=======
 			/*
 			 * the tuples are not aligned, so must copy to access the size
 			 * field.
@@ -320,7 +267,6 @@ spgRedoMoveLeafs(XLogReaderState *record)
 			addOrReplaceTuple(page, (Item) leafTuple,
 							  leafTupleHdr.size, toInsert[i]);
 			ptr += leafTupleHdr.size;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		}
 
 		PageSetLSN(page, lsn);
@@ -330,13 +276,7 @@ spgRedoMoveLeafs(XLogReaderState *record)
 		UnlockReleaseBuffer(buffer);
 
 	/* Delete tuples from the source page, inserting a redirection pointer */
-<<<<<<< HEAD
-	if (record->xl_info & XLR_BKP_BLOCK(0))
-		(void) RestoreBackupBlock(lsn, record, 0, false, false);
-	else
-=======
 	if (XLogReadBufferForRedo(record, 0, &buffer) == BLK_NEEDS_REDO)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	{
 		page = BufferGetPage(buffer);
 
@@ -346,28 +286,14 @@ spgRedoMoveLeafs(XLogReaderState *record)
 								blknoDst,
 								toInsert[nInsert - 1]);
 
-<<<<<<< HEAD
-				PageSetLSN(page, lsn);
-				MarkBufferDirty(buffer);
-			}
-			UnlockReleaseBuffer(buffer);
-		}
-=======
 		PageSetLSN(page, lsn);
 		MarkBufferDirty(buffer);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	}
 	if (BufferIsValid(buffer))
 		UnlockReleaseBuffer(buffer);
 
 	/* And update the parent downlink */
-<<<<<<< HEAD
-	if (record->xl_info & XLR_BKP_BLOCK(2))
-		(void) RestoreBackupBlock(lsn, record, 2, false, false);
-	else
-=======
 	if (XLogReadBufferForRedo(record, 2, &buffer) == BLK_NEEDS_REDO)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	{
 		SpGistInnerTuple tuple;
 
@@ -379,16 +305,8 @@ spgRedoMoveLeafs(XLogReaderState *record)
 		spgUpdateNodeLink(tuple, xldata->nodeI,
 						  blknoDst, toInsert[nInsert - 1]);
 
-<<<<<<< HEAD
-				PageSetLSN(page, lsn);
-				MarkBufferDirty(buffer);
-			}
-			UnlockReleaseBuffer(buffer);
-		}
-=======
 		PageSetLSN(page, lsn);
 		MarkBufferDirty(buffer);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	}
 	if (BufferIsValid(buffer))
 		UnlockReleaseBuffer(buffer);
@@ -417,25 +335,11 @@ spgRedoAddNode(XLogReaderState *record)
 	if (!XLogRecHasBlockRef(record, 1))
 	{
 		/* update in place */
-<<<<<<< HEAD
-		Assert(xldata->blknoParent == InvalidBlockNumber);
-		if (record->xl_info & XLR_BKP_BLOCK(0))
-			(void) RestoreBackupBlock(lsn, record, 0, false, false);
-		else
-=======
 		Assert(xldata->parentBlk == -1);
 		if (XLogReadBufferForRedo(record, 0, &buffer) == BLK_NEEDS_REDO)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		{
 			page = BufferGetPage(buffer);
 
-<<<<<<< HEAD
-					PageSetLSN(page, lsn);
-					MarkBufferDirty(buffer);
-				}
-				UnlockReleaseBuffer(buffer);
-			}
-=======
 			PageIndexTupleDelete(page, xldata->offnum);
 			if (PageAddItem(page, (Item) innerTuple, innerTupleHdr.size,
 							xldata->offnum,
@@ -445,47 +349,28 @@ spgRedoAddNode(XLogReaderState *record)
 
 			PageSetLSN(page, lsn);
 			MarkBufferDirty(buffer);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		}
 		if (BufferIsValid(buffer))
 			UnlockReleaseBuffer(buffer);
 	}
 	else
 	{
-<<<<<<< HEAD
-=======
 		BlockNumber blkno;
 		BlockNumber blknoNew;
 
 		XLogRecGetBlockTag(record, 0, NULL, NULL, &blkno);
 		XLogRecGetBlockTag(record, 1, NULL, NULL, &blknoNew);
 
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		/*
 		 * In normal operation we would have all three pages (source, dest,
 		 * and parent) locked simultaneously; but in WAL replay it should be
 		 * safe to update them one at a time, as long as we do it in the right
-<<<<<<< HEAD
-		 * order.
-		 *
-		 * The logic here depends on the assumption that blkno != blknoNew,
-		 * else we can't tell which BKP bit goes with which page, and the LSN
-		 * checks could go wrong too.
-		 */
-		Assert(xldata->blkno != xldata->blknoNew);
-
-		/* Install new tuple first so redirect is valid */
-		if (record->xl_info & XLR_BKP_BLOCK(1))
-			(void) RestoreBackupBlock(lsn, record, 1, false, false);
-		else
-=======
 		 * order. We must insert the new tuple before replacing the old tuple
 		 * with the redirect tuple.
 		 */
 
 		/* Install new tuple first so redirect is valid */
 		if (xldata->newPage)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		{
 			/* AddNode is not used for nulls pages */
 			buffer = XLogInitBufferForRedo(record, 1);
@@ -511,29 +396,8 @@ spgRedoAddNode(XLogReaderState *record)
 				parentTuple = (SpGistInnerTuple) PageGetItem(page,
 								  PageGetItemId(page, xldata->offnumParent));
 
-<<<<<<< HEAD
-				if (!XLByteLE(lsn, PageGetLSN(page)))
-				{
-					addOrReplaceTuple(page, (Item) innerTuple,
-									  innerTuple->size, xldata->offnumNew);
-
-					/*
-					 * If parent is in this same page, don't advance LSN;
-					 * doing so would fool us into not applying the parent
-					 * downlink update below.  We'll update the LSN when we
-					 * fix the parent downlink.
-					 */
-					if (xldata->blknoParent != xldata->blknoNew)
-					{
-						PageSetLSN(page, lsn);
-					}
-					MarkBufferDirty(buffer);
-				}
-				UnlockReleaseBuffer(buffer);
-=======
 				spgUpdateNodeLink(parentTuple, xldata->nodeI,
 								  blknoNew, xldata->offnumNew);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			}
 			PageSetLSN(page, lsn);
 			MarkBufferDirty(buffer);
@@ -542,13 +406,7 @@ spgRedoAddNode(XLogReaderState *record)
 			UnlockReleaseBuffer(buffer);
 
 		/* Delete old tuple, replacing it with redirect or placeholder tuple */
-<<<<<<< HEAD
-		if (record->xl_info & XLR_BKP_BLOCK(0))
-			(void) RestoreBackupBlock(lsn, record, 0, false, false);
-		else
-=======
 		if (XLogReadBufferForRedo(record, 0, &buffer) == BLK_NEEDS_REDO)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		{
 			SpGistDeadTuple dt;
 
@@ -585,36 +443,8 @@ spgRedoAddNode(XLogReaderState *record)
 				parentTuple = (SpGistInnerTuple) PageGetItem(page,
 								  PageGetItemId(page, xldata->offnumParent));
 
-<<<<<<< HEAD
-					PageIndexTupleDelete(page, xldata->offnum);
-					if (PageAddItem(page, (Item) dt, dt->size,
-									xldata->offnum,
-									false, false) != xldata->offnum)
-						elog(ERROR, "failed to add item of size %u to SPGiST index page",
-							 dt->size);
-
-					if (state.isBuild)
-						SpGistPageGetOpaque(page)->nPlaceholder++;
-					else
-						SpGistPageGetOpaque(page)->nRedirection++;
-
-					/*
-					 * If parent is in this same page, don't advance LSN;
-					 * doing so would fool us into not applying the parent
-					 * downlink update below.  We'll update the LSN when we
-					 * fix the parent downlink.
-					 */
-					if (xldata->blknoParent != xldata->blkno)
-					{
-						PageSetLSN(page, lsn);
-					}
-					MarkBufferDirty(buffer);
-				}
-				UnlockReleaseBuffer(buffer);
-=======
 				spgUpdateNodeLink(parentTuple, xldata->nodeI,
 								  blknoNew, xldata->offnumNew);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			}
 			PageSetLSN(page, lsn);
 			MarkBufferDirty(buffer);
@@ -626,23 +456,7 @@ spgRedoAddNode(XLogReaderState *record)
 		 * Update parent downlink (if we didn't do it as part of the source or
 		 * destination page update already).
 		 */
-<<<<<<< HEAD
-		if (xldata->blknoParent == xldata->blkno)
-			bbi = 0;
-		else if (xldata->blknoParent == xldata->blknoNew)
-			bbi = 1;
-		else
-			bbi = 2;
-
-		if (record->xl_info & XLR_BKP_BLOCK(bbi))
-		{
-			if (bbi == 2)		/* else we already did it */
-				(void) RestoreBackupBlock(lsn, record, bbi, false, false);
-		}
-		else
-=======
 		if (xldata->parentBlk == 2)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		{
 			if (XLogReadBufferForRedo(record, 2, &buffer) == BLK_NEEDS_REDO)
 			{
@@ -656,15 +470,8 @@ spgRedoAddNode(XLogReaderState *record)
 				spgUpdateNodeLink(parentTuple, xldata->nodeI,
 								  blknoNew, xldata->offnumNew);
 
-<<<<<<< HEAD
-					PageSetLSN(page, lsn);
-					MarkBufferDirty(buffer);
-				}
-				UnlockReleaseBuffer(buffer);
-=======
 				PageSetLSN(page, lsn);
 				MarkBufferDirty(buffer);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			}
 			if (BufferIsValid(buffer))
 				UnlockReleaseBuffer(buffer);
@@ -708,13 +515,7 @@ spgRedoSplitTuple(XLogReaderState *record)
 	 */
 
 	/* insert postfix tuple first to avoid dangling link */
-<<<<<<< HEAD
-	if (record->xl_info & XLR_BKP_BLOCK(1))
-		(void) RestoreBackupBlock(lsn, record, 1, false, false);
-	else if (xldata->blknoPostfix != xldata->blknoPrefix)
-=======
 	if (!xldata->postfixBlkSame)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	{
 		if (xldata->newPage)
 		{
@@ -732,27 +533,15 @@ spgRedoSplitTuple(XLogReaderState *record)
 			addOrReplaceTuple(page, (Item) postfixTuple,
 							  postfixTupleHdr.size, xldata->offnumPostfix);
 
-<<<<<<< HEAD
-				PageSetLSN(page, lsn);
-				MarkBufferDirty(buffer);
-			}
-=======
 			PageSetLSN(page, lsn);
 			MarkBufferDirty(buffer);
 		}
 		if (BufferIsValid(buffer))
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			UnlockReleaseBuffer(buffer);
 	}
 
 	/* now handle the original page */
-<<<<<<< HEAD
-	if (record->xl_info & XLR_BKP_BLOCK(0))
-		(void) RestoreBackupBlock(lsn, record, 0, false, false);
-	else
-=======
 	if (XLogReadBufferForRedo(record, 0, &buffer) == BLK_NEEDS_REDO)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	{
 		page = BufferGetPage(buffer);
 
@@ -767,16 +556,8 @@ spgRedoSplitTuple(XLogReaderState *record)
 							  postfixTupleHdr.size,
 							  xldata->offnumPostfix);
 
-<<<<<<< HEAD
-				PageSetLSN(page, lsn);
-				MarkBufferDirty(buffer);
-			}
-			UnlockReleaseBuffer(buffer);
-		}
-=======
 		PageSetLSN(page, lsn);
 		MarkBufferDirty(buffer);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	}
 	if (BufferIsValid(buffer))
 		UnlockReleaseBuffer(buffer);
@@ -796,10 +577,7 @@ spgRedoPickSplit(XLogReaderState *record)
 	uint8	   *leafPageSelect;
 	Buffer		srcBuffer;
 	Buffer		destBuffer;
-<<<<<<< HEAD
-=======
 	Buffer		innerBuffer;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	Page		srcPage;
 	Page		destPage;
 	Page		page;
@@ -835,12 +613,7 @@ spgRedoPickSplit(XLogReaderState *record)
 	else if (xldata->initSrc)
 	{
 		/* just re-init the source page */
-<<<<<<< HEAD
-		srcBuffer = XLogReadBuffer(xldata->node, xldata->blknoSrc, true);
-		Assert(BufferIsValid(srcBuffer));
-=======
 		srcBuffer = XLogInitBufferForRedo(record, 0);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		srcPage = (Page) BufferGetPage(srcBuffer);
 
 		SpGistInitBuffer(srcBuffer,
@@ -855,50 +628,6 @@ spgRedoPickSplit(XLogReaderState *record)
 		 * inserting leaf tuples and the new inner tuple, else the added
 		 * redirect tuple will be a dangling link.)
 		 */
-<<<<<<< HEAD
-		if (record->xl_info & XLR_BKP_BLOCK(bbi))
-		{
-			srcBuffer = RestoreBackupBlock(lsn, record, bbi, false, true);
-			srcPage = NULL;		/* don't need to do any page updates */
-		}
-		else
-		{
-			srcBuffer = XLogReadBuffer(xldata->node, xldata->blknoSrc, false);
-			if (BufferIsValid(srcBuffer))
-			{
-				srcPage = BufferGetPage(srcBuffer);
-				if (!XLByteLE(lsn, PageGetLSN(srcPage)))
-				{
-					/*
-					 * We have it a bit easier here than in doPickSplit(),
-					 * because we know the inner tuple's location already, so
-					 * we can inject the correct redirection tuple now.
-					 */
-					if (!state.isBuild)
-						spgPageIndexMultiDelete(&state, srcPage,
-												toDelete, xldata->nDelete,
-												SPGIST_REDIRECT,
-												SPGIST_PLACEHOLDER,
-												xldata->blknoInner,
-												xldata->offnumInner);
-					else
-						spgPageIndexMultiDelete(&state, srcPage,
-												toDelete, xldata->nDelete,
-												SPGIST_PLACEHOLDER,
-												SPGIST_PLACEHOLDER,
-												InvalidBlockNumber,
-												InvalidOffsetNumber);
-
-					/* don't update LSN etc till we're done with it */
-				}
-				else
-					srcPage = NULL;		/* don't do any page updates */
-			}
-			else
-				srcPage = NULL;
-		}
-		bbi++;
-=======
 		srcPage = NULL;
 		if (XLogReadBufferForRedo(record, 0, &srcBuffer) == BLK_NEEDS_REDO)
 		{
@@ -926,7 +655,6 @@ spgRedoPickSplit(XLogReaderState *record)
 
 			/* don't update LSN etc till we're done with it */
 		}
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	}
 
 	/* try to access dest page if any */
@@ -938,12 +666,7 @@ spgRedoPickSplit(XLogReaderState *record)
 	else if (xldata->initDest)
 	{
 		/* just re-init the dest page */
-<<<<<<< HEAD
-		destBuffer = XLogReadBuffer(xldata->node, xldata->blknoDest, true);
-		Assert(BufferIsValid(destBuffer));
-=======
 		destBuffer = XLogInitBufferForRedo(record, 1);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		destPage = (Page) BufferGetPage(destBuffer);
 
 		SpGistInitBuffer(destBuffer,
@@ -956,42 +679,17 @@ spgRedoPickSplit(XLogReaderState *record)
 		 * We could probably release the page lock immediately in the
 		 * full-page-image case, but for safety let's hold it till later.
 		 */
-<<<<<<< HEAD
-		if (record->xl_info & XLR_BKP_BLOCK(bbi))
-		{
-			destBuffer = RestoreBackupBlock(lsn, record, bbi, false, true);
-			destPage = NULL;	/* don't need to do any page updates */
-		}
-		else
-		{
-			destBuffer = XLogReadBuffer(xldata->node, xldata->blknoDest, false);
-			if (BufferIsValid(destBuffer))
-			{
-				destPage = (Page) BufferGetPage(destBuffer);
-				if (XLByteLE(lsn, PageGetLSN(destPage)))
-					destPage = NULL;	/* don't do any page updates */
-			}
-			else
-				destPage = NULL;
-		}
-		bbi++;
-=======
 		if (XLogReadBufferForRedo(record, 1, &destBuffer) == BLK_NEEDS_REDO)
 			destPage = (Page) BufferGetPage(destBuffer);
 		else
 			destPage = NULL;	/* don't do any page updates */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	}
 
 	/* restore leaf tuples to src and/or dest page */
 	for (i = 0; i < xldata->nInsert; i++)
 	{
-<<<<<<< HEAD
-		SpGistLeafTuple lt = (SpGistLeafTuple) ptr;
-=======
 		char	   *leafTuple;
 		SpGistLeafTupleData leafTupleHdr;
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 		/* the tuples are not aligned, so must copy to access the size field. */
 		leafTuple = ptr;
@@ -1002,9 +700,6 @@ spgRedoPickSplit(XLogReaderState *record)
 		if (page == NULL)
 			continue;			/* no need to touch this page */
 
-<<<<<<< HEAD
-		addOrReplaceTuple(page, (Item) lt, lt->size, toInsert[i]);
-=======
 		addOrReplaceTuple(page, (Item) leafTuple, leafTupleHdr.size,
 						  toInsert[i]);
 	}
@@ -1051,64 +746,10 @@ spgRedoPickSplit(XLogReaderState *record)
 
 		PageSetLSN(page, lsn);
 		MarkBufferDirty(innerBuffer);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	}
 	if (BufferIsValid(innerBuffer))
 		UnlockReleaseBuffer(innerBuffer);
 
-<<<<<<< HEAD
-	/* Now update src and dest page LSNs if needed */
-	if (srcPage != NULL)
-	{
-		PageSetLSN(srcPage, lsn);
-		MarkBufferDirty(srcBuffer);
-	}
-	if (destPage != NULL)
-	{
-		PageSetLSN(destPage, lsn);
-		MarkBufferDirty(destBuffer);
-	}
-
-	/* restore new inner tuple */
-	if (record->xl_info & XLR_BKP_BLOCK(bbi))
-		(void) RestoreBackupBlock(lsn, record, bbi, false, false);
-	else
-	{
-		Buffer		buffer = XLogReadBuffer(xldata->node, xldata->blknoInner,
-											xldata->initInner);
-
-		if (BufferIsValid(buffer))
-		{
-			page = BufferGetPage(buffer);
-
-			if (xldata->initInner)
-				SpGistInitBuffer(buffer,
-								 (xldata->storesNulls ? SPGIST_NULLS : 0));
-
-			if (!XLByteLE(lsn, PageGetLSN(page)))
-			{
-				addOrReplaceTuple(page, (Item) innerTuple, innerTuple->size,
-								  xldata->offnumInner);
-
-				/* if inner is also parent, update link while we're here */
-				if (xldata->blknoInner == xldata->blknoParent)
-				{
-					SpGistInnerTuple parent;
-
-					parent = (SpGistInnerTuple) PageGetItem(page,
-								  PageGetItemId(page, xldata->offnumParent));
-					spgUpdateNodeLink(parent, xldata->nodeI,
-									xldata->blknoInner, xldata->offnumInner);
-				}
-
-				PageSetLSN(page, lsn);
-				MarkBufferDirty(buffer);
-			}
-			UnlockReleaseBuffer(buffer);
-		}
-	}
-	bbi++;
-=======
 	/*
 	 * Now we can release the leaf-page locks.  It's okay to do this before
 	 * updating the parent downlink.
@@ -1117,7 +758,6 @@ spgRedoPickSplit(XLogReaderState *record)
 		UnlockReleaseBuffer(srcBuffer);
 	if (BufferIsValid(destBuffer))
 		UnlockReleaseBuffer(destBuffer);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/*
 	 * Now we can release the leaf-page locks.	It's okay to do this before
@@ -1131,20 +771,9 @@ spgRedoPickSplit(XLogReaderState *record)
 	/* update parent downlink, unless we did it above */
 	if (XLogRecHasBlockRef(record, 3))
 	{
-<<<<<<< HEAD
-		/* no parent cause we split the root */
-		Assert(SpGistBlockIsRoot(xldata->blknoInner));
-	}
-	else if (xldata->blknoInner != xldata->blknoParent)
-	{
-		if (record->xl_info & XLR_BKP_BLOCK(bbi))
-			(void) RestoreBackupBlock(lsn, record, bbi, false, false);
-		else
-=======
 		Buffer		parentBuffer;
 
 		if (XLogReadBufferForRedo(record, 3, &parentBuffer) == BLK_NEEDS_REDO)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		{
 			SpGistInnerTuple parent;
 
@@ -1155,16 +784,8 @@ spgRedoPickSplit(XLogReaderState *record)
 			spgUpdateNodeLink(parent, xldata->nodeI,
 							  blknoInner, xldata->offnumInner);
 
-<<<<<<< HEAD
-					PageSetLSN(page, lsn);
-					MarkBufferDirty(buffer);
-				}
-				UnlockReleaseBuffer(buffer);
-			}
-=======
 			PageSetLSN(page, lsn);
 			MarkBufferDirty(parentBuffer);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		}
 		if (BufferIsValid(parentBuffer))
 			UnlockReleaseBuffer(parentBuffer);
@@ -1205,13 +826,7 @@ spgRedoVacuumLeaf(XLogReaderState *record)
 	ptr += sizeof(OffsetNumber) * xldata->nChain;
 	chainDest = (OffsetNumber *) ptr;
 
-<<<<<<< HEAD
-	if (record->xl_info & XLR_BKP_BLOCK(0))
-		(void) RestoreBackupBlock(lsn, record, 0, false, false);
-	else
-=======
 	if (XLogReadBufferForRedo(record, 0, &buffer) == BLK_NEEDS_REDO)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	{
 		page = BufferGetPage(buffer);
 
@@ -1251,19 +866,8 @@ spgRedoVacuumLeaf(XLogReaderState *record)
 
 			lt = (SpGistLeafTuple) PageGetItem(page,
 										   PageGetItemId(page, chainSrc[i]));
-<<<<<<< HEAD
-					Assert(lt->tupstate == SPGIST_LIVE);
-					lt->nextOffset = chainDest[i];
-				}
-
-				PageSetLSN(page, lsn);
-				MarkBufferDirty(buffer);
-			}
-			UnlockReleaseBuffer(buffer);
-=======
 			Assert(lt->tupstate == SPGIST_LIVE);
 			lt->nextOffset = chainDest[i];
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		}
 
 		PageSetLSN(page, lsn);
@@ -1285,29 +889,15 @@ spgRedoVacuumRoot(XLogReaderState *record)
 
 	toDelete = xldata->offsets;
 
-<<<<<<< HEAD
-	if (record->xl_info & XLR_BKP_BLOCK(0))
-		(void) RestoreBackupBlock(lsn, record, 0, false, false);
-	else
-=======
 	if (XLogReadBufferForRedo(record, 0, &buffer) == BLK_NEEDS_REDO)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	{
 		page = BufferGetPage(buffer);
 
-<<<<<<< HEAD
-				PageSetLSN(page, lsn);
-				MarkBufferDirty(buffer);
-			}
-			UnlockReleaseBuffer(buffer);
-		}
-=======
 		/* The tuple numbers are in order */
 		PageIndexMultiDelete(page, toDelete, xldata->nDelete);
 
 		PageSetLSN(page, lsn);
 		MarkBufferDirty(buffer);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	}
 	if (BufferIsValid(buffer))
 		UnlockReleaseBuffer(buffer);
@@ -1329,18 +919,6 @@ spgRedoVacuumRedirect(XLogReaderState *record)
 	 * live Hot Standby transactions that might need to see them.
 	 */
 	if (InHotStandby)
-<<<<<<< HEAD
-	{
-		if (TransactionIdIsValid(xldata->newestRedirectXid))
-			ResolveRecoveryConflictWithSnapshot(xldata->newestRedirectXid,
-												xldata->node);
-	}
-
-	if (record->xl_info & XLR_BKP_BLOCK(0))
-		(void) RestoreBackupBlock(lsn, record, 0, false, false);
-	else
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	{
 		if (TransactionIdIsValid(xldata->newestRedirectXid))
 		{
@@ -1389,14 +967,8 @@ spgRedoVacuumRedirect(XLogReaderState *record)
 			Assert(opaque->nPlaceholder >= i);
 			opaque->nPlaceholder -= i;
 
-<<<<<<< HEAD
-				PageSetLSN(page, lsn);
-				MarkBufferDirty(buffer);
-			}
-=======
 			/* The array is sorted, so can use PageIndexMultiDelete */
 			PageIndexMultiDelete(page, toDelete, i);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 			pfree(toDelete);
 		}

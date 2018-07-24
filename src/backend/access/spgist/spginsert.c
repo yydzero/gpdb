@@ -37,7 +37,7 @@ typedef struct
 
 /* Callback to process one heap tuple during IndexBuildHeapScan */
 static void
-spgistBuildCallback(Relation index, ItemPointer tupleId, Datum *values,
+spgistBuildCallback(Relation index, HeapTuple htup, Datum *values,
 					bool *isnull, bool tupleIsAlive, void *state)
 {
 	SpGistBuildState *buildstate = (SpGistBuildState *) state;
@@ -46,9 +46,6 @@ spgistBuildCallback(Relation index, ItemPointer tupleId, Datum *values,
 	/* Work in temp context, and reset it after each tuple */
 	oldCtx = MemoryContextSwitchTo(buildstate->tmpCtx);
 
-<<<<<<< HEAD
-	spgdoinsert(index, &buildstate->spgstate, tupleId, *values, *isnull);
-=======
 	/*
 	 * Even though no concurrent insertions can be happening, we still might
 	 * get a buffer-locking failure due to bgwriter or checkpointer taking a
@@ -60,7 +57,6 @@ spgistBuildCallback(Relation index, ItemPointer tupleId, Datum *values,
 	{
 		MemoryContextReset(buildstate->tmpCtx);
 	}
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	MemoryContextSwitchTo(oldCtx);
 	MemoryContextReset(buildstate->tmpCtx);
@@ -176,13 +172,8 @@ spgbuildempty(PG_FUNCTION_ARGS)
 	smgrwrite(index->rd_smgr, INIT_FORKNUM, SPGIST_METAPAGE_BLKNO,
 			  (char *) page, true);
 	if (XLogIsNeeded())
-<<<<<<< HEAD
-		log_newpage_rel(index, INIT_FORKNUM,
-					SPGIST_METAPAGE_BLKNO, page);
-=======
 		log_newpage(&index->rd_smgr->smgr_rnode.node, INIT_FORKNUM,
 					SPGIST_METAPAGE_BLKNO, page, false);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/* Likewise for the root page. */
 	SpGistInitPage(page, SPGIST_LEAF);
@@ -191,13 +182,8 @@ spgbuildempty(PG_FUNCTION_ARGS)
 	smgrwrite(index->rd_smgr, INIT_FORKNUM, SPGIST_ROOT_BLKNO,
 			  (char *) page, true);
 	if (XLogIsNeeded())
-<<<<<<< HEAD
-		log_newpage_rel(index, INIT_FORKNUM,
-					SPGIST_ROOT_BLKNO, page);
-=======
 		log_newpage(&index->rd_smgr->smgr_rnode.node, INIT_FORKNUM,
 					SPGIST_ROOT_BLKNO, page, true);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/* Likewise for the null-tuples root page. */
 	SpGistInitPage(page, SPGIST_LEAF | SPGIST_NULLS);
@@ -206,13 +192,8 @@ spgbuildempty(PG_FUNCTION_ARGS)
 	smgrwrite(index->rd_smgr, INIT_FORKNUM, SPGIST_NULL_BLKNO,
 			  (char *) page, true);
 	if (XLogIsNeeded())
-<<<<<<< HEAD
-		log_newpage_rel(index, INIT_FORKNUM,
-					SPGIST_NULL_BLKNO, page);
-=======
 		log_newpage(&index->rd_smgr->smgr_rnode.node, INIT_FORKNUM,
 					SPGIST_NULL_BLKNO, page, true);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/*
 	 * An immediate sync is required even if we xlog'd the pages, because the

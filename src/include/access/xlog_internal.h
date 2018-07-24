@@ -28,35 +28,10 @@
 #include "storage/relfilenode.h"
 
 
-/*
-<<<<<<< HEAD
-
-/* Information stored in block_info */
+/* MERGE_95_FIXME: Information stored in block_info, added by gpdb in 20ba5ca64c7c */
 #define BLOCK_APPLY 0x01 /* page image should be restored during replay */
 
 /*
- * When there is not enough space on current page for whole record, we
- * continue on the next page with continuation record.	(However, the
- * XLogRecord header will never be split across pages; if there's less than
- * SizeOfXLogRecord space left at the end of a page, we just waste it.)
- *
- * Note that xl_rem_len includes backup-block data; that is, it tracks
- * xl_tot_len not xl_len in the initial header.  Also note that the
- * continuation data isn't necessarily aligned.
- */
-typedef struct XLogContRecord
-{
-	uint32		xl_rem_len;		/* total len of remaining data for record */
-
-	/* ACTUAL LOG DATA FOLLOWS AT END OF STRUCT */
-
-} XLogContRecord;
-
-#define SizeOfXLogContRecord	sizeof(XLogContRecord)
-
-/*
-=======
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Each page of XLOG file has a header like this:
  */
 #define XLOG_PAGE_MAGIC 0xD085	/* can be used as WAL version indicator */
@@ -279,13 +254,6 @@ typedef enum
 /*
  * Method table for resource managers.
  *
-<<<<<<< HEAD
- * RmgrTable[] is indexed by RmgrId values (see rmgr.h).
- *
- * rm_mask takes as input a page modified by the resource manager and masks
- * out bits that shouldn't be flagged by wal_consistency_checking.
- *
-=======
  * This struct must be kept in sync with the PG_RMGR definition in
  * rmgr.c.
  *
@@ -295,23 +263,15 @@ typedef enum
  * record, if available (e.g. the last block).
  *
  * RmgrTable[] is indexed by RmgrId values (see rmgrlist.h).
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  */
 typedef struct RmgrData
 {
 	const char *rm_name;
-<<<<<<< HEAD
-	void		(*rm_startup) (void);
-	void		(*rm_cleanup) (void);
-	bool		(*rm_safe_restartpoint) (void);
-	void		(*rm_mask) (char *pagedata, BlockNumber blkno);
-=======
 	void		(*rm_redo) (XLogReaderState *record);
 	void		(*rm_desc) (StringInfo buf, XLogReaderState *record);
 	const char *(*rm_identify) (uint8 info);
 	void		(*rm_startup) (void);
 	void		(*rm_cleanup) (void);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 } RmgrData;
 
 extern const RmgrData RmgrTable[];

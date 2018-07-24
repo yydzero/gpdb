@@ -3,13 +3,9 @@
  * sequence.h
  *	  prototypes for sequence.c.
  *
-<<<<<<< HEAD
  * Portions Copyright (c) 2006-2008, Greenplum inc.
  * Portions Copyright (c) 2012-Present Pivotal Software, Inc.
- * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
-=======
  * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/commands/sequence.h
@@ -85,28 +81,21 @@ extern ObjectAddress AlterSequence(AlterSeqStmt *stmt);
 extern void ResetSequence(Oid seq_relid);
 extern void ResetSequenceCaches(void);
 
-<<<<<<< HEAD
-extern void seq_redo(XLogRecPtr beginLoc, XLogRecPtr lsn, XLogRecord *rptr);
-extern void seq_desc(StringInfo buf, XLogRecPtr beginLoc, XLogRecord *record);
+extern void seq_redo(XLogReaderState *rptr);
+extern void seq_desc(StringInfo buf, XLogReaderState *rptr);
+extern const char *seq_identify(uint8 info);
 
 /*
  * CDB: nextval entry point called by sequence server
  */
 void
 cdb_sequence_nextval_server(Oid    tablespaceid,
-                            Oid    dbid,
-                            Oid    relid,
-                            bool   istemp,
-                            int64 *plast,
-                            int64 *pcached,
-                            int64 *pincrement,
-                            bool  *poverflow);
-
-extern void seq_mask(char *pagedata, BlockNumber blkno);
-=======
-extern void seq_redo(XLogReaderState *rptr);
-extern void seq_desc(StringInfo buf, XLogReaderState *rptr);
-extern const char *seq_identify(uint8 info);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
+							Oid    dbid,
+							Oid    relid,
+							bool   istemp,
+							int64 *plast,
+							int64 *pcached,
+							int64 *pincrement,
+							bool  *poverflow);
 
 #endif   /* SEQUENCE_H */
