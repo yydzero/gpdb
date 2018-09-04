@@ -120,7 +120,8 @@ typedef void (*SubXactCallback) (SubXactEvent event, SubTransactionId mySubid,
 #define XLOG_XACT_COMMIT_PREPARED	0x30
 #define XLOG_XACT_ABORT_PREPARED	0x40
 #define XLOG_XACT_ASSIGNMENT		0x50
-#define XLOG_XACT_DISTRIBUTED_COMMIT 0x60	/* gpdb added, duplicated? */
+/* XLOG_XACT_DISTRIBUTED_COMMIT is COMMIT, plus some gid info */
+#define XLOG_XACT_DISTRIBUTED_COMMIT 0x60	/* MERGE_95_FIXME: gpdb added, duplicated? */
 #define XLOG_XACT_DISTRIBUTED_FORGET 0x70	/* gpdb added, duplicated? */
 /* free opcode 0x60 */
 /* free opcode 0x70 */
@@ -141,6 +142,7 @@ typedef void (*SubXactCallback) (SubXactEvent event, SubTransactionId mySubid,
 #define XACT_XINFO_HAS_INVALS			(1U << 3)
 #define XACT_XINFO_HAS_TWOPHASE			(1U << 4)
 #define XACT_XINFO_HAS_ORIGIN			(1U << 5)
+#define XACT_XINFO_HAS_DISTRIBXACT		(1U << 6)
 
 /*
  * Also stored in xinfo, these indicating a variety of additional actions that
@@ -228,6 +230,13 @@ typedef struct xl_xact_twophase
 } xl_xact_twophase;
 #define MinSizeOfXactInvals offsetof(xl_xact_invals, msgs)
 
+/* TODO: replace TMGXACT_LOG */
+typedef struct xl_xact_distribxact
+{
+	char						gid[TMGIDSIZE];
+	DistributedTransactionId	gxid;
+} xl_xact_distribxact;
+
 typedef struct xl_xact_origin
 {
 	XLogRecPtr	origin_lsn;
@@ -244,6 +253,7 @@ typedef struct xl_xact_commit
 	/* xl_xact_relfilenodes follows if XINFO_HAS_RELFILENODES */
 	/* xl_xact_invals follows if XINFO_HAS_INVALS */
 	/* xl_xact_twophase follows if XINFO_HAS_TWOPHASE */
+	/* xl_xact_distribxact follows if XINFO_HAS_DISTRIBXACT */
 	/* xl_xact_origin follows if XINFO_HAS_ORIGIN, stored unaligned! */
 } xl_xact_commit;
 #define MinSizeOfXactCommit (offsetof(xl_xact_commit, xact_time) + sizeof(TimestampTz))
@@ -303,14 +313,6 @@ typedef struct xl_xact_parsed_abort
 
 	TransactionId twophase_xid; /* only for 2PC */
 } xl_xact_parsed_abort;
-
-/* 
- * xl_xact_distributed_forget - moved to cdb/cdbtm.h 
- */
-typedef struct xl_xact_distributed_forget
-{
-	TMGXACT_LOG gxact_log;
-} xl_xact_distributed_forget;
 
 /* ----------------
  *		extern definitions

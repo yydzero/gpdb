@@ -98,6 +98,9 @@ typedef XLogLongPageHeaderData *XLogLongPageHeader;
 #define XLogSegNoOffsetToRecPtr(segno, offset, dest) \
 		(dest) = (segno) * XLOG_SEG_SIZE + (offset)
 
+#define XLogSegmentOffset(xlogptr, wal_segsz_bytes) \
+	((xlogptr) & ((wal_segsz_bytes) - 1))
+
 /*
  * Compute ID and segment from an XLogRecPtr.
  *

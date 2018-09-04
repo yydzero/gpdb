@@ -135,8 +135,16 @@ extern PGDLLIMPORT LWLockPadded *MainLWLockArray;
 #define CommitTsControlLock			(&MainLWLockArray[38].lock)
 #define CommitTsLock				(&MainLWLockArray[39].lock)
 #define ReplicationOriginLock		(&MainLWLockArray[40].lock)
+#define RelfilenodeGenLock		    (&MainLWLockArray[41].lock)
+#define SharedSnapshotLock		    (&MainLWLockArray[42].lock)
+#define DistributedLogControlLock	(&MainLWLockArray[43].lock)
+#define SeqServerControlLock		(&MainLWLockArray[44].lock)
+#define AOSegFileLock				(&MainLWLockArray[45].lock)
+#define ResQueueLock				(&MainLWLockArray[46].lock)
+#define ResGroupLock				(&MainLWLockArray[47].lock)
+#define ErrorLogLock				(&MainLWLockArray[48].lock)
 
-#define NUM_INDIVIDUAL_LWLOCKS		41
+#define NUM_INDIVIDUAL_LWLOCKS		49
 
 /*
  * It's a bit odd to declare NUM_BUFFER_PARTITIONS and NUM_LOCK_PARTITIONS

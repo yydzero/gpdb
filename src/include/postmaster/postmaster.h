@@ -51,25 +51,20 @@ extern int	postmaster_alive_fds[2];
 
 extern const char *progname;
 
-<<<<<<< HEAD
 /* stack base pointer, defined in postgres.c */
 extern char *stack_base_ptr;
 
-extern int	PostmasterMain(int argc, char *argv[]);
-=======
 extern void PostmasterMain(int argc, char *argv[]) pg_attribute_noreturn();
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern void ClosePostmasterPorts(bool am_syslogger);
 
 extern int	MaxLivePostmasterChildren(void);
 
-<<<<<<< HEAD
+
 extern void SignalPromote(void);
 extern void ResetMirrorReadyFlag(void);
-=======
+
 extern int	GetNumShmemAttachedBgworkers(void);
 extern bool PostmasterMarkPIDForWorkerNotify(int);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #ifdef EXEC_BACKEND
 extern pid_t postmaster_forkexec(int argc, char *argv[]);
@@ -79,10 +74,9 @@ extern Size ShmemBackendArraySize(void);
 extern void ShmemBackendArrayAllocation(void);
 #endif
 
-<<<<<<< HEAD
 /* CDB */
 typedef int (PMSubStartCallback)(void);
-=======
+
 /*
  * Note: MAX_BACKENDS is limited to 2^23-1 because inval.c stores the
  * backend ID as a 3-byte signed integer.  Even if that limitation were
@@ -91,6 +85,5 @@ typedef int (PMSubStartCallback)(void);
  * GUC check hooks and in RegisterBackgroundWorker().
  */
 #define MAX_BACKENDS	0x7fffff
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 #endif   /* _POSTMASTER_H */

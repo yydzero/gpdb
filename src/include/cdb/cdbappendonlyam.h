@@ -399,8 +399,8 @@ typedef struct
 	xl_ao_target target;
 } xl_ao_truncate;
 
-extern void appendonly_redo(XLogRecPtr beginLoc, XLogRecPtr lsn, XLogRecord *record);
-extern void appendonly_desc(StringInfo buf, XLogRecPtr beginLoc, XLogRecord *record);
+extern void appendonly_redo(XLogReaderState *record);
+extern void appendonly_desc(StringInfo buf, XLogReaderState *record);
 
 extern void appendonly_update_finish(AppendOnlyUpdateDesc aoUpdateDesc);
 

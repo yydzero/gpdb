@@ -395,7 +395,7 @@ typedef uint32 DistributedTransactionTimeStamp;
 
 typedef int32 DistributedSnapshotId;
 
-typedef uint32 DistributedTransactionId;
+typedef uint32 DistributedTransactionId;    /* gpdb specific */
 #define InvalidDistributedTransactionId	((DistributedTransactionId) 0)
 #define FirstDistributedTransactionId	((DistributedTransactionId) 1)
 #define LastDistributedTransactionId	((DistributedTransactionId) 0xffffffff)

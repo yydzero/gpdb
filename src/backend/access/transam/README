@@ -440,16 +440,10 @@ happen before the WAL record is inserted; see notes in SyncOneBuffer().)
 Note that marking a buffer dirty with MarkBufferDirty() should only
 happen iff you write a WAL record; see Writing Hints below.
 
-<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< HEAD
-5. If the relation requires WAL-logging, build a WAL log record and pass it
-to XLogInsert(); then update the page's LSN using the returned XLOG
-location.  For instance,
-================================
 5. If the relation requires WAL-logging, build a WAL record using
 XLogBeginInsert and XLogRegister* functions, and insert it.  (See
 "Constructing a WAL record" below).  Then update the page's LSN using the
 returned XLOG location.  For instance,
->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 		XLogBeginInsert();
 		XLogRegisterBuffer(...)
@@ -457,99 +451,11 @@ returned XLOG location.  For instance,
 		recptr = XLogInsert(rmgr_id, info);
 
 		PageSetLSN(dp, recptr);
-<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< HEAD
-		// Note that we no longer do PageSetTLI() from 9.3 onwards
-		// since that field on a page has now changed its meaning.
-================================
->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 6. END_CRIT_SECTION()
 
 7. Unlock and unpin the buffer(s).
 
-<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< HEAD
-XLogInsert's "rdata" argument is an array of pointer/size items identifying
-chunks of data to be written in the XLOG record, plus optional shared-buffer
-IDs for chunks that are in shared buffers rather than temporary variables.
-The "rdata" array must mention (at least once) each of the shared buffers
-being modified, unless the action is such that the WAL replay routine can
-reconstruct the entire page contents.  XLogInsert includes the logic that
-tests to see whether a shared buffer has been modified since the last
-checkpoint.  If not, the entire page contents are logged rather than just the
-portion(s) pointed to by "rdata".
-
-Because XLogInsert drops the rdata components associated with buffers it
-chooses to log in full, the WAL replay routines normally need to test to see
-which buffers were handled that way --- otherwise they may be misled about
-what the XLOG record actually contains.  XLOG records that describe multi-page
-changes therefore require some care to design: you must be certain that you
-know what data is indicated by each "BKP" bit.  An example of the trickiness
-is that in a HEAP_UPDATE record, BKP(0) normally is associated with the source
-page and BKP(1) is associated with the destination page --- but if these are
-the same page, only BKP(0) would have been set.
-
-For this reason as well as the risk of deadlocking on buffer locks, it's best
-to design WAL records so that they reflect small atomic actions involving just
-one or a few pages.  The current XLOG infrastructure cannot handle WAL records
-involving references to more than four shared buffers, anyway.
-
-In the case where the WAL record contains enough information to re-generate
-the entire contents of a page, do *not* show that page's buffer ID in the
-rdata array, even if some of the rdata items point into the buffer.  This is
-because you don't want XLogInsert to log the whole page contents.  The
-standard replay-routine pattern for this case is
-
-	buffer = XLogReadBuffer(rnode, blkno, true);
-	Assert(BufferIsValid(buffer));
-	page = (Page) BufferGetPage(buffer);
-
-	... initialize the page ...
-
-	PageSetLSN(page, lsn);
-	MarkBufferDirty(buffer);
-	UnlockReleaseBuffer(buffer);
-
-In the case where the WAL record provides only enough information to
-incrementally update the page, the rdata array *must* mention the buffer
-ID at least once; otherwise there is no defense against torn-page problems.
-The standard replay-routine pattern for this case is
-
-	if (record->xl_info & XLR_BKP_BLOCK(N))
-	{
-		/* apply the change from the full-page image */
-		(void) RestoreBackupBlock(lsn, record, N, false, false);
-		return;
-	}
-
-	buffer = XLogReadBuffer(rnode, blkno, false);
-	if (!BufferIsValid(buffer))
-	{
-		/* page has been deleted, so we need do nothing */
-		return;
-	}
-	page = (Page) BufferGetPage(buffer);
-
-	if (XLByteLE(lsn, PageGetLSN(page)))
-	{
-		/* changes are already applied */
-		UnlockReleaseBuffer(buffer);
-		return;
-	}
-
-	... apply the change ...
-
-	PageSetLSN(page, lsn);
-	MarkBufferDirty(buffer);
-	UnlockReleaseBuffer(buffer);
-
-As noted above, for a multi-page update you need to be able to determine
-which XLR_BKP_BLOCK(N) flag applies to each page.  If a WAL record reflects
-a combination of fully-rewritable and incremental updates, then the rewritable
-pages don't count for the XLR_BKP_BLOCK(N) numbering.  (XLR_BKP_BLOCK(N) is
-associated with the N'th distinct buffer ID seen in the "rdata" array, and
-per the above discussion, fully-rewritable buffers shouldn't be mentioned in
-"rdata".)
-================================
 Complex changes (such as a multilevel index insertion) normally need to be
 described by a series of atomic-action WAL records.  The intermediate states
 must be self-consistent, so that if the replay is interrupted between any
@@ -698,7 +604,6 @@ must be careful to lock the pages properly to prevent concurrent Hot Standby
 queries from seeing an inconsistent state.  If this requires that two
 or more buffer locks be held concurrently, you must lock the pages in
 appropriate order, and not release the locks until all the changes are done.
->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 Note that we must only use PageSetLSN/PageGetLSN() when we know the action
 is serialised. Only Startup process may modify data blocks during recovery,
@@ -708,70 +613,6 @@ either an exclusive buffer lock or a shared lock plus buffer header lock,
 or be writing the data block directly rather than through shared buffers
 while holding AccessExclusiveLock on the relation.
 
-<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< HEAD
-When replaying a WAL record that describes changes on multiple pages, you
-must be careful to lock the pages properly to prevent concurrent Hot Standby
-queries from seeing an inconsistent state.  If this requires that two
-or more buffer locks be held concurrently, the coding pattern shown above
-is too simplistic, since it assumes the routine can exit as soon as it's
-known the current page requires no modification.  Instead, you might have
-something like
-
-	if (record->xl_info & XLR_BKP_BLOCK(0))
-	{
-		/* apply the change from the full-page image */
-		buffer0 = RestoreBackupBlock(lsn, record, 0, false, true);
-	}
-	else
-	{
-		buffer0 = XLogReadBuffer(rnode, blkno, false);
-		if (BufferIsValid(buffer0))
-		{
-			... apply the change if not already done ...
-			MarkBufferDirty(buffer0);
-		}
-	}
-
-	... similarly apply the changes for remaining pages ...
-
-	/* and now we can release the lock on the first page */
-	if (BufferIsValid(buffer0))
-		UnlockReleaseBuffer(buffer0);
-
-Due to all these constraints, complex changes (such as a multilevel index
-insertion) normally need to be described by a series of atomic-action WAL
-records.  What do you do if the intermediate states are not self-consistent?
-The answer is that the WAL replay logic has to be able to fix things up.
-In btree indexes, for example, a page split requires insertion of a new key in
-the parent btree level, but for locking reasons this has to be reflected by
-two separate WAL records.  The replay code has to remember "unfinished" split
-operations, and match them up to subsequent insertions in the parent level.
-If no matching insert has been found by the time the WAL replay ends, the
-replay code has to do the insertion on its own to restore the index to
-consistency.  Such insertions occur after WAL is operational, so they can
-and should write WAL records for the additional generated actions.
-================================
-
-Writing Hints
--------------
-
-In some cases, we write additional information to data blocks without
-writing a preceding WAL record. This should only happen iff the data can
-be reconstructed later following a crash and the action is simply a way
-of optimising for performance. When a hint is written we use
-MarkBufferDirtyHint() to mark the block dirty.
-
-If the buffer is clean and checksums are in use then
-MarkBufferDirtyHint() inserts an XLOG_HINT record to ensure that we
-take a full page image that includes the hint. We do this to avoid
-a partial page write, when we write the dirtied page. WAL is not
-written during recovery, so we simply skip dirtying blocks because
-of hints when in recovery.
-
-If you do decide to optimise away a WAL record, then any calls to
-MarkBufferDirty() must be replaced by MarkBufferDirtyHint(),
-otherwise you will expose the risk of partial page writes.
->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 Writing Hints
 -------------

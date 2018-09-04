@@ -166,11 +166,7 @@ typedef struct
 
 typedef struct
 {
-<<<<<<< HEAD
-	RelFileNode	rnode;			/* the dead relation to delete */
-=======
 	RelFileNode rnode;			/* the dead relation to delete */
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	CycleCtr	cycle_ctr;		/* mdckpt_cycle_ctr when request was made */
 } PendingUnlinkEntry;
 

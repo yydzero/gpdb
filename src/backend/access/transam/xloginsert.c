@@ -498,6 +498,15 @@ XLogRecordAssemble(RmgrId rmid, uint8 info,
 	hdr_rdt.data = hdr_scratch;
 
 	/*
+	 * Enforce consistency checks for this record if user is looking for it.
+	 * Do this before at the beginning of this routine to give the possibility
+	 * for callers of XLogInsert() to pass XLR_CHECK_CONSISTENCY directly for
+	 * a record.
+	 */
+	if (wal_consistency_checking[rmid])
+		info |= XLR_CHECK_CONSISTENCY;
+
+	/*
 	 * Make an rdata chain containing all the data portions of all block
 	 * references. This includes the data for full-page images. Also append
 	 * the headers for the block references in the scratch buffer.

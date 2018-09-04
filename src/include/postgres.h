@@ -573,6 +573,9 @@ static inline bool IsAligned(void *p, int align)
 #define COMPILE_ASSERT(e) ((void)sizeof(char[1-2*!(e)]))
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(*(x)))
 
+#define AssertImply(cond1, cond2) \
+		Trap(!(!(cond1) || (cond2)), "AssertImply failed"
+
 /*
  * Backend only infrastructure for the assertion-related macros in c.h.
  *

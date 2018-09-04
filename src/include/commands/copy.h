@@ -293,14 +293,10 @@ extern Oid DoCopy(const CopyStmt *stmt, const char *queryString,
 extern void ProcessCopyOptions(CopyState cstate, bool is_from, List *options,
 				   int num_columns, bool is_copy);
 extern CopyState BeginCopyFrom(Relation rel, const char *filename,
-<<<<<<< HEAD
 			  bool is_program, copy_data_source_cb data_source_cb,
 			  void *data_source_cb_extra,
 			  List *attnamelist, List *options, List *ao_segnos);
 extern CopyState BeginCopyToForExternalTable(Relation extrel, List *options);
-=======
-			  bool is_program, List *attnamelist, List *options);
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 extern void EndCopyFrom(CopyState cstate);
 extern bool NextCopyFrom(CopyState cstate, ExprContext *econtext,
 						 Datum *values, bool *nulls, Oid *tupleOid);

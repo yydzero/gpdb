@@ -134,25 +134,15 @@ GetNewTransactionId(bool isSubXact)
 						(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
 						 errmsg("database is not accepting commands to avoid wraparound data loss in database \"%s\"",
 								oldest_datname),
-<<<<<<< HEAD
 						 errhint("Shutdown Greenplum Database. Lower the xid_stop_limit GUC. Execute a database-wide VACUUM in that database. Reset the xid_stop_limit GUC."
 								 )));
-=======
-						 errhint("Stop the postmaster and vacuum that database in single-user mode.\n"
-								 "You might also need to commit or roll back old prepared transactions.")));
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 			else
 				ereport(ERROR,
 						(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
 						 errmsg("database is not accepting commands to avoid wraparound data loss in database with OID %u",
 								oldest_datoid),
-<<<<<<< HEAD
 						 errhint("Shutdown Greenplum Database. Lower the xid_stop_limit GUC. Execute a database-wide VACUUM in that database. Reset the xid_stop_limit GUC."
 								 )));
-=======
-						 errhint("Stop the postmaster and vacuum that database in single-user mode.\n"
-								 "You might also need to commit or roll back old prepared transactions.")));
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 		}
 		else if (TransactionIdFollowsOrEquals(xid, xidWarnLimit))
 		{
@@ -380,16 +370,6 @@ SetTransactionIdLimit(TransactionId oldest_datfrozenxid, Oid oldest_datoid)
 		xidStopLimit -= FirstNormalTransactionId;
 
 	/*
-<<<<<<< HEAD
-	 * We'll start complaining loudly when we get within xid_warn_limit
-	 * transactions of the stop point.	This is kind of arbitrary, but if
-	 * you let your gas gauge get down to 1% of full, would you be looking for
-	 * the next gas station?  We need to be fairly liberal about this number
-	 * because there are lots of scenarios where most transactions are done by
-	 * automatic clients that won't pay attention to warnings. (No, we're not
-	 * gonna make this configurable.  If you know enough to configure it, you
-	 * know enough to not get in this kind of trouble in the first place.)
-=======
 	 * We'll start complaining loudly when we get within 10M transactions of
 	 * the stop point.  This is kind of arbitrary, but if you let your gas
 	 * gauge get down to 1% of full, would you be looking for the next gas
@@ -398,7 +378,6 @@ SetTransactionIdLimit(TransactionId oldest_datfrozenxid, Oid oldest_datoid)
 	 * clients that won't pay attention to warnings. (No, we're not gonna make
 	 * this configurable.  If you know enough to configure it, you know enough
 	 * to not get in this kind of trouble in the first place.)
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 	 */
 	xidWarnLimit = xidStopLimit  - (TransactionId)xid_warn_limit;
 	if (xidWarnLimit < FirstNormalTransactionId)

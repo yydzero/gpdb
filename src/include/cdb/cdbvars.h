@@ -935,6 +935,7 @@ typedef struct GpId
  * Global variable declaration for the data for the single row of gp_id table
  */
 extern GpId GpIdentity;
+#define MASTER_CONTENT_ID (-1)      /* How to avoid duplicated definition? */
 #define UNINITIALIZED_GP_IDENTITY_VALUE (-10000)
 #define IS_QUERY_DISPATCHER() (GpIdentity.segindex == MASTER_CONTENT_ID)
 

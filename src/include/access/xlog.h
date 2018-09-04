@@ -217,6 +217,7 @@ extern CheckpointStatsData CheckpointStats;
 
 struct XLogRecData;
 
+extern XLogRecPtr XLogLastInsertBeginLoc(void);
 extern XLogRecPtr XLogInsertRecord(struct XLogRecData *rdata, XLogRecPtr fpw_lsn);
 extern void XLogFlush(XLogRecPtr RecPtr);
 extern bool XLogBackgroundFlush(void);
@@ -274,7 +275,6 @@ extern XLogRecPtr GetInsertRecPtr(void);
 extern XLogRecPtr GetFlushRecPtr(void);
 extern void GetNextXidAndEpoch(TransactionId *xid, uint32 *epoch);
 
-extern void XLogGetRecoveryStart(char *callerStr, char *reasonStr, XLogRecPtr *redoCheckPointLoc, CheckPoint *redoCheckPoint);
 extern char *XLogLocationToString(XLogRecPtr *loc);
 extern char *XLogLocationToString2(XLogRecPtr *loc);
 extern char *XLogLocationToString3(XLogRecPtr *loc);

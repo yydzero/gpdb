@@ -980,11 +980,6 @@ spgRedoVacuumRedirect(XLogReaderState *record)
 		UnlockReleaseBuffer(buffer);
 }
 
-/*
- * MERGE_95_FIXME: is this still true?
- * GPDB: rm_redo and rm_desc of RmgrTable have different signature from upstream
- * because xact_redo need different parameter
- */
 void
 spg_redo(XLogReaderState *record)
 {
@@ -1027,4 +1022,21 @@ spg_redo(XLogReaderState *record)
 
 	MemoryContextSwitchTo(oldCxt);
 	MemoryContextReset(opCtx);
+}
+
+void
+spg_xlog_startup(void)
+{
+	opCtx = AllocSetContextCreate(CurrentMemoryContext,
+								  "SP-GiST temporary context",
+								  ALLOCSET_DEFAULT_MINSIZE,
+								  ALLOCSET_DEFAULT_INITSIZE,
+								  ALLOCSET_DEFAULT_MAXSIZE);
+}
+
+void
+spg_xlog_cleanup(void)
+{
+	MemoryContextDelete(opCtx);
+	opCtx = NULL;
 }

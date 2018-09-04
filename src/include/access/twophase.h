@@ -18,6 +18,8 @@
 #include "datatype/timestamp.h"
 #include "storage/lock.h"
 
+#include "cdb/cdblocaldistribxact.h"	/* for LocalDistribXactData */
+
 /*
  * Directory where two phase commit files reside within PGDATA
  */
@@ -85,13 +87,16 @@ extern void RemoveTwoPhaseFile(TransactionId xid, bool giveWarning);
 
 extern void CheckPointTwoPhase(XLogRecPtr redo_horizon);
 
-extern bool FinishPreparedTransaction(const char *gid, bool isCommit, bool raiseErrorIfNotFound);
+extern void FinishPreparedTransaction(const char *gid, bool isCommit, bool raiseErrorIfNotFound);
+
+/* gpdb specific */
 
 extern void TwoPhaseAddPreparedTransactionInit(
 					        prepared_transaction_agg_state **ptas
 					      , int                             *maxCount);
 
-extern XLogRecPtr * getTwoPhaseOldestPreparedTransactionXLogRecPtr(XLogRecData *rdata);
+struct XLogRecData;
+extern XLogRecPtr * getTwoPhaseOldestPreparedTransactionXLogRecPtr(struct XLogRecData *rdata);
 
 extern void TwoPhaseAddPreparedTransaction(
                  prepared_transaction_agg_state **ptas

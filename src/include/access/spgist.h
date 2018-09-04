@@ -200,5 +200,7 @@ extern Datum spgvacuumcleanup(PG_FUNCTION_ARGS);
 extern void spg_redo(XLogReaderState *record);
 extern void spg_desc(StringInfo buf, XLogReaderState *record);
 extern const char *spg_identify(uint8 info);
+extern void spg_xlog_startup(void);
+extern void spg_xlog_cleanup(void);
 
 #endif   /* SPGIST_H */

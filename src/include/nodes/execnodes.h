@@ -1761,12 +1761,13 @@ typedef struct ScanState
 {
 	PlanState	ps;				/* its first field is NodeTag */
 	Relation	ss_currentRelation;
+	HeapScanDesc ss_currentScanDesc;
 	TupleTableSlot *ss_ScanTupleSlot;
 
-	int			scan_state;
+	int			scan_state;		/* gpdb specific */
 
 	/* The type of the table that is being scanned */
-	TableType	tableType;
+	TableType	tableType;		/* gpdb specific */
 } ScanState;
 
 /*

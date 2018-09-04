@@ -97,7 +97,7 @@ typedef enum DBState
 	DB_SHUTDOWNING,
 	DB_IN_CRASH_RECOVERY,
 	DB_IN_ARCHIVE_RECOVERY,
-	DB_IN_STANDBY_MODE,
+	DB_IN_STANDBY_MODE,         /* gpdb specific */
 	DB_IN_STANDBY_PROMOTED,
 	DB_IN_PRODUCTION
 } DBState;
@@ -155,6 +155,13 @@ typedef struct ControlFileData
 	 * That guards against starting standby, aborting it, and restarting with
 	 * an earlier stop location. We can't get promoted unless we've at-least
 	 * replayed upto minRecoveryPoint
+	 *
+	 * minRecoveryPoint is updated to the latest replayed LSN whenever we
+	 * flush a data change during archive recovery. That guards against
+	 * starting archive recovery, aborting it, and restarting with an earlier
+	 * stop location. If we've already flushed data changes from WAL record X
+	 * to disk, we mustn't start up until we reach X again. Zero when not
+	 * doing archive recovery.
 	 *
 	 * backupStartPoint is the redo pointer of the backup start checkpoint, if
 	 * we are recovering from an online backup and haven't reached the end of

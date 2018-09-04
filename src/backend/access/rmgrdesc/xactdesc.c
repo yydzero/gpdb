@@ -288,6 +288,28 @@ xact_desc_assignment(StringInfo buf, xl_xact_assignment *xlrec)
 		appendStringInfo(buf, " %u", xlrec->xsub[i]);
 }
 
+
+static void
+xact_desc_distributed_commit(StringInfo buf, xl_xact_commit *xlrec)
+{
+	TMGXACT_LOG *gxact_log;
+
+	/*
+	 * We put the global transaction information last, so call the regular xact
+	 * commit routine.
+	 */
+	gxact_log = (TMGXACT_LOG *) xact_desc_commit(buf, xlrec);
+
+	descDistributedCommitRecord(buf, gxact_log);
+}
+
+static void
+xact_desc_distributed_forget(StringInfo buf, xl_xact_distributed_forget *xlrec)
+{
+	descDistributedForgetCommitRecord(buf, &xlrec->gxact_log);
+}
+
+
 void
 xact_desc(StringInfo buf, XLogReaderState *record)
 {
@@ -318,6 +340,14 @@ xact_desc(StringInfo buf, XLogReaderState *record)
 		 */
 		appendStringInfo(buf, "xtop %u: ", xlrec->xtop);
 		xact_desc_assignment(buf, xlrec);
+	}
+	else if (info == XLOG_XACT_DISTRIBUTED_COMMIT)
+	{
+
+	}
+	else if (info == XLOG_XACT_DISTRIBUTED_FORGET)
+	{
+
 	}
 }
 

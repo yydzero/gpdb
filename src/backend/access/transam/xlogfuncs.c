@@ -49,15 +49,11 @@
 Datum
 pg_start_backup(PG_FUNCTION_ARGS)
 {
-<<<<<<< HEAD
-	XLogRecPtr	startpoint = {0,0};
-	char		startxlogstr[MAXFNAMELEN];
-
 	ereport(NOTICE,
 			(errcode(ERRCODE_GP_FEATURE_NOT_SUPPORTED),
 			 errmsg("pg_start_backup() is not supported in Greenplum Database"),
 			 errhint("Contact support to get more information and resolve the issue")));
-=======
+
 	text	   *backupid = PG_GETARG_TEXT_P(0);
 	bool		fast = PG_GETARG_BOOL(1);
 	char	   *backupidstr;
@@ -70,7 +66,6 @@ pg_start_backup(PG_FUNCTION_ARGS)
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 		   errmsg("must be superuser or replication role to run a backup")));
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	/* Make sure we can open the directory with tablespaces in it */
 	dir = AllocateDir("pg_tblspc");
@@ -104,22 +99,17 @@ pg_start_backup(PG_FUNCTION_ARGS)
 Datum
 pg_stop_backup(PG_FUNCTION_ARGS)
 {
-<<<<<<< HEAD
-	XLogRecPtr	stoppoint = {0,0};
-	char		stopxlogstr[MAXFNAMELEN];
-
 	ereport(NOTICE,
 			(errcode(ERRCODE_GP_FEATURE_NOT_SUPPORTED),
 			 errmsg("pg_stop_backup() is not supported in Greenplum Database"),
 			 errhint("Contact support to get more information and resolve the issue")));
-=======
+
 	XLogRecPtr	stoppoint;
 
 	if (!superuser() && !has_rolreplication(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 		 (errmsg("must be superuser or replication role to run a backup"))));
->>>>>>> ab93f90cd3a4fcdd891cee9478941c3cc65795b8
 
 	stoppoint = do_pg_stop_backup(NULL, true, NULL);
 
