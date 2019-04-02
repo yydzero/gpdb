@@ -1,0 +1,5 @@
+# masteronly extension
+comment = 'support master only table'
+default_version = '1.0'
+module_pathname = '$libdir/masteronly'
+relocatable = true
