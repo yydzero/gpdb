@@ -1,6 +1,8 @@
 # contrib/masteronly/Makefile
 
-MODULES = masteronly
+MODULE_big = masteronly
+
+OBJS = masteronly.o init.o
 
 EXTENSION = masteronly
 DATA = masteronly--1.0.sql
