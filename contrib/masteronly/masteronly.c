@@ -23,17 +23,22 @@
  */
 
 
+
 #include "postgres.h"
 
 #include "utils/builtins.h"
 #include "utils/formatting.h"
 #include "utils/lsyscache.h"
+#include "cdb/cdbutil.h"
+#include "catalog/gp_policy.h"
 
 #ifdef PG_MODULE_MAGIC
 PG_MODULE_MAGIC;
 #endif
 
 PG_FUNCTION_INFO_V1(set_master_only_table);
+PG_FUNCTION_INFO_V1(enable_singleton_table);
+PG_FUNCTION_INFO_V1(disable_singleton_table);
 
 Datum
 set_master_only_table(PG_FUNCTION_ARGS)
@@ -43,5 +48,25 @@ set_master_only_table(PG_FUNCTION_ARGS)
 
 	result = get_rel_name(table_relid);
 
-	PG_RETURN_NAME(result);
+	PG_RETURN_DATUM(CStringGetTextDatum(result));
+}
+
+/*
+ * Enable singleton table for current session.
+ */
+Datum
+enable_singleton_table(PG_FUNCTION_ARGS)
+{
+	gp_create_table_default_numsegments = 1;
+	PG_RETURN_BOOL(true);
+}
+
+/*
+ * Disable singleton table for current session.
+ */
+Datum
+disable_singleton_table(PG_FUNCTION_ARGS)
+{
+	gp_create_table_default_numsegments = getgpsegmentCount();
+	PG_RETURN_BOOL(true);
 }
