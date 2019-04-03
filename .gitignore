@@ -47,6 +47,7 @@ build.sh
 .project
 .settings/
 .vscode/
+.idea
 GPATH
 GRTAGS
 GTAGS
@@ -64,3 +65,4 @@ lib*.pc
 /Debug/
 /Release/
 /CMakeLists.txt
+/cmake-build-debug
