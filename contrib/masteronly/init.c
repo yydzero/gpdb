@@ -33,9 +33,6 @@ singleton_planner_hook(Query *parse, int cursorOptions, ParamListInfo boundParam
 {
 	PlannedStmt *stmt;
 
-	elog(LOG, "In test_planner_hook");
-	elog(NOTICE, "In test_planner_hook");
-
 	if (prev_planner_hook)
 		stmt = (*prev_planner_hook) (parse, cursorOptions, boundParams);
 	else
