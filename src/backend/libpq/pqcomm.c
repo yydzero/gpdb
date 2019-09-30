@@ -67,7 +67,6 @@
  *------------------------
  */
 #include "postgres.h"
-#include <pthread.h>
 
 #include <signal.h>
 #include <fcntl.h>
@@ -98,6 +97,12 @@
 #include "utils/memutils.h"
 #include "cdb/cdbvars.h"
 #include "tcop/tcopprot.h"
+
+#ifdef WIN32
+#include "pthread-win32.h"
+#else
+#include <pthread.h>
+#endif
 
 /*
  * Cope with the various platform-specific ways to spell TCP keepalive socket
@@ -148,7 +153,7 @@ static char PqRecvBuffer[PQ_RECV_BUFFER_SIZE];
 static int	PqRecvPointer;		/* Next index to read a byte from PqRecvBuffer */
 static int	PqRecvLength;		/* End of data available in PqRecvBuffer */
 
-static pthread_mutex_t send_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t send_mutex = NULL;
 
 /*
  * Message status
@@ -1379,6 +1384,24 @@ pq_send_mutex_lock()
 {
 	int count = PQ_BUSY_TEST_COUNT_IN_EXITING;
 	int mutex_res;
+
+	/* initialized send_mutex according to platform. */
+	if (send_mutex == NULL)
+	{
+#ifndef WIN32
+		send_mutex = PTHREAD_MUTEX_INITIALIZER;
+#else
+		static long mutex_initlock = 0;
+		while (InterlockedExchange(&mutex_initlock, 1) == 1)
+			/* loop, another thread own the lock */;
+		if (send_mutex == NULL)
+		{
+			if (pthread_mutex_init(&send_mutex, NULL))
+				PGTHREAD_ERROR("failed to initialize send_mutex");
+		}
+		InterlockedExchange(&mutex_initlock, 0);
+#endif
+	}
 
 	do
 	{

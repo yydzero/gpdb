@@ -1024,7 +1024,7 @@ SetSegnoForCompactionInsert(Relation rel,
 			  (errmsg("SetSegnoForCompaction: got the hash entry for relation \"%s\" (%d).",
 					  RelationGetRelationName(rel), RelationGetRelid(rel))));
 
-	min_tupcount = INT64_MAX;
+	min_tupcount = PG_INT64_MAX;
 
 	/*
 	 * Never use segno 0 for inserts (unless in utility mode)

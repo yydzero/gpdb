@@ -24,7 +24,6 @@
 #include "catalog/gp_segment_config.h"
 #include "cdb/cdbvars.h"
 #include "libpq-fe.h"
-#include "libpq-int.h"
 #include "cdb/cdbfts.h"
 #include "cdb/cdbdisp.h"
 #include "cdb/cdbutil.h"

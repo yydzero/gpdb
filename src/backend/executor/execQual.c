@@ -2416,7 +2416,8 @@ ExecMakeTableFunctionResult(ExprState *funcexpr,
 			 */
 			if (returnsTuple)
 			{
-				const int staticBufferLimit = 200;
+				// const int staticBufferLimit = 200;
+#define staticBufferLimit 200
 				HeapTupleHeader td;
 				Datum staticPd[staticBufferLimit];
 				bool staticNull[staticBufferLimit];

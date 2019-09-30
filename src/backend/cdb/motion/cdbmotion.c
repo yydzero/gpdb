@@ -18,7 +18,6 @@
 
 #include "access/htup.h"
 #include "libpq-fe.h"
-#include "libpq-int.h"
 #include "cdb/cdbconn.h"
 #include "cdb/cdbmotion.h"
 #include "cdb/cdbvars.h"

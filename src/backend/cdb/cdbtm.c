@@ -35,7 +35,6 @@
 #include "access/transam.h"
 #include "access/xact.h"
 #include "libpq-fe.h"
-#include "libpq-int.h"
 #include "cdb/cdbfts.h"
 #include "lib/stringinfo.h"
 #include "access/twophase.h"

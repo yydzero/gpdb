@@ -716,7 +716,7 @@ BitmapAppendOnlyNext(BitmapHeapScanState *node)
 			else
 			{
 				/* Iterate over the first 2^15 tuples [MPP-24326] */
-				node->baos_ntuples = INT16_MAX + 1;
+				node->baos_ntuples = PG_INT16_MAX + 1;
 			}
 		}
 		else

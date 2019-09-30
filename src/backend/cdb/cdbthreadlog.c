@@ -13,7 +13,6 @@
  *
  *-------------------------------------------------------------------------
  */
-#include <pthread.h>
 #include <limits.h>
 
 #include "postgres.h"
@@ -24,11 +23,16 @@
 #include "pgtime.h"
 #include "postmaster/syslogger.h"
 
+#ifdef WIN32
+#include "pthread-win32.h"
+#else
+#include <pthread.h>
+#endif
 
 #ifndef _WIN32
 #define mythread() ((unsigned long) pthread_self())
 #else
-#define mythread() ((unsigned long) pthread_self().p)
+#define mythread() ((unsigned long) pthread_self())
 #endif
 
 /*
@@ -38,11 +42,11 @@
  *
  * Ugly:  This write in a fixed format, and ignore what the log_prefix guc says.
  */
-static pthread_mutex_t send_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t send_mutex = NULL;
 
 #ifdef WIN32
-static void
-			write_eventlog(int level, const char *line);
+static void 
+write_eventlog(int level, const char *line);
 
 /*
  * Write a message line to the windows event log
@@ -183,6 +187,24 @@ write_log(const char *fmt,...)
 
 	if (fmt[strlen(fmt) - 1] != '\n')
 		strcat(logprefix, "\n");
+
+	/* initialized send_mutex according to platform. */
+	if (send_mutex == NULL)
+	{
+#ifndef WIN32
+		send_mutex = PTHREAD_MUTEX_INITIALIZER;
+#else
+		static long mutex_initlock = 0;
+		while (InterlockedExchange(&mutex_initlock, 1) == 1)
+			/* loop, another thread own the lock */;
+		if (send_mutex == NULL)
+		{
+			if (pthread_mutex_init(&send_mutex, NULL))
+				PGTHREAD_ERROR("failed to initialize send_mutex");
+		}
+		InterlockedExchange(&mutex_initlock, 0);
+#endif
+	}
 
 	/*
 	 * We don't trust that vfprintf won't get confused if it is being run by

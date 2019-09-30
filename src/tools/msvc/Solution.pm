@@ -150,6 +150,12 @@ sub GetOpenSSLVersion
 	  "Unable to determine OpenSSL version: The openssl.exe version could not be determined.";
 }
 
+# Get GP_VERSION
+sub GetGPVersion
+{
+	return "6.0.0";
+}
+
 sub GenerateFiles
 {
 	my $self = shift;
@@ -180,6 +186,26 @@ sub GenerateFiles
 	close(C);
 	confess "Unable to parse configure.in for all variables!"
 	  if ($self->{strver} eq '' || $self->{numver} eq '');
+
+	if (IsNewer("src\\include\\catalog\\gp_version.h",
+			"src\\include\\catalog\\gp_version.in"))
+	{
+		my $gpversion = $self->GetGPVersion();
+
+		open(I, "src\\include\\catalog\\gp_version.in")
+			|| confess "Could not open gp_version.in\n";
+		open(O, ">src\\include\\catalog\\gp_version.h")
+			|| confess "Could not open gp_version.h for writing\n";
+		while (<I>)
+		{
+				my $sedcmdopt = "s,\$.*\$\$,$gpversion,";
+
+			s/\$.*\$\$/$gpversion/;
+			print O;
+		}
+		close(I);
+		close(O);
+	}
 
 	if (IsNewer(
 			"src\\include\\pg_config_os.h", "src\\include\\port\\win32.h"))
@@ -325,12 +351,20 @@ s{PG_VERSION_STR "[^"]+"}{__STRINGIFY(x) #x\n#define __STRINGIFY2(z) __STRINGIFY
 		"LIBPGTYPES");
 
 	if (IsNewer(
-			'src\backend\utils\fmgrtab.c', 'src\include\catalog\pg_proc.h'))
+			'src\backend\utils\fmgrtab.c', 'src\include\catalog\pg_proc.h') ||
+		IsNewer('src\backend\catalog\pg_proc_combined.h', 'src\include\catalog\pg_proc.h') ||
+		IsNewer('src\backend\catalog\pg_proc_combined.h', 'src\include\catalog\pg_proc_gp.h'))
 	{
 		print "Generating fmgrtab.c and fmgroids.h...\n";
 		chdir('src\backend\utils');
-		system(
-"perl -I ../catalog Gen_fmgrtab.pl ../../../src/include/catalog/pg_proc.h");
+
+		open(O, ">../../../src/backend/catalog/pg_proc_combined.h") || croak "could not open pg_proc_combined.h for writing";
+		print O `cat ../../../src/backend/catalog/Catalog.pm` || croak "could not cat Catalog.pm to pg_proc_combined.h";
+		print O `cat ../../../src/include/catalog/pg_proc.h` || croak "could not cat pg_proc.h to pg_proc_combined.h";
+		print O `cat ../../../src/include/catalog/pg_proc_gp.h` || croak "could not cat pg_proc_gp.h to pg_proc_combined.h";
+		close(O);
+
+		system("perl -I ../catalog Gen_fmgrtab.pl ../../../src/backend/catalog/pg_proc_combined.h");
 		chdir('..\..\..');
 	}
 	if (IsNewer(
@@ -482,31 +516,33 @@ EOF
 
 	if (!$buildclient)
 	{
-	my $mf = Project::read_file('src\backend\catalog\Makefile');
-	$mf =~ s{\\s*[\r\n]+}{}mg;
-	$mf =~ /^POSTGRES_BKI_SRCS\s*:?=[^,]+,(.*)\)$/gm
-	  || croak "Could not find POSTGRES_BKI_SRCS in Makefile\n";
-	my @allbki = split /\s+/, $1;
-	foreach my $bki (@allbki)
-	{
-		next if $bki eq "";
-		if (IsNewer(
-				'src/backend/catalog/postgres.bki',
-				"src/include/catalog/$bki"))
+		my $mf = Project::read_file('src\backend\catalog\Makefile');
+		$mf =~ s{\\s*[\r\n]+}{}mg;
+		$mf =~ /^POSTGRES_BKI_SRCS\s*:?=[^,]+,(.*)\)$/gm
+		  || croak "Could not find POSTGRES_BKI_SRCS in Makefile\n";
+		my @allbki = split /\s+/, $1;
+		foreach my $bki (@allbki)
 		{
-			print "Generating postgres.bki and schemapg.h...\n";
-			chdir('src\backend\catalog');
-			my $bki_srcs = join(' ../../../src/include/catalog/', @allbki);
-			system(
-"perl genbki.pl -I../../../src/include/catalog --set-version=$self->{majorver} $bki_srcs"
-			);
-			chdir('..\..\..');
-			copyFile(
-				'src\backend\catalog\schemapg.h',
-				'src\include\catalog\schemapg.h');
-			last;
+			next if $bki eq "";
+			if (IsNewer(
+					'src/backend/catalog/postgres.bki',
+					"src/include/catalog/$bki"))
+			{
+				print "Generating postgres.bki and schemapg.h...\n";
+				chdir('src\backend\catalog');
+				my $bki_srcs = join(' ../../../src/include/catalog/', @allbki);
+				system(
+					"perl -I ../../../src/backend/catalog genbki.pl -I../../../src/include/catalog --set-version=$self->{majorver} pg_proc_combined.h $bki_srcs"
+				);
+				chdir('..\..\..');
+				copyFile(
+					'src\backend\catalog\schemapg.h',
+					'src\include\catalog\schemapg.h');
+				last;
+			} else {
+				print "$bki is older than postgres.bki\n";
+			}
 		}
-	}
 	}
 
 	open(O, ">doc/src/sgml/version.sgml")

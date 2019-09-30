@@ -97,12 +97,13 @@ extern DWORD main_tid;
 #include <pthread.h>
 extern pthread_t main_tid;
 #endif
-#ifndef _WIN32
+
+#ifndef WIN32
 #define mythread() ((unsigned long) pthread_self())
 #define mainthread() ((unsigned long) main_tid)
 #else
-#define mythread() ((unsigned long) pthread_self().p)
-#define mainthread() ((unsigned long) main_tid.p)
+#define mythread() ((unsigned long) pthread_self())
+#define mainthread() ((unsigned long) main_tid)
 #endif 
 
 /*
@@ -373,8 +374,8 @@ __attribute__((format(PG_PRINTF_ATTRIBUTE, 1, 2)));
  * if (guc)
  *     elog(LOG, ...)
  */
-#define elogif(p, ...) do { \
-	if (p) elog(__VA_ARGS__); \
+#define elogif(p, elevel, ...) do { \
+	if (p) elog(elevel, __VA_ARGS__); \
     } while(false);
 
 /* Support for attaching context information to error reports */

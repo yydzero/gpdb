@@ -1114,10 +1114,6 @@ aocsvpinfo_decode(PG_FUNCTION_ARGS)
 	PG_RETURN_INT64(result);
 }
 
-PG_MODULE_MAGIC;
-
-
-
 static Datum
 gp_aocsseg_internal(PG_FUNCTION_ARGS, Oid aocsRelOid)
 {

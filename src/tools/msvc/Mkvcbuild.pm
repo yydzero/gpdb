@@ -96,7 +96,9 @@ sub mkvcbuild
 	if (!$buildclient)
 	{
 	$postgres = $solution->AddProject('postgres', 'exe', '', 'src\backend');
+	$postgres->AddIncludeDir('src\port');		# for pthread-win32.h
 	$postgres->AddIncludeDir('src\backend');
+	$postgres->AddIncludeDir('src\interfaces\libpq');
 	$postgres->AddDir('src\backend\port\win32');
 	$postgres->AddFile('src\backend\utils\fmgrtab.c');
 	$postgres->ReplaceFile(
@@ -108,6 +110,7 @@ sub mkvcbuild
 		'src\backend\port\win32_shmem.c');
 	$postgres->ReplaceFile('src\backend\port\pg_latch.c',
 		'src\backend\port\win32_latch.c');
+	$postgres->RemoveFile('src\backend\utils\resgroup\resgroup-ops-linux.c');
 	$postgres->AddFiles('src\port',   @pgportfiles);
 	$postgres->AddFiles('src\common', @pgcommonbkndfiles);
 	$postgres->AddDir('src\timezone');
@@ -118,6 +121,7 @@ sub mkvcbuild
 	$postgres->AddFiles('src\backend\replication', 'repl_scanner.l',
 		'repl_gram.y');
 	$postgres->AddDefine('BUILDING_DLL');
+	$postgres->AddDefine('_USE_MATH_DEFINES');		# for M_PI in complex_type.c
 	$postgres->AddLibrary('wsock32.lib');
 	$postgres->AddLibrary('ws2_32.lib');
 	$postgres->AddLibrary('secur32.lib');

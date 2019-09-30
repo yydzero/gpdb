@@ -2747,7 +2747,6 @@ CleanupTempFiles(bool isProcExit)
 		FreeDesc(&allocatedDescs[0]);
 }
 
-
 /*
  * Remove temporary and temporary relation files left over from a prior
  * postmaster session
@@ -2765,7 +2764,7 @@ CleanupTempFiles(bool isProcExit)
 void
 RemovePgTempFiles(void)
 {
-	char		temp_path[MAXPGPATH + 11 + get_dbid_string_length() + 1 + sizeof(GP_TABLESPACE_VERSION_DIRECTORY) + sizeof(PG_TEMP_FILES_DIR)];
+	char		temp_path[MAXPGPATH + 11 + MAX_DBID_LEN + 1 + sizeof(GP_TABLESPACE_VERSION_DIRECTORY) + sizeof(PG_TEMP_FILES_DIR)];
 	DIR		   *spc_dir;
 	struct dirent *spc_de;
 

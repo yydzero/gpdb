@@ -39,6 +39,12 @@
 #include "utils/session_state.h"
 #include "utils/gp_alloc.h"
 
+#ifdef WIN32
+#include "pthread-win32.h"
+#else
+#include <pthread.h>
+#endif
+
 #define SHMEM_OOM_TIME "last vmem oom time"
 #define MAX_REQUESTABLE_SIZE 0x7fffffff
 
@@ -67,10 +73,10 @@ volatile OOMTimeType oomTrackerStartTime = 0;
  * This should be the main thread. No other thread is allowed to call gp_malloc
  * or any memory protection related functions.
  */
-#ifndef _WIN32
+#ifndef WIN32
 static pthread_t memprotOwnerThread = (pthread_t)0;
 #else
-static pthread_t memprotOwnerThread = {0,0};
+static pthread_once_t memprotOwnerThread = (ULONG)0;
 #endif
 /* Is memory protection enabled? */
 bool gp_mp_inited = false;

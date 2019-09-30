@@ -17,7 +17,7 @@
 #include "postgres.h"
 
 #include <sys/stat.h>
-#include <sys/unistd.h>
+#include <unistd.h>
 
 #include "access/reloptions.h"
 #include "access/transam.h"
@@ -49,6 +49,9 @@
 #include "utils/resource_manager.h"
 #include "utils/vmem_tracker.h"
 #include "utils/gdd.h"
+
+/* TODO: change to a better way */
+#define GP_VERSION_NUM 60000
 
 /*
  * These constants are copied from guc.c. They should not bitrot when we
@@ -307,7 +310,11 @@ bool		optimizer_print_optimization_stats;
 bool		optimizer_print_xform_results;
 
 /* array of xforms disable flags */
+#ifndef WIN32
 bool		optimizer_xforms[OPTIMIZER_XFORMS_COUNT] = {[0 ... OPTIMIZER_XFORMS_COUNT - 1] = false};
+#else
+bool		optimizer_xforms[OPTIMIZER_XFORMS_COUNT] = { false };
+#endif
 char	   *optimizer_search_strategy_path = NULL;
 
 /* GUCs to tell Optimizer to enable a physical operator */

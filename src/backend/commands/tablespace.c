@@ -981,7 +981,7 @@ destroy_tablespace_directories(Oid tablespaceoid, bool redo)
 {
 	char	   *linkloc;
 	char	   *linkloc_with_version_dir;
-	char	    link_target_dir[MAXPGPATH + 1 + get_dbid_string_length()];
+	char	    link_target_dir[MAXPGPATH + 1 + MAX_DBID_LEN];
 	int		    rllen;
 	DIR		   *dirdesc;
 	struct dirent *de;

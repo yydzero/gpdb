@@ -58,7 +58,7 @@ int Bitstream_GetOffset(Bitstream *bitstream);
 
 bool Bitstream_Get(Bitstream *bitstream, int n, uint32 *value);
 
-bool Bitstream_Put(Bitstream *bitstream, uint32_t v, int bitCount);
+bool Bitstream_Put(Bitstream *bitstream, uint32 v, int bitCount);
 
 bool Bitstream_HasError(Bitstream *bitstream);
 
