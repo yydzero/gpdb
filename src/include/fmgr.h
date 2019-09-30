@@ -426,6 +426,9 @@ typedef enum {
 /* The header version to force recompilation of third party libraries */
 #define GP_HEADER_VERSION_NUM 1
 
+// TODO: how to define GP_VERSION_NUM?
+#define GP_VERSION_NUM 60000
+
 /* The actual data block contents */
 #define PG_MODULE_MAGIC_DATA \
 { \

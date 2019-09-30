@@ -23,6 +23,23 @@
 #define NAMEDATALEN 64
 
 /*
+ * Maximum length for dbid.
+ */
+#define MAX_DBID_LEN 10
+
+/*
+ * <sys/param.h> has no MAXHOSTNAMELEN on Windows
+ * <socket.h> has no SHUT_RD etc.
+ */
+#ifdef WIN32
+#define MAXHOSTNAMELEN	256
+
+#define SHUT_RD		0
+#define SHUT_WR		1
+#define	SHUT_RDWR	2
+#endif
+
+/*
  * Maximum number of arguments to a function.
  *
  * The minimum value is 8 (GIN indexes use 8-argument support functions).

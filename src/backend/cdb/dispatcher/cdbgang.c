@@ -29,7 +29,6 @@
 #include "tcop/pquery.h"
 
 #include "libpq-fe.h"
-#include "libpq-int.h"
 #include "cdb/cdbconn.h"		/* SegmentDatabaseDescriptor */
 #include "cdb/cdbfts.h"
 #include "cdb/cdbdisp.h"		/* me */

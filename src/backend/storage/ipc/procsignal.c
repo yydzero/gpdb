@@ -266,9 +266,13 @@ CheckProcSignal(ProcSignalReason reason)
 bool
 AmIInSIGUSR1Handler(void)
 {
+#ifndef WIN32
 	sigset_t oldset;
 	sigprocmask(SIG_BLOCK, NULL, &oldset);
 	return sigismember(&oldset, SIGUSR1);
+#else
+	return false;		// TODO: always return false on Windows
+#endif
 }
 
 /*

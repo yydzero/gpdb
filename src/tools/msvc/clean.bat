@@ -32,6 +32,7 @@ if exist src\include\utils\probes.h del /q src\include\utils\probes.h
 
 if %DIST%==1 if exist src\backend\utils\fmgroids.h del /q src\backend\utils\fmgroids.h
 if %DIST%==1 if exist src\backend\utils\fmgrtab.c del /q src\backend\utils\fmgrtab.c
+if %DIST%==1 if exist src\backend\catalog\pg_proc_combined.h del /q src\backend\catalog\pg_proc_combined.h
 if %DIST%==1 if exist src\backend\catalog\postgres.bki del /q src\backend\catalog\postgres.bki
 if %DIST%==1 if exist src\backend\catalog\postgres.description del /q src\backend\catalog\postgres.description
 if %DIST%==1 if exist src\backend\catalog\postgres.shdescription del /q src\backend\catalog\postgres.shdescription

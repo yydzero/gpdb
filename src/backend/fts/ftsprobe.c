@@ -214,15 +214,21 @@ checkIfFailedDueToRecoveryInProgress(fts_segment_info *ftsInfo)
 		{
 #ifdef USE_ASSERT_CHECKING
 			elog(ERROR,
-#else
-			elog(LOG,
-#endif
 				"invalid in-recovery message %s "
 				"(content=%d, dbid=%d) state=%d",
 				PQerrorMessage(ftsInfo->conn),
 				ftsInfo->primary_cdbinfo->config->segindex,
 				ftsInfo->primary_cdbinfo->config->dbid,
 				ftsInfo->state);
+#else
+			elog(LOG,
+				"invalid in-recovery message %s "
+				"(content=%d, dbid=%d) state=%d",
+				PQerrorMessage(ftsInfo->conn),
+				ftsInfo->primary_cdbinfo->config->segindex,
+				ftsInfo->primary_cdbinfo->config->dbid,
+				ftsInfo->state);
+#endif
 			return;
 		}
 		tmpptr = ((uint64) tmp_xlogid) << 32 | (uint64) tmp_xrecoff;

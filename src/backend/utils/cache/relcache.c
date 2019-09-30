@@ -1816,14 +1816,20 @@ RelationDecrementReferenceCount(Relation rel)
 		 */
 #ifdef USE_ASSERT_CHECKING
 		elog(PANIC,
+			"Relation decrement reference count found relation %u/%u/%u with bad count (reference count %d)",
+			rel->rd_node.spcNode,
+			rel->rd_node.dbNode,
+			rel->rd_node.relNode,
+			rel->rd_refcnt);
 #else
 		elog(ERROR,
+			"Relation decrement reference count found relation %u/%u/%u with bad count (reference count %d)",
+			rel->rd_node.spcNode,
+			rel->rd_node.dbNode,
+			rel->rd_node.relNode,
+			rel->rd_refcnt);
 #endif
-			 "Relation decrement reference count found relation %u/%u/%u with bad count (reference count %d)",
-			 rel->rd_node.spcNode,
-			 rel->rd_node.dbNode,
-			 rel->rd_node.relNode,
-			 rel->rd_refcnt);
+
 	}
 	
 	rel->rd_refcnt -= 1;
@@ -5490,7 +5496,7 @@ RelationCacheInitFileRemove(void)
 	const char *tblspcdir = "pg_tblspc";
 	DIR		   *dir;
 	struct dirent *de;
-	char		path[MAXPGPATH + 11 + get_dbid_string_length() + 1 + sizeof(GP_TABLESPACE_VERSION_DIRECTORY)];
+	char		path[MAXPGPATH + 11 + MAX_DBID_LEN + 1 + sizeof(GP_TABLESPACE_VERSION_DIRECTORY)];
 
 	snprintf(path, sizeof(path), "global/%s",
 			 RELCACHE_INIT_FILENAME);

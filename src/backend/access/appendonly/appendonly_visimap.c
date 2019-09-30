@@ -845,7 +845,7 @@ AppendOnlyVisimapDelete_Finish(
 
 		if (found)
 		{
-			deleteData->workFileOffset = INT64_MAX;
+			deleteData->workFileOffset = PG_INT64_MAX;
 			memset(&deleteData->tupleTid, 0, sizeof(ItemPointerData));
 		}
 	}

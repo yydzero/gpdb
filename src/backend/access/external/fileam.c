@@ -2206,8 +2206,8 @@ static void
 external_set_env_vars_ext(extvar_t *extvar, char *uri, bool csv, char *escape, char *quote, int eol_type, bool header,
 						  uint32 scancounter, List *params)
 {
-	time_t		now = time(0);
-	struct tm  *tm = localtime(&now);
+	pg_time_t		now = time(0);
+	struct pg_tm	*tm = pg_localtime(&now, log_timezone);
 	char	   *result = (char *) palloc(7);	/* sign, 5 digits, '\0' */
 
 	char	   *encoded_delim;

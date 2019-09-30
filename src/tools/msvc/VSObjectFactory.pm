@@ -155,7 +155,7 @@ sub DetermineVisualStudioVersion
 		while (<P>)
 		{
 			chomp;
-			if (/(\d+)\.(\d+)\.\d+(\.\d+)?$/)
+			if (/(\d+)\.(\d+)\.\d+(\.\d+)?.*$/)
 			{
 				return _GetVisualStudioVersion($1, $2);
 			}
