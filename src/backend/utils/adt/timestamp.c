@@ -2916,6 +2916,11 @@ bool
 interval_div_internal(Interval *interval1, Interval *interval2,
 					  float8 *quo, Interval *rem)
 {
+#ifdef WIN32
+	ereport(FATAL,
+		(errcode(ERRCODE_INVALID_DATETIME_FORMAT),
+			errmsg("interval_div_internal does not work on Windows")));
+#else
 	TimeOffset	span1 = interval_cmp_value(interval1);
 	TimeOffset	span2 = interval_cmp_value(interval2);
 	float8 q;
@@ -2936,6 +2941,7 @@ interval_div_internal(Interval *interval1, Interval *interval2,
 	}
 
 	return true;
+#endif
 }
 
 /*
