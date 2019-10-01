@@ -63,6 +63,10 @@
 #undef SECURITY_WIN32
 
 #ifndef ENABLE_GSS
+
+/* workaround to compile cdb internal code as both libpq client and server. */
+#ifndef GSS_BUFFER_DESC_DEFINED
+#define GSS_BUFFER_DESC_DEFINED
 /*
  * Define a fake structure compatible with GSSAPI on Unix.
  */
@@ -71,6 +75,8 @@ typedef struct
 	void	   *value;
 	int			length;
 } gss_buffer_desc;
+#endif	/* #define GSS_BUFFER_DESC_DEFINED */
+
 #endif
 #endif   /* ENABLE_SSPI */
 

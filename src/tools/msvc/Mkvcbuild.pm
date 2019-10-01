@@ -111,6 +111,7 @@ sub mkvcbuild
 	$postgres->ReplaceFile('src\backend\port\pg_latch.c',
 		'src\backend\port\win32_latch.c');
 	$postgres->RemoveFile('src\backend\utils\resgroup\resgroup-ops-linux.c');
+	$postgres->RemoveFile('src\backend\optimizer\plan\orca.c') if ! ($solution->{options}->{orca});
 	$postgres->AddFiles('src\port',   @pgportfiles);
 	$postgres->AddFiles('src\common', @pgcommonbkndfiles);
 	$postgres->AddDir('src\timezone');

@@ -54,7 +54,9 @@
 #undef SECURITY_WIN32
 
 #ifndef ENABLE_GSS
+
 #ifndef GSS_BUFFER_DESC_DEFINED
+#define GSS_BUFFER_DESC_DEFINED
 /*
  * Define a fake structure compatible with GSSAPI on Unix.
  */
@@ -63,8 +65,8 @@ typedef struct
 	void	   *value;
 	int			length;
 } gss_buffer_desc;
-#define GSS_BUFFER_DESC_DEFINED
-#endif
+#endif	/* GSS_BUFFER_DESC_DEFINED */
+
 #endif
 #endif   /* ENABLE_SSPI */
 
