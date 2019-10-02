@@ -24,7 +24,11 @@
 
 #include "postgres.h"
 
+#ifndef WIN32
 #include <pthread.h>
+#else
+#include "pthread-win32.h"
+#endif
 
 #include "access/transam.h"
 #include "access/xact.h"
@@ -392,7 +396,11 @@ typedef struct ICGlobalControlInfo ICGlobalControlInfo;
 struct ICGlobalControlInfo
 {
 	/* The background thread handle. */
+#ifndef WIN32
 	pthread_t	threadHandle;
+#else
+	DWORD		threadHandle;
+#endif
 
 	/* Flag showing whether the thread is created. */
 	bool		threadCreated;
@@ -1330,12 +1338,16 @@ error:
 static void
 initMutex(pthread_mutex_t *mutex)
 {
+#ifndef WIN32
 	pthread_mutexattr_t m_atts;
 
 	pthread_mutexattr_init(&m_atts);
 	pthread_mutexattr_settype(&m_atts, PTHREAD_MUTEX_ERRORCHECK);
 
 	pthread_mutex_init(mutex, &m_atts);
+#else
+	pthread_mutex_init(mutex, NULL);
+#endif
 }
 
 /*

@@ -21,6 +21,16 @@ pthread_self(void)
 	return GetCurrentThreadId();
 }
 
+int
+pthread_attr_init(pthread_attr_t* attr)
+{
+}
+
+int
+pthread_attr_destroy(pthread_attr_t* attr)
+{
+}
+
 void
 pthread_setspecific(pthread_key_t key, void *val)
 {

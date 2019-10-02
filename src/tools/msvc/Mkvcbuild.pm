@@ -110,6 +110,7 @@ sub mkvcbuild
 		'src\backend\port\win32_shmem.c');
 	$postgres->ReplaceFile('src\backend\port\pg_latch.c',
 		'src\backend\port\win32_latch.c');
+	$postgres->RemoveFile('src\backend\utils\mmgr\psprintf.c');
 	$postgres->RemoveFile('src\backend\utils\resgroup\resgroup-ops-linux.c');
 	$postgres->RemoveFile('src\backend\optimizer\plan\orca.c') if ! ($solution->{options}->{orca});
 	$postgres->AddFiles('src\port',   @pgportfiles);
