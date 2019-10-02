@@ -206,7 +206,7 @@ static bool DoingPqReading = false; /* in the middle of recv call of secure_read
 #ifndef WIN32
 pthread_t main_tid = (pthread_t)0;
 #else
-pthread_key_t main_tid = (ULONG)0;
+DWORD main_tid = 0;
 #endif
 
 /* if we're in the middle of dying, let our threads exit with some dignity */
