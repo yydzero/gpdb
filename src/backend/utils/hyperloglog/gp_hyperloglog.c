@@ -58,6 +58,10 @@
 #include <math.h>
 #include <string.h>
 
+#ifdef WIN32
+#include <intrin.h>
+#endif
+
 #include "postgres.h"
 #include "fmgr.h"
 #include "utils/pg_lzcompress.h"
@@ -485,7 +489,11 @@ gp_hll_add_hash_dense(GpHLLCounter hloglog, uint64_t hash)
     idx  = hash >> (HASH_LENGTH - hloglog->b);
 
     /* rho needs to be independent from 'idx' */
+#ifndef WIN32
     rho = __builtin_clzll(hash << hloglog->b) + 1;
+#else
+	rho = __lzcnt64(hash << hloglog->b) + 1;
+#endif
 
     /* We only have (64 - hloglog->b) bits leftover after the index bits
      * however the chance that we need more is 2^-(64 - hloglog->b) which
@@ -502,7 +510,11 @@ gp_hll_add_hash_dense(GpHLLCounter hloglog, uint64_t hash)
 	    while (addn == HASH_LENGTH && rho < POW2(hloglog->binbits)){
 		    hash = GpMurmurHash64A((const char * )&hash, HASH_LENGTH/8, HASH_SEED);
             /* zero length runs should be 1 so counter gets set */
+#ifndef WIN32
 		    addn = __builtin_clzll(hash) + 1;
+#else
+			addn = __lzcnt64(hash) + 1;
+#endif
 		    rho += addn;
 	    }
     }
