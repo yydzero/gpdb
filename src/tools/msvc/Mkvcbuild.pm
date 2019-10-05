@@ -157,7 +157,6 @@ sub mkvcbuild
 	my $plpgsql =
 	  $solution->AddProject('plpgsql', 'dll', 'PLs', 'src\pl\plpgsql\src');
 	$plpgsql->AddIncludeDir('src\port');		 # for pthread-win32.h
-	$plpgsql->AddIncludeDir('src\include');		 # for cdbvars.h used Gp_role
 	$plpgsql->AddFiles('src\pl\plpgsql\src', 'pl_gram.y');
 	$plpgsql->AddReference($postgres);
 	$plpgsql->AddLibrary('ws2_32.lib');
