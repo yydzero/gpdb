@@ -154,7 +154,11 @@ static char PqRecvBuffer[PQ_RECV_BUFFER_SIZE];
 static int	PqRecvPointer;		/* Next index to read a byte from PqRecvBuffer */
 static int	PqRecvLength;		/* End of data available in PqRecvBuffer */
 
+#ifdef WIN32
 static pthread_mutex_t send_mutex = NULL;
+#else
+static pthread_mutex_t send_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
 
 /*
  * Message status
@@ -1386,12 +1390,10 @@ pq_send_mutex_lock()
 	int count = PQ_BUSY_TEST_COUNT_IN_EXITING;
 	int mutex_res;
 
-	/* initialized send_mutex according to platform. */
+#ifdef WIN32
+	/* special initialization for win32. */
 	if (send_mutex == NULL)
 	{
-#ifndef WIN32
-		send_mutex = PTHREAD_MUTEX_INITIALIZER;
-#else
 		static long mutex_initlock = 0;
 		while (InterlockedExchange(&mutex_initlock, 1) == 1)
 			/* loop, another thread own the lock */;
@@ -1401,8 +1403,8 @@ pq_send_mutex_lock()
 				PGTHREAD_ERROR("failed to initialize send_mutex");
 		}
 		InterlockedExchange(&mutex_initlock, 0);
-#endif
 	}
+#endif
 
 	do
 	{
