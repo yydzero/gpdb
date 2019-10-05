@@ -91,6 +91,7 @@
 
 #include "libpq/ip.h"
 #include "libpq/libpq.h"
+#include "libpq-int.h"
 #include "miscadmin.h"
 #include "storage/ipc.h"
 #include "utils/guc.h"
