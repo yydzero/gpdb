@@ -765,6 +765,9 @@ do_compile(FunctionCallInfo fcinfo,
 	 * in PL/pgSQL, but it can be useful for catching escaping bugs, when
 	 * internal queries are dispatched from QD to QEs.
 	 */
+#ifdef WIN32
+	bool escape_string_warning = false;		// make it works on win32 though it is hack.
+#endif
 	bool            save_escape_string_warning = escape_string_warning;
 	PG_TRY();
 	{
