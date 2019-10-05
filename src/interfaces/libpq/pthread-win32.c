@@ -27,6 +27,11 @@ pthread_attr_init(pthread_attr_t* attr)
 }
 
 int
+pthread_attr_setstacksize(pthread_attr_t* attr, size_t stacksize)
+{
+}
+
+int
 pthread_attr_destroy(pthread_attr_t* attr)
 {
 }
@@ -68,4 +73,75 @@ pthread_mutex_unlock(pthread_mutex_t *mp)
 		return 1;
 	LeaveCriticalSection(*mp);
 	return 0;
+}
+
+/* partial pthread implementation for Windows */
+
+static unsigned __stdcall
+win32_pthread_run(void* arg)
+{
+	win32_pthread* th = (win32_pthread*)arg;
+
+	th->result = th->routine(th->arg);
+
+	return 0;
+}
+
+int
+pthread_create(pthread_t* thread,
+	pthread_attr_t* attr,
+	void* (*start_routine) (void*),
+	void* arg)
+{
+	int			save_errno;
+	win32_pthread* th;
+
+	th = (win32_pthread*)malloc(sizeof(win32_pthread));
+	if (th == NULL)
+	{
+		fprintf(stderr, "could not allocate memory for thread struct");
+		exit(1);
+	}
+	th->routine = start_routine;
+	th->arg = arg;
+	th->result = NULL;
+
+	// CreateThread()
+
+	th->handle = (HANDLE)_beginthreadex(NULL, 0, win32_pthread_run, th, 0, NULL);
+	if (th->handle == NULL)
+	{
+		save_errno = errno;
+		free(th);
+		return save_errno;
+	}
+
+	*thread = th;
+	return 0;
+}
+
+int
+pthread_join(pthread_t th, void** thread_return)
+{
+	if (th == NULL || th->handle == NULL)
+		return errno = EINVAL;
+
+	if (WaitForSingleObject(th->handle, INFINITE) != WAIT_OBJECT_0)
+	{
+		_dosmaperr(GetLastError());
+		return errno;
+	}
+
+	if (thread_return)
+		*thread_return = th->result;
+
+	CloseHandle(th->handle);
+	free(th);
+	return 0;
+}
+
+int
+pthread_equal(pthread_t t1, pthread_t t2)
+{
+	return (t1 == t2 || t1->handle == t2->handle);
 }
