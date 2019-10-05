@@ -54,7 +54,7 @@
 #include "catalog/pg_control.h"
 #include "common/fe_memutils.h"
 #include "storage/large_object.h"
-#include "pg_getopt.h"
+#include "getopt_long.h"
 
 
 static ControlFileData ControlFile;		/* pg_control values */
@@ -1430,7 +1430,7 @@ static void
 get_restricted_token(const char *progname)
 {
 #ifdef WIN32
-
+	char* restrict_env;
 	/*
 	* Before we execute another program, make sure that we are running with a
 	* restricted token. If not, re-execute ourselves with one.
