@@ -121,6 +121,8 @@
 #define	SLASH		'/'
 #define	COMMA		','
 
+#undef DEBUG
+
 #ifndef DEBUG
 
 #define	M_QUOTE		0x8000
