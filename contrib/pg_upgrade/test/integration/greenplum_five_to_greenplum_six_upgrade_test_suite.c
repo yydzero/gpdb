@@ -5,6 +5,7 @@
 #include "cmockery.h"
 
 #include "scenarios/heap_table.h"
+#include "scenarios/subpartitioned_heap_table.h"
 #include "scenarios/ao_table.h"
 #include "scenarios/aocs_table.h"
 
@@ -12,12 +13,16 @@
 #include "utilities/gpdb6-cluster.h"
 
 #include "utilities/test-helpers.h"
+#include "utilities/row-assertions.h"
 
 static void
 setup(void **state)
 {
 	resetGpdbFiveDataDirectories();
 	resetGpdbSixDataDirectories();
+
+	matcher = NULL;
+	match_failed = NULL;
 }
 
 static void
@@ -36,6 +41,7 @@ main(int argc, char *argv[])
 		unit_test_setup_teardown(test_an_ao_table_with_data_can_be_upgraded, setup, teardown),
 		unit_test_setup_teardown(test_an_aocs_table_with_data_can_be_upgraded, setup, teardown),
 		unit_test_setup_teardown(test_a_heap_table_with_data_can_be_upgraded, setup, teardown),
+		unit_test_setup_teardown(test_a_subpartitioned_heap_table_with_data_can_be_upgraded, setup, teardown),
 	};
 
 	return run_tests(tests);
