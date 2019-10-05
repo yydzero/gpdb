@@ -5429,6 +5429,8 @@ uint32 gp_backtrace(void **stackAddresses, uint32 maxStackDepth)
 
 	return depth;
 
+#elif WIN32
+	elog(ERROR, "backtrace is not supported on Win32");
 #else
 	return backtrace(stackAddresses, maxStackDepth);
 #endif

@@ -18,6 +18,7 @@
 #include "postgres.h"
 
 #include "libpq/libpq-be.h"
+#include "libpq-int.h"
 #include "cdb/cdbvars.h"
 #include "miscadmin.h"
 #include "pgtime.h"
