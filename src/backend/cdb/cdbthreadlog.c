@@ -43,7 +43,12 @@
  *
  * Ugly:  This write in a fixed format, and ignore what the log_prefix guc says.
  */
+
+#ifdef WIN32
 static pthread_mutex_t send_mutex = NULL;
+#else
+static pthread_mutex_t send_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
 
 #ifdef WIN32
 static void 
@@ -189,12 +194,10 @@ write_log(const char *fmt,...)
 	if (fmt[strlen(fmt) - 1] != '\n')
 		strcat(logprefix, "\n");
 
-	/* initialized send_mutex according to platform. */
+#ifdef WIN32
+	/* special initialization for win32. */
 	if (send_mutex == NULL)
 	{
-#ifndef WIN32
-		send_mutex = PTHREAD_MUTEX_INITIALIZER;
-#else
 		static long mutex_initlock = 0;
 		while (InterlockedExchange(&mutex_initlock, 1) == 1)
 			/* loop, another thread own the lock */;
@@ -204,8 +207,8 @@ write_log(const char *fmt,...)
 				PGTHREAD_ERROR("failed to initialize send_mutex");
 		}
 		InterlockedExchange(&mutex_initlock, 0);
-#endif
 	}
+#endif
 
 	/*
 	 * We don't trust that vfprintf won't get confused if it is being run by
