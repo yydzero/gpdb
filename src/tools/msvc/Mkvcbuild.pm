@@ -150,13 +150,17 @@ sub mkvcbuild
 		sub {
 			return shift !~ /dict_snowball.c$/;
 		});
+	$snowball->AddIncludeDir('src\port');					# for pthread-win32.h
 	$snowball->AddIncludeDir('src\include\snowball');
 	$snowball->AddReference($postgres);
 
 	my $plpgsql =
 	  $solution->AddProject('plpgsql', 'dll', 'PLs', 'src\pl\plpgsql\src');
+	$plpgsql->AddIncludeDir('src\port');		 # for pthread-win32.h
+	$plpgsql->AddIncludeDir('src\include');		 # for cdbvars.h used Gp_role
 	$plpgsql->AddFiles('src\pl\plpgsql\src', 'pl_gram.y');
 	$plpgsql->AddReference($postgres);
+	$plpgsql->AddLibrary('ws2_32.lib');
 
 	if ($solution->{options}->{perl})
 	{
@@ -453,6 +457,7 @@ sub mkvcbuild
 	my $libpqwalreceiver =
 	  $solution->AddProject('libpqwalreceiver', 'dll', '',
 		'src\backend\replication\libpqwalreceiver');
+	$libpqwalreceiver->AddIncludeDir('src\port');					# for pthread-win32.h
 	$libpqwalreceiver->AddIncludeDir('src\interfaces\libpq');
 	$libpqwalreceiver->AddReference($postgres, $libpq);
 
@@ -614,6 +619,7 @@ sub mkvcbuild
 	if (!$buildclient)
 	{
 	my $zic = $solution->AddProject('zic', 'exe', 'utils');
+	$zic->AddIncludeDir('src\port');		# for pthread-win32.h
 	$zic->AddFiles('src\timezone', 'zic.c');
 	$zic->AddReference($libpgcommon, $libpgport);
 
@@ -652,6 +658,7 @@ sub mkvcbuild
 
 	# Pgcrypto makefile too complex to parse....
 	my $pgcrypto = $solution->AddProject('pgcrypto', 'dll', 'crypto');
+	$pgcrypto->AddIncludeDir('src\port');             # for pthread-win32.h
 	$pgcrypto->AddFiles(
 		'contrib\pgcrypto', 'pgcrypto.c',
 		'px.c',             'px-hmac.c',
@@ -692,7 +699,7 @@ sub mkvcbuild
 		next if ($d =~ /^\./);
 		next unless (-f "contrib/$d/Makefile");
 		next if (grep { /^$d$/ } @contrib_excludes);
-		AddContrib($d);
+		AddContrib($d) unless $d =~ /pg_upgrade/ || $d =~ /auto_explain/;	# ignore pg_upgrade related modules
 	}
 	closedir($D);
 
@@ -706,6 +713,7 @@ sub mkvcbuild
 		my $mf = Project::read_file(
 			'src\backend\utils\mb\conversion_procs\\' . $sub . '\Makefile');
 		my $p = $solution->AddProject($sub, 'dll', 'conversion procs');
+		$p->AddIncludeDir('src\port');             # for pthread-win32.h
 		$p->AddFile('src\backend\utils\mb\conversion_procs\\'
 			  . $sub . '\\'
 			  . $sub
@@ -765,6 +773,8 @@ sub mkvcbuild
 	{
 	# Regression DLL and EXE
 	my $regress = $solution->AddProject('regress', 'dll', 'misc');
+	$regress->AddIncludeDir('src\port');		 # for pthread-win32.h
+	$regress->AddLibrary('ws2_32.lib');
 	$regress->AddFile('src\test\regress\regress.c');
 	$regress->AddReference($postgres);
 
@@ -809,6 +819,7 @@ sub AddSimpleFrontend
 	my $uselibpq = shift;
 
 	my $p = $solution->AddProject($n, 'exe', 'bin');
+	$p->AddIncludeDir('src\port');             # for pthread-win32.h
 	$p->AddDir('src\bin\\' . $n);
 	$p->AddReference($libpgcommon, $libpgport);
 	if ($uselibpq)
@@ -830,6 +841,8 @@ sub AddContrib
 		my $dn = $1;
 		$mf =~ s{\\\s*[\r\n]+}{}mg;
 		my $proj = $solution->AddProject($dn, 'dll', 'contrib');
+		$proj->AddIncludeDir('src\port');             # for pthread-win32.h
+		$proj->AddLibrary('ws2_32.lib');
 		$mf =~ /^OBJS\s*=\s*(.*)$/gm
 		  || croak "Could not find objects in MODULE_big for $n\n";
 		my $objs = $1;
@@ -866,6 +879,8 @@ sub AddContrib
 		foreach my $mod (split /\s+/, $1)
 		{
 			my $proj = $solution->AddProject($mod, 'dll', 'contrib');
+			$proj->AddIncludeDir('src\port');             # for pthread-win32.h
+			$proj->AddLibrary('ws2_32.lib');
 			$proj->AddFile('contrib\\' . $n . '\\' . $mod . '.c');
 			$proj->AddReference($postgres);
 			AdjustContribProj($proj);
@@ -874,6 +889,8 @@ sub AddContrib
 	elsif ($mf =~ /^PROGRAM\s*=\s*(.*)$/mg)
 	{
 		my $proj = $solution->AddProject($1, 'exe', 'contrib');
+		$proj->AddIncludeDir('src\port');             # for pthread-win32.h
+		$proj->AddLibrary('ws2_32.lib');
 		$mf =~ s{\\\s*[\r\n]+}{}mg;
 		$mf =~ /^OBJS\s*=\s*(.*)$/gm
 		  || croak "Could not find objects in PROGRAM for $n\n";
