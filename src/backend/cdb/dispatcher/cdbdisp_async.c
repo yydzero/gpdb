@@ -23,6 +23,10 @@
 #ifdef HAVE_SYS_POLL_H
 #include <sys/poll.h>
 #endif
+#ifdef WIN32
+#include <winsock2.h>
+#define poll WSAPoll
+#endif
 
 #include "storage/ipc.h"		/* For proc_exit_inprogress  */
 #include "tcop/tcopprot.h"
