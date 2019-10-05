@@ -50,7 +50,11 @@ static void check_ext_options(const FunctionCallInfo fcinfo)
                 Value *value = (Value *) lfirst(cell);
                 char *key = value->val.str;
 
+#ifndef WIN32
                 if (key && strcasestr(key, "database") && !strcasestr(key, "greenplum")) {
+#else
+				if (key && strstr(tolower(key), "database") && !strstr(tolower(key), "greenplum")) {
+#endif
                         ereport(ERROR, (0, errmsg("This is greenplum.")));
                 }
         }
@@ -101,7 +105,7 @@ demoprot_import(PG_FUNCTION_ARGS)
 		parsed_url 		 = ParseDemoUri(myData->url);
 		myData->filename = pstrdup(parsed_url->path);
 	
-		if(strcasecmp(parsed_url->protocol, p_name) != 0)
+		if(pg_strcasecmp(parsed_url->protocol, p_name) != 0)
 			elog(ERROR, "internal error: demoprot called with a different protocol (%s)",
 						parsed_url->protocol);
 
@@ -188,7 +192,7 @@ demoprot_export(PG_FUNCTION_ARGS)
 		parsed_url 		 = ParseDemoUri(myData->url);
 		myData->filename = pstrdup(parsed_url->path);
 	
-		if(strcasecmp(parsed_url->protocol, p_name) != 0)
+		if(pg_strcasecmp(parsed_url->protocol, p_name) != 0)
 			elog(ERROR, "internal error: demoprot called with a different protocol (%s)",
 						parsed_url->protocol);
 
