@@ -78,6 +78,10 @@
 #ifdef HAVE_SYS_POLL_H
 #include <sys/poll.h>
 #endif
+#ifdef WIN32
+#include <winsock2.h>
+#define poll WSAPoll
+#endif
 
 static void cdbCopyEndInternal(CdbCopy *c, char *abort_msg,
 				   int64 *total_rows_completed_p,
