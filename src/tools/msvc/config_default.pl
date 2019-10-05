@@ -11,7 +11,7 @@ our $config = {
 	  # wal_blocksize => 8,     # --with-wal-blocksize, 8kB by default
 	  # wal_segsize => 16,      # --with-wal-segsize, 16MB by default
 	ldap    => 1,        # --with-ldap
-	orca	=> 0,		 # --disable-orca
+	orca	  => 0,		 # --disable-orca
 	nls     => undef,    # --enable-nls=<path>
 	tap_tests => undef,  # --enable-tap-tests
 	tcl     => undef,    # --with-tcl=<path>
