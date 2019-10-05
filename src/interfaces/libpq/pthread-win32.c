@@ -67,6 +67,15 @@ pthread_mutex_lock(pthread_mutex_t *mp)
 }
 
 int
+pthread_mutex_trylock(pthread_mutex_t* mp)
+{
+	if (!*mp)
+		return 1;
+	TryEnterCriticalSection(*mp);
+	return 0;
+}
+
+int
 pthread_mutex_unlock(pthread_mutex_t *mp)
 {
 	if (!*mp)
@@ -144,4 +153,16 @@ int
 pthread_equal(pthread_t t1, pthread_t t2)
 {
 	return (t1 == t2 || t1->handle == t2->handle);
+}
+
+int
+pthread_kill(pthread_t thread, int sig)
+{
+	return 0;
+}
+
+void
+pthread_exit(void* value_ptr)
+{
+	_endthread();
 }
