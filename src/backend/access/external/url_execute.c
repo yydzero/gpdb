@@ -648,6 +648,7 @@ popen_with_stderr(int *pipes, const char *exe, bool forwrite)
 	const int READ = 0;
 	const int WRITE = 1;
 
+#ifndef WIN32
 	if (pipe(data) < 0)
 		return -1;
 
@@ -657,7 +658,6 @@ popen_with_stderr(int *pipes, const char *exe, bool forwrite)
 		close(data[WRITE]);
 		return -1;
 	}
-#ifndef WIN32
 
 	pid = fork();
 
@@ -761,6 +761,8 @@ popen_with_stderr(int *pipes, const char *exe, bool forwrite)
 
 		return -1;
 	}
+#else
+	elog(ERROR, "popen_with_stderr does not work on win32.");
 #endif
 
 	return pid;
