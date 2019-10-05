@@ -7,7 +7,7 @@
 #define PTHREAD_STACK_MIN 8192
 
  /* Use native win32 threads on Windows */
-typedef struct win32_pthread* pthread_t;
+typedef struct win32_pthread pthread_t;
 typedef int pthread_attr_t;
 
 typedef struct win32_pthread
@@ -18,6 +18,8 @@ typedef struct win32_pthread
 	void* result;
 } win32_pthread;
 
+
+pthread_t pthread_self(void);
 int	pthread_create(pthread_t* thread, pthread_attr_t* attr, void* (*start_routine) (void*), void* arg);
 int	pthread_join(pthread_t th, void** thread_return);
 int pthread_equal(pthread_t t1, pthread_t t2);
@@ -32,8 +34,6 @@ typedef int pthread_once_t;
 
 /* Maybe better to put signal related code to separated file. */
 typedef int sigset_t;
-
-DWORD		pthread_self(void);
 
 int			pthread_attr_init(pthread_attr_t* attr);
 int			pthread_attr_setstacksize(pthread_attr_t* attr, size_t stacksize);

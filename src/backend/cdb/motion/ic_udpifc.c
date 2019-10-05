@@ -396,11 +396,7 @@ typedef struct ICGlobalControlInfo ICGlobalControlInfo;
 struct ICGlobalControlInfo
 {
 	/* The background thread handle. */
-#ifndef WIN32
 	pthread_t	threadHandle;
-#else
-	DWORD		threadHandle;
-#endif
 
 	/* Flag showing whether the thread is created. */
 	bool		threadCreated;

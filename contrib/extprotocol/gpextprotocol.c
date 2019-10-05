@@ -53,7 +53,7 @@ static void check_ext_options(const FunctionCallInfo fcinfo)
 #ifndef WIN32
                 if (key && strcasestr(key, "database") && !strcasestr(key, "greenplum")) {
 #else
-				if (key && strstr(tolower(key), "database") && !strstr(tolower(key), "greenplum")) {
+				if (key != NULL && strstr(key, "database") != NULL && strstr(key, "greenplum") == NULL) {
 #endif
                         ereport(ERROR, (0, errmsg("This is greenplum.")));
                 }

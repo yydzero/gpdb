@@ -92,18 +92,18 @@
  */
 #ifdef WIN32
 #include "pthread-win32.h"
-extern DWORD main_tid;
 #else
 #include <pthread.h>
-extern pthread_t main_tid;
 #endif
+
+extern pthread_t main_tid;
 
 #ifndef WIN32
 #define mythread() ((unsigned long) pthread_self())
 #define mainthread() ((unsigned long) main_tid)
 #else
-#define mythread() ((unsigned long) pthread_self())
-#define mainthread() ((unsigned long) main_tid)
+#define mythread() ((unsigned long) pthread_self().handle)
+#define mainthread() ((unsigned long) main_tid.handle)
 #endif 
 
 /*

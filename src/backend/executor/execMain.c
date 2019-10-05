@@ -826,7 +826,7 @@ standard_ExecutorStart(QueryDesc *queryDesc, int eflags)
  */
 void
 ExecutorRun(QueryDesc *queryDesc,
-			ScanDirection direction, long count)
+			ScanDirection direction, uint64 count)
 {
 	if (ExecutorRun_hook)
 		(*ExecutorRun_hook) (queryDesc, direction, count);
@@ -836,7 +836,7 @@ ExecutorRun(QueryDesc *queryDesc,
 
 void
 standard_ExecutorRun(QueryDesc *queryDesc,
-					 ScanDirection direction, long count)
+					 ScanDirection direction, uint64 count)
 {
 	EState	   *estate;
 	CmdType		operation;

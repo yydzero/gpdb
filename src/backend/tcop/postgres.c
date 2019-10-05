@@ -206,7 +206,7 @@ static bool DoingPqReading = false; /* in the middle of recv call of secure_read
 #ifndef WIN32
 pthread_t main_tid = (pthread_t)0;
 #else
-DWORD main_tid = 0;
+pthread_t main_tid = { 0 };
 #endif
 
 /* if we're in the middle of dying, let our threads exit with some dignity */
@@ -3487,7 +3487,7 @@ CdbProgramErrorHandler(SIGNAL_ARGS)
 					 MyProcPid, postgres_signal_arg, (unsigned long)pthread_self());
 #else
 		write_stderr("\nUnexpected internal error: Master %d received signal %d in worker thread %lu (forwarding signal to main thread)\n\n",
-					 MyProcPid, postgres_signal_arg, (unsigned long)pthread_self());
+					 MyProcPid, postgres_signal_arg, (unsigned long)pthread_self().handle);
 #endif
 		/* Only forward if the main thread isn't quick-dying. */
 		if (!in_quickdie)

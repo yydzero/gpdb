@@ -33,7 +33,7 @@
 #ifndef _WIN32
 #define mythread() ((unsigned long) pthread_self())
 #else
-#define mythread() ((unsigned long) pthread_self())
+#define mythread() ((unsigned long) pthread_self().handle)
 #endif
 
 /*
