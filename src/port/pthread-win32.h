@@ -21,6 +21,8 @@ typedef struct win32_pthread
 int	pthread_create(pthread_t* thread, pthread_attr_t* attr, void* (*start_routine) (void*), void* arg);
 int	pthread_join(pthread_t th, void** thread_return);
 int pthread_equal(pthread_t t1, pthread_t t2);
+int pthread_kill(pthread_t thread, int sig);
+void pthread_exit(void* value_ptr);
 
 /* mutext related */
 
@@ -42,6 +44,7 @@ void	   *pthread_getspecific(pthread_key_t);
 
 int			pthread_mutex_init(pthread_mutex_t *, void *attr);
 int			pthread_mutex_lock(pthread_mutex_t *);
+int			pthread_mutex_trylock(pthread_mutex_t *);
 
 /* blocking */
 int			pthread_mutex_unlock(pthread_mutex_t *);

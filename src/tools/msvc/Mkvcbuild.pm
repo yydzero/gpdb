@@ -73,10 +73,21 @@ sub mkvcbuild
 	  erand48.c snprintf.c strlcat.c strlcpy.c dirmod.c noblock.c path.c
 	  pgcheckdir.c pg_crc.c pgmkdirp.c pgsleep.c pgstrcasecmp.c pqsignal.c
 	  mkdtemp.c qsort.c qsort_arg.c quotes.c system.c
-	  sprompt.c tar.c thread.c getopt.c getopt_long.c dirent.c
+	  sprompt.c tar.c thread.c getopt.c getopt_long.c dirent.c glob.c
 	  win32env.c win32error.c win32setlocale.c);
 
 	push(@pgportfiles, 'rint.c') if ($vsVersion < '12.00');
+
+	if ($vsVersion >= '9.00')
+	{
+		push(@pgportfiles, 'pg_crc32c_choose.c');
+		push(@pgportfiles, 'pg_crc32c_sse42.c');
+		push(@pgportfiles, 'pg_crc32c_sb8.c');
+	}
+	else
+	{
+		push(@pgportfiles, 'pg_crc32c_sb8.c');
+	}
 
 	our @pgcommonallfiles = qw(
 	  exec.c pgfnames.c psprintf.c relpath.c rmtree.c string.c username.c wait_error.c);
@@ -96,11 +107,12 @@ sub mkvcbuild
 	if (!$buildclient)
 	{
 	$postgres = $solution->AddProject('postgres', 'exe', '', 'src\backend');
-	$postgres->AddIncludeDir('src\port');		# for pthread-win32.h
+	$postgres->AddIncludeDir('src\port');					# for pthread-win32.h
+	$postgres->AddIncludeDir('src\interfaces\libpq');		# for libpq-fe.h, libpq-int.h
 	$postgres->AddIncludeDir('src\backend');
-	$postgres->AddIncludeDir('src\interfaces\libpq');
 	$postgres->AddDir('src\backend\port\win32');
 	$postgres->AddFile('src\backend\utils\fmgrtab.c');
+	$postgres->AddFiles('src\interfaces\libpq', 'pthread-win32.c', 'win32.c');	# for gpdb
 	$postgres->ReplaceFile(
 		'src\backend\port\dynloader.c',
 		'src\backend\port\dynloader\win32.c');
@@ -116,6 +128,7 @@ sub mkvcbuild
 	$postgres->AddFiles('src\port',   @pgportfiles);
 	$postgres->AddFiles('src\common', @pgcommonbkndfiles);
 	$postgres->AddDir('src\timezone');
+	$postgres->RemoveFile('src\timezone\win32ver.rc');				# To avoid duplicate resource error.
 	$postgres->AddFiles('src\backend\parser', 'scan.l', 'gram.y');
 	$postgres->AddFiles('src\backend\bootstrap', 'bootscanner.l',
 		'bootparse.y');
