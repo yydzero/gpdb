@@ -7321,7 +7321,7 @@ StartupXLOG(void)
 	 */
 	EndOfLogTLI = xlogreader->readPageTLI;
 
-	elog(LOG,"end of transaction log location is %X/%X",
+	elog(trace_recovery(DEBUG1),"end of transaction log location is %X/%X",
 		 (uint32) (EndOfLog >> 32), (uint32) EndOfLog);
 
 	/*
@@ -7674,7 +7674,7 @@ StartupXLOG(void)
 	LWLockAcquire(ProcArrayLock, LW_EXCLUSIVE);
 	ShmemVariableCache->latestCompletedXid = ShmemVariableCache->nextXid;
 	TransactionIdRetreat(ShmemVariableCache->latestCompletedXid);
-	elog(LOG, "latest completed transaction id is %u and next transaction id is %u",
+	elog(trace_recovery(DEBUG1), "latest completed transaction id is %u and next transaction id is %u",
 		ShmemVariableCache->latestCompletedXid,
 		ShmemVariableCache->nextXid);
 	LWLockRelease(ProcArrayLock);
@@ -7701,7 +7701,7 @@ StartupXLOG(void)
 	/* Reload shared-memory state for prepared transactions */
 	RecoverPreparedTransactions();
 
-	ereport(LOG, (errmsg("database system is ready")));
+	ereport(trace_recovery(DEBUG1), (errmsg("database system is ready")));
 
 	/*
 	 * Shutdown the recovery environment. This must occur after
